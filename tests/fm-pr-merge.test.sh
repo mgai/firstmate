@@ -347,6 +347,50 @@ make_gitlab_case() {
   printf '%s\n' "$case_dir"
 }
 
+GITEA_HOST=gitea.example
+GITEA_PATH=acme/widgets
+GITEA_URL="https://$GITEA_HOST/$GITEA_PATH/pulls/7"
+GITEA_HEAD=0123456789abcdef0123456789abcdef01234567
+
+make_gitea_case() {
+  local name=$1 case_dir
+  case_dir=$(make_case "$name")
+  mkdir -p "$case_dir/wt"
+  add_gh_mocks "$case_dir" cccccccccccccccccccccccccccccccccccccccc
+  cat > "$case_dir/fakebin/gitea-axi" <<'SH'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$FM_TEST_GITEA_LOG"
+case "${1:-} ${2:-}" in
+  "pr view")
+    if [ -e "$FM_TEST_GITEA_STAYS_OPEN" ]; then
+      cat "$FM_TEST_GITEA_VIEW_JSON"
+    elif [ -e "$FM_TEST_GITEA_MERGE_CALLED" ]; then
+      cat "$FM_TEST_GITEA_POST_JSON"
+    else
+      cat "$FM_TEST_GITEA_VIEW_JSON"
+    fi
+    ;;
+  "pr checks") cat "$FM_TEST_GITEA_CHECKS_JSON" ;;
+  "pr merge")
+    [ ! -e "$FM_TEST_GITEA_MERGE_FAILS" ] || exit 1
+    : > "$FM_TEST_GITEA_MERGE_CALLED"
+    cat "$FM_TEST_GITEA_MERGE_OUTPUT"
+    ;;
+esac
+SH
+  chmod +x "$case_dir/fakebin/gitea-axi"
+  printf '%s\n' '{"state":"open","merged":"no","mergeable":"yes","sha":"0123456789abcdef0123456789abcdef01234567"}' \
+    > "$case_dir/gitea-view.json"
+  printf '%s\n' '{"state":"closed","merged":"yes","mergeable":"no","sha":"0123456789abcdef0123456789abcdef01234567"}' \
+    > "$case_dir/gitea-post.json"
+  printf '%s\n' '{"sha":"0123456789abcdef0123456789abcdef01234567","summary":"none (0 pass / 0 fail / 0 pending)","checks":[]}' \
+    > "$case_dir/gitea-checks.json"
+  printf '%s\n' '{"merged":"pr","number":7,"method":"squash","head_sha":"0123456789abcdef0123456789abcdef01234567","confirmed":true}' \
+    > "$case_dir/gitea-merge-output.json"
+  : > "$case_dir/gitea.log"
+  printf '%s\n' "$case_dir"
+}
+
 # mirror_path_without <dir> <tool> [<bindir> ...]: the whole search path
 # re-exposed by symlink except one tool, because a real copy anywhere on PATH
 # would prove nothing. The named bindirs are mirrored ahead of the search path,
@@ -404,6 +448,14 @@ run_pr_merge() {
   FM_TEST_REAL_MV="$REAL_MV" \
   FM_TEST_GLAB_LOG="$case_dir/glab.log" \
   FM_TEST_GLAB_JSON="$case_dir/mr.json" \
+  FM_TEST_GITEA_LOG="$case_dir/gitea.log" \
+  FM_TEST_GITEA_VIEW_JSON="$case_dir/gitea-view.json" \
+  FM_TEST_GITEA_POST_JSON="$case_dir/gitea-post.json" \
+  FM_TEST_GITEA_CHECKS_JSON="$case_dir/gitea-checks.json" \
+  FM_TEST_GITEA_MERGE_OUTPUT="$case_dir/gitea-merge-output.json" \
+  FM_TEST_GITEA_MERGE_CALLED="$case_dir/gitea-merge-called" \
+  FM_TEST_GITEA_MERGE_FAILS="$case_dir/gitea-merge-fails" \
+  FM_TEST_GITEA_STAYS_OPEN="$case_dir/gitea-stays-open" \
   HOME="${FM_TEST_USER_HOME:-$case_dir/user-home}" \
   PATH="$case_dir/fakebin:$PATH" \
     "$PR_MERGE" "$@"
@@ -1830,6 +1882,68 @@ test_gitlab_head_override_args_refuse_before_recording() {
   pass "fm-pr-merge refuses a GitLab head override before recording state"
 }
 
+test_gitea_no_ci_merge_is_guarded_and_confirmed() {
+  local case_dir rc merge_line
+  case_dir=$(make_gitea_case gitea-no-ci)
+  set +e
+  GITEA_PAT=do-not-log run_pr_merge "$case_dir" task-x1 "$GITEA_URL" \
+    > "$case_dir/stdout" 2> "$case_dir/stderr"
+  rc=$?
+  set -e
+  expect_code 0 "$rc" "gitea-no-ci: a no-CI Gitea PR should merge after explicit no-checks verification"
+  assert_grep "pr=$GITEA_URL" "$case_dir/state/task-x1.meta" \
+    "gitea-no-ci: PR URL was not recorded"
+  assert_grep "pr_head=$GITEA_HEAD" "$case_dir/state/task-x1.meta" \
+    "gitea-no-ci: live Gitea head was not recorded"
+  grep -F 'pr merge 7 --repo acme/widgets --host https://gitea.example --head-sha 0123456789abcdef0123456789abcdef01234567 --method squash --json' \
+    "$case_dir/gitea.log" >/dev/null \
+    || fail "gitea-no-ci: merge was not bound to the verified head and URL-derived repository"
+  grep -F 'explicit no-checks status' "$case_dir/stderr" >/dev/null \
+    || fail "gitea-no-ci: no-CI status was not explicit in the pre-merge evidence"
+  merge_line=$(grep '^pr merge ' "$case_dir/gitea.log" || true)
+  [ -n "$merge_line" ] || fail "gitea-no-ci: gitea-axi merge was not called"
+  ! grep -R -F -- 'do-not-log' "$case_dir/state" \
+    || fail "gitea-no-ci: GITEA_PAT was persisted in task state"
+  [ ! -s "$case_dir/gh.log" ] || fail "gitea-no-ci: GitHub CLI was called for a Gitea URL"
+  [ ! -s "$case_dir/glab.log" ] || fail "gitea-no-ci: GitLab CLI was called for a Gitea URL"
+  pass "Gitea no-CI merges use explicit no-checks status, head binding, and post-merge confirmation"
+}
+
+test_gitea_failing_check_refuses_before_merge() {
+  local case_dir rc
+  case_dir=$(make_gitea_case gitea-failing-check)
+  printf '%s\n' '{"sha":"0123456789abcdef0123456789abcdef01234567","summary":"failing (0 pass / 1 fail / 0 pending)","checks":[{"context":"ci","state":"fail"}]}' \
+    > "$case_dir/gitea-checks.json"
+  set +e
+  run_pr_merge "$case_dir" task-x1 "$GITEA_URL" > "$case_dir/stdout" 2> "$case_dir/stderr"
+  rc=$?
+  set -e
+  expect_code 1 "$rc" "gitea-failing-check: a failing check should refuse the merge"
+  grep -F 'not passing' "$case_dir/stderr" >/dev/null \
+    || fail "gitea-failing-check: refusal did not name the failing check summary"
+  ! grep -q '^pr merge ' "$case_dir/gitea.log" \
+    || fail "gitea-failing-check: gitea-axi merge ran despite the failing check"
+  [ -e "$case_dir/state/task-x1.check.sh" ] || fail "gitea-failing-check: refusal did not leave the merge poll armed"
+  pass "Gitea failing checks refuse before mutation while keeping merge monitoring armed"
+}
+
+test_gitea_unconfirmed_merge_keeps_poll_armed() {
+  local case_dir rc
+  case_dir=$(make_gitea_case gitea-unconfirmed)
+  : > "$case_dir/gitea-stays-open"
+  set +e
+  run_pr_merge "$case_dir" task-x1 "$GITEA_URL" > "$case_dir/stdout" 2> "$case_dir/stderr"
+  rc=$?
+  set -e
+  expect_code 0 "$rc" "gitea-unconfirmed: accepted but unconfirmed merge should remain actionable"
+  grep -F 'read-back state is not merged' "$case_dir/stderr" >/dev/null \
+    || fail "gitea-unconfirmed: missing unconfirmed-result diagnostic"
+  [ -e "$case_dir/state/task-x1.check.sh" ] || fail "gitea-unconfirmed: merge poll was not kept armed"
+  [ ! -e "$case_dir/state/task-x1.pr-poll-merge-notified" ] \
+    || fail "gitea-unconfirmed: unconfirmed merge was reported as landed"
+  pass "Gitea unconfirmed merges remain actionable without a false landed outcome"
+}
+
 test_github_still_forwards_sha_arg() {
   local case_dir rc
   case_dir=$(make_case github-sha-arg)
@@ -3215,6 +3329,9 @@ test_allow_red_refused_on_gitlab() {
 }
 
 test_gitlab_head_override_args_refuse_before_recording
+test_gitea_no_ci_merge_is_guarded_and_confirmed
+test_gitea_failing_check_refuses_before_merge
+test_gitea_unconfirmed_merge_keeps_poll_armed
 test_secondmate_merge_reports_upward_once
 test_secondmate_merge_reports_on_the_local_route
 test_gitlab_merge_reports_upward

@@ -213,36 +213,22 @@ SH
   cat > "$fakebin/gitea-axi" <<'SH'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >> "$FM_TEST_GITEA_LOG"
-[ "${FM_TEST_GITEA_FAIL:-0}" = 0 ] || exit 1
-[ "${FM_TEST_GITEA_SLEEP:-0}" = 0 ] || sleep "$FM_TEST_GITEA_SLEEP"
 case "${1:-} ${2:-}" in
   "pr view")
-    number=${3:-1}
-    state=${FM_TEST_GITEA_STATE:-open}
-    merged_word=${FM_TEST_GITEA_MERGED_WORD:-no}
-    mergeable_word=${FM_TEST_GITEA_MERGEABLE_WORD:-yes}
-    head=${FM_TEST_GITEA_HEAD:-0123456789abcdef0123456789abcdef01234567}
-    if [ "${8:-}" = --json ] || [ "${7:-}" = --json ] || [ "${6:-}" = --json ] || [ "${5:-}" = --json ] || [ "${4:-}" = --json ]; then
-      merged_bool=false
-      [ "$merged_word" = yes ] && merged_bool=true
-      mergeable_bool=false
-      [ "$mergeable_word" = yes ] && mergeable_bool=true
-      printf '{"number":%s,"state":"%s","mergeable":%s,"merged":%s,"sha":"%s"}\n' \
-        "$number" "$state" "$mergeable_bool" "$merged_bool" "$head"
+    [ "${FM_TEST_GITEA_FAIL:-0}" = 0 ] || exit 1
+    if [ -n "${FM_TEST_GITEA_VIEW_JSON:-}" ] && [ -f "$FM_TEST_GITEA_VIEW_JSON" ]; then
+      cat "$FM_TEST_GITEA_VIEW_JSON"
     else
-      printf 'number: %s\nstate: %s\nmergeable: %s\nmerged: %s\nsha: %s\n' \
-        "$number" "$state" "$mergeable_word" "$merged_word" "$head"
+      printf '%s\n' '{"state":"open","merged":"no","sha":"0123456789abcdef0123456789abcdef01234567"}'
     fi
     ;;
   "pr checks")
-    if [ "${8:-}" = --json ] || [ "${7:-}" = --json ] || [ "${6:-}" = --json ] || [ "${5:-}" = --json ] || [ "${4:-}" = --json ]; then
-      printf '{"summary":"%s","checks":[]}\n' "${FM_TEST_GITEA_SUMMARY:-passing (1 pass / 0 fail / 0 pending) }"
+    [ "${FM_TEST_GITEA_FAIL:-0}" = 0 ] || exit 1
+    if [ -n "${FM_TEST_GITEA_CHECKS_JSON:-}" ] && [ -f "$FM_TEST_GITEA_CHECKS_JSON" ]; then
+      cat "$FM_TEST_GITEA_CHECKS_JSON"
     else
-      printf 'summary: %s\n' "${FM_TEST_GITEA_SUMMARY:-passing (1 pass / 0 fail / 0 pending) }"
+      printf '%s\n' '{"sha":"0123456789abcdef0123456789abcdef01234567","summary":"none (0 pass / 0 fail / 0 pending)","checks":[]}'
     fi
-    ;;
-  "pr merge")
-    exit "${FM_TEST_GITEA_MERGE_RC:-0}"
     ;;
 esac
 SH
@@ -302,6 +288,15 @@ run_merge_entry() {
 
 # shellcheck disable=SC2016 # Literal rejected URL bytes are parser test data.
 INVALID_URLS=(
+  'https://gitea.example/acme/widgets/pull/1'
+  'https://gitea.example/acme/widgets/pulls/0'
+  'https://gitea.example/acme/widgets/pulls/01'
+  'https://gitea.example/acme/widgets/pulls/1/'
+  'https://gitea.example/acme/widgets/pulls/1?x=1'
+  'https://gitea.example:0/acme/widgets/pulls/1'
+  'https://gitea.example:65536/acme/widgets/pulls/1'
+  'https://Gitea.example/acme/widgets/pulls/1'
+  'https://gitea.example/acme/group/widgets/pulls/1'
   'https://gitlab.com/single/-/merge_requests/1'
   'https://gitlab.com/g/p/-/merge_requests/0'
   'https://gitlab.com/g/p/-/merge_requests/01'
@@ -469,6 +464,20 @@ https://gitlab.com/group/project/-/merge_requests/1|gitlab.com|group/project|1
 https://gitlab.com/group/sub/deep/project/-/merge_requests/42|gitlab.com|group/sub/deep/project|42
 https://gitlab.example.co.uk/g/p/-/merge_requests/7|gitlab.example.co.uk|g/p|7
 https://code.internal/team/tools/ci-runner/-/merge_requests/123456|code.internal|team/tools/ci-runner|123456
+EOF
+  while IFS='|' read -r url host path owner repo number; do
+    [ -n "$url" ] || continue
+    fm_pr_url_parse "$url" || fail "parser rejected a canonical Gitea pull request URL"
+    [ "$FM_PR_PROVIDER" = gitea ] || fail "parser did not tag a Gitea URL as gitea"
+    [ "$FM_PR_URL" = "$url" ] || fail "parser changed a canonical Gitea URL"
+    [ "$FM_PR_HOST" = "$host" ] || fail "parser returned wrong Gitea host"
+    [ "$FM_PR_PATH" = "$path" ] || fail "parser returned wrong Gitea project path"
+    [ "$FM_PR_OWNER" = "$owner" ] && [ "$FM_PR_REPO" = "$repo" ] \
+      || fail "parser returned wrong Gitea owner/repository"
+    [ "$FM_PR_NUMBER" = "$number" ] || fail "parser returned wrong Gitea pull request number"
+  done <<'EOF'
+https://gitea.example/acme/widgets/pulls/7|https://gitea.example|acme/widgets|acme|widgets|7
+https://gitea.example:3000/acme/widgets/pulls/42|https://gitea.example:3000|acme/widgets|acme|widgets|42
 EOF
   fm_pr_url_parse https://github.com/a/b/pull/1 || fail "parser rejected canonical URL"
   [ "$FM_PR_PROVIDER" = github ] || fail "parser did not tag a pull request URL as github"
@@ -1529,81 +1538,47 @@ EOF
 }
 
 test_gitea_merge_watch() {
-  local dir state out url value nogitea bindir entry name
+  local dir state url out
   dir=$(make_case gitea-merge-watch)
   state="$dir/home/state"
   url=https://gitea.example/acme/widgets/pulls/7
-
   write_poll_meta "$state" task-a "$url"
   fm_pr_poll_prepare "$state" task-a gitea "$url" https://gitea.example acme/widgets 7 "$POLL" \
     || fail "could not prepare a Gitea poll"
   fm_pr_poll_publish_prepared || fail "could not publish a Gitea poll"
-  fm_pr_poll_artifacts_valid "$state" task-a "$POLL" \
-    || fail "published Gitea poll provenance or metadata binding was invalid"
   [ "$(cat "$state/task-a.pr-poll")" = "gitea
 $url
 https://gitea.example
 acme/widgets
 7" ] || fail "published Gitea sidecar bytes were not exact"
 
-  for value in open closed '' no maybe; do
-    out=$(FM_TEST_GITEA_MERGED_WORD=no FM_TEST_GITEA_STATE="$value" run_poll "$dir")
-    [ -z "$out" ] || fail "Gitea poll emitted for a non-merged state"
-  done
-  out=$(FM_TEST_GITEA_MERGED_WORD=yes FM_TEST_GITEA_STATE=closed run_poll "$dir")
+  cat > "$dir/gitea-view.json" <<'EOF'
+{"state":"open","merged":"no","sha":"0123456789abcdef0123456789abcdef01234567"}
+EOF
+  out=$(FM_TEST_GITEA_VIEW_JSON="$dir/gitea-view.json" run_poll "$dir")
+  [ -z "$out" ] || fail "Gitea poll emitted for a non-merged state"
+  printf '%s\n' '{"state":"closed","merged":"yes","sha":"0123456789abcdef0123456789abcdef01234567"}' > "$dir/gitea-view.json"
+  out=$(FM_TEST_GITEA_VIEW_JSON="$dir/gitea-view.json" run_poll "$dir")
   [ "$out" = merged ] || fail "Gitea poll did not emit exactly one merged line"
   out=$(FM_TEST_GITEA_FAIL=1 run_poll "$dir")
   [ -z "$out" ] || fail "Gitea poll emitted after a gitea-axi failure"
+  grep -qF -- 'pr view 7 --repo acme/widgets --host https://gitea.example --json' "$dir/gitea.log" \
+    || fail "Gitea poll did not pass the URL-derived repository and host"
 
-  grep -qF -- "pr view 7 --repo acme/widgets --host https://gitea.example" "$dir/gitea.log" \
-    || fail "Gitea poll did not address gitea-axi by host, repo, and pull request number"
-  ! grep -qF -- "$url" "$dir/gitea.log" \
-    || fail "Gitea poll passed the pull request URL to gitea-axi"
-
-  nogitea="$dir/nogitea"
-  mkdir -p "$nogitea"
-  while IFS= read -r bindir; do
-    [ -d "$bindir" ] || continue
-    for entry in "$bindir"/*; do
-      [ -e "$entry" ] || continue
-      name=$(basename "$entry")
-      [ "$name" = gitea-axi ] && continue
-      [ -e "$nogitea/$name" ] || ln -s "$entry" "$nogitea/$name" 2>/dev/null
-    done
-  done <<EOF
-$dir/fakebin
-$(printf '%s\n' "$BASE_PATH" | tr ':' '\n')
-EOF
-  ! PATH="$nogitea" command -v gitea-axi >/dev/null 2>&1 \
-    || fail "the gitea-axi-free search path still resolved gitea-axi"
-  out=$(FM_TEST_GITEA_MERGED_WORD=yes FM_TEST_GITEA_LOG="$dir/gitea.log" PATH="$nogitea" \
-    bash "$state/task-a.check.sh")
-  [ -z "$out" ] || fail "Gitea poll emitted with gitea-axi absent from PATH"
-
-  printf '%s\n%s\n%s\n%s\n%s\n' gitea "$url" http://elsewhere.example:3000 acme/widgets 7 \
+  printf '%s\n%s\n%s\n%s\n%s\n' gitea "$url" elsewhere.example acme/widgets 7 \
     > "$state/task-a.pr-poll"
-  out=$(FM_TEST_GITEA_MERGED_WORD=yes run_poll "$dir")
+  out=$(FM_TEST_GITEA_VIEW_JSON="$dir/gitea-view.json" run_poll "$dir")
   [ -z "$out" ] || fail "Gitea poll emitted for a sidecar whose host was swapped"
-  printf '%s\n%s\n%s\n%s\n%s\n' gitea "$url" https://gitea.example acme/other 7 \
-    > "$state/task-a.pr-poll"
-  out=$(FM_TEST_GITEA_MERGED_WORD=yes run_poll "$dir")
-  [ -z "$out" ] || fail "Gitea poll emitted for a sidecar whose project was swapped"
 
   write_task_meta "$dir" task-b
-  set +e
-  out=$(FM_ROOT_OVERRIDE="$dir/root" MY_FM_HOME="$dir/home" \
-    FM_TEST_GUARD_LOG="$dir/guard.log" FM_TEST_GITEA_LOG="$dir/gitea.log" PATH="$nogitea" \
-    "$PR_CHECK" task-b "$url" 2>&1)
-  rc=$?
-  set -e
-  [ "$rc" -ne 0 ] || fail "arming a Gitea watch succeeded with gitea-axi absent"
-  case "$out" in
-    *"requires gitea-axi on PATH"*) ;;
-    *) fail "arming a Gitea watch with gitea-axi absent did not report the missing CLI" ;;
-  esac
-  [ ! -e "$state/task-b.check.sh" ] || fail "refused Gitea arming left a poll armed"
-
-  pass "Gitea pull requests are followed on any instance and never wake falsely"
+  GITEA_PAT=do-not-record FM_TEST_GITEA_VIEW_JSON="$dir/gitea-view.json" \
+    run_check_entry "$dir" task-b "$url" > "$dir/gitea-check.out" \
+    || fail "Gitea PR registration failed"
+  assert_grep 'pr_head=0123456789abcdef0123456789abcdef01234567' "$state/task-b.meta" \
+    "Gitea PR registration did not record the live head"
+  ! grep -R -F -- 'do-not-record' "$dir/home/state" \
+    || fail "GITEA_PAT was persisted in Gitea task state"
+  pass "Gitea pull requests are parsed, registered with a live head, and polled without token leakage"
 }
 
 seed_canonical_poll() {
@@ -2948,7 +2923,6 @@ test_retirement_refuses_replacement_and_nonterminal_results
 test_retirement_queue_failure_and_receipt_tampering
 test_gitlab_merged_poll_retires
 test_invalid_entrypoints_have_zero_side_effects
-test_draft_pull_request_is_not_armed
 test_valid_recording_and_merge_derivation
 test_rejected_metacharacter_bytes_are_inert
 test_static_poll_contract

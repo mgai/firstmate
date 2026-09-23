@@ -370,9 +370,13 @@ A GitHub queue-rule or PR-base change after the queue-free preflight can still e
 These are accepted limitations, not oversights; durable authority, landing re-verification, and child-lock handoff are outside this boundary.
 `bin/fm-afk-contract.sh` owns the lock contract, while `tests/fm-afk-contract.test.sh` and `tests/fm-pr-merge.test.sh` pin the serialization and fail-closed merge behavior.
 A `https://<host>/<path>/-/merge_requests/<n>` URL (see [docs/gitlab-merge-watch.md](gitlab-merge-watch.md)) invokes `glab mr merge <n> -R https://<host>/<path>`, so the instance comes from the URL, and adds no merge-method flag because the project's own merge method applies.
+A `https://<host>/<owner>/<repository>/pulls/<n>` URL (see [docs/gitea-merge-watch.md](gitea-merge-watch.md)) invokes `gitea-axi` with the URL-derived `--host`, `--repo`, and live `--head-sha`.
+Gitea preflight accepts an explicit `none (...)` checks result for repositories with no CI, requires every reported check to pass at the current head otherwise, and never stores `GITEA_PAT`.
+The Gitea CLI performs its own head guard and post-merge confirmation, and Firstmate reads the merged state again before reporting a landed outcome.
 That path merges only after one live read of the merge request confirms it is open, mergeable, conflict-free, with blocking discussions resolved and a successful pipeline at the current head, and it binds the merge to that verified head; recorded metadata is never the authority for those conditions because a rebase leaves it stale.
 After either forge command returns, the script confirms the PR or MR actually landed, and only a confirmed landing records a landed outcome; a queued or unconfirmed request records none and leaves its poll armed.
 On GitLab an auto-merge-queued or unconfirmed request is reported without failing the run.
+On Gitea an accepted request whose CLI result or second live read does not prove a merge is reported as actionable without creating a landed outcome.
 On GitHub an outcome that is neither merged nor queued is refused loudly and non-zero, naming the observed state, and in attended posture a base branch that requires the merge queue is refused with the concrete `--attended-override -- --auto --<method>` retry flags its configured method requires rather than having a merge method chosen on the caller's behalf.
 When the forge already accepted exactly those flags and the pull request still has not entered the queue, that refusal points at the queue state to re-check instead of echoing back the flags the caller just ran.
 An auto-merge request is held to the same standard: `--auto` that leaves the pull request neither merged nor queued is refused rather than reported as success.

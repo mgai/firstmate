@@ -6,13 +6,11 @@
 # The stored identity is provider-tagged: provider, url, host, path, number.
 # "path" is the full project path, which is owner/repository on GitHub and
 # Gitea, and an arbitrarily nested group/subgroup/project namespace on GitLab.
-# GitLab can sit at any depth, so no owner/repository pair can address one and
-# the sidecar carries the whole path instead. Gitea and GitLab both run on
-# self-hosted instances, so the host is part of their identity rather than a
-# constant. For Gitea, host includes the URL scheme and optional port so HTTP
-# and non-standard-port instances remain distinct. Every consumer re-derives
-# the identity from the stored URL and refuses any record whose parts do not
-# reconstruct that exact URL.
+# A GitLab project can sit at any depth, so no owner/repository pair can address
+# one and the sidecar carries the whole path instead. GitLab and Gitea run on
+# self-hosted instances, so the host is part of that identity rather than a
+# constant. Every consumer re-derives the identity from the stored URL and
+# refuses any record whose parts do not reconstruct that exact URL.
 #
 # A validated exact merged result is retired through a private receipt only
 # after its durable wake is appended.
@@ -212,17 +210,16 @@ fm_pr_gitlab_path_valid() {
 }
 
 # Parse a canonical PR or MR URL into the provider-tagged identity. Validation
-# is strict and per provider: GitHub keeps its own username and repository
-# rules, Gitea gets owner/repository plus an instance host, and GitLab gets its
-# own host and namespace rules rather than a loosened GitHub rule.
+# is strict and per provider: the GitHub username and repository rules are
+# unchanged, GitLab gets its own host and namespace rules, and Gitea gets its
+# own owner/repository and optional-port rules.
 #
-# FM_PR_OWNER and FM_PR_REPO are additionally set for github and gitea because
-# their merge/read paths address the forge by owner/repository. A gitlab URL
-# leaves them empty, and that path addresses the project by FM_PR_HOST and
-# FM_PR_PATH instead, so a merge request on any instance resolves without a
-# hardcoded host.
+# FM_PR_OWNER and FM_PR_REPO are set for GitHub and Gitea because their CLIs
+# address repositories by owner/repository. A GitLab URL leaves them empty, and
+# that path addresses the project by FM_PR_HOST and FM_PR_PATH instead, so a
+# merge request on any instance resolves without a hardcoded host.
 fm_pr_url_parse() {
-  local raw=${1-} pattern host path number
+  local raw=${1-} pattern host path owner repo number
   local LC_ALL=C
   FM_PR_PROVIDER=
   FM_PR_URL=
@@ -247,23 +244,24 @@ fm_pr_url_parse() {
     FM_PR_NUMBER=${BASH_REMATCH[3]}
     return 0
   fi
-  pattern='^(https?://)([^/]+)/([A-Za-z0-9._-]+/[A-Za-z0-9._-]+)/pulls/([1-9][0-9]*)$'
+  pattern='^(https?://)([a-z0-9.-]{1,253})(:[1-9][0-9]{0,4})?/([A-Za-z0-9._-]+)/([A-Za-z0-9._-]+)/pulls/([1-9][0-9]*)$'
   if [[ "$raw" =~ $pattern ]]; then
-    host="${BASH_REMATCH[1]}${BASH_REMATCH[2]}"
-    path=${BASH_REMATCH[3]}
+    host="${BASH_REMATCH[1]}${BASH_REMATCH[2]}${BASH_REMATCH[3]}"
+    owner=${BASH_REMATCH[4]}
+    repo=${BASH_REMATCH[5]}
+    number=${BASH_REMATCH[6]}
+    path="$owner/$repo"
     fm_pr_gitea_host_valid "$host" || return 1
-    number=${BASH_REMATCH[4]}
     fm_pr_gitea_path_valid "$path" || return 1
     FM_PR_PROVIDER=gitea
     FM_PR_URL=$raw
     FM_PR_HOST=$host
     FM_PR_PATH=$path
-    # Consumed by Gitea merge/read paths, which address the forge by
-    # owner/repository plus the parsed host.
+    # Consumed by gitea-axi as its required OWNER/NAME repository argument.
     # shellcheck disable=SC2034
-    FM_PR_OWNER=${path%%/*}
+    FM_PR_OWNER=$owner
     # shellcheck disable=SC2034
-    FM_PR_REPO=${path#*/}
+    FM_PR_REPO=$repo
     FM_PR_NUMBER=$number
     return 0
   fi
@@ -1098,6 +1096,76 @@ FIELDS
     return 1
   fi
 
+  # Consumed by bin/fm-crew-state.sh passed_pr_detail.
+  # shellcheck disable=SC2034
+  FM_PR_RECORD_STATE=$state
+  # Consumed by bin/fm-crew-state.sh passed_pr_detail.
+  # shellcheck disable=SC2034
+  FM_PR_RECORD_MERGED=$merged
+}
+
+# gitea-axi reads GITEA_PAT (with its documented fallback variables) itself.
+# These helpers pass only the canonical repository and URL-derived host, capture
+# structured JSON, and discard CLI diagnostics so a token can never reach a
+# task record, poll output, or firstmate log.
+fm_pr_gitea_read_view_json() {  # <host> <path> <number>
+  local host=$1 path=$2 number=$3
+  command -v gitea-axi >/dev/null 2>&1 || return 1
+  gitea-axi pr view "$number" --repo "$path" --host "https://$host" --json 2>/dev/null
+}
+
+fm_pr_gitea_read_checks_json() {  # <host> <path> <number>
+  local host=$1 path=$2 number=$3
+  command -v gitea-axi >/dev/null 2>&1 || return 1
+  gitea-axi pr checks "$number" --repo "$path" --host "https://$host" --json 2>/dev/null
+}
+
+fm_pr_gitea_read_head() {  # <host> <path> <number>
+  local host=$1 path=$2 number=$3 json head
+  command -v jq >/dev/null 2>&1 || return 1
+  json=$(fm_pr_gitea_read_view_json "$host" "$path" "$number") || return 1
+  head=$(printf '%s' "$json" | jq -er \
+    'if type == "object" and (.sha | type == "string") then .sha else error("missing head sha") end' \
+    2>/dev/null) || return 1
+  fm_pr_head_valid "$head" || return 1
+  printf '%s\n' "$head"
+}
+
+fm_pr_gitea_read_record() {  # <host> <path> <number>
+  local host=$1 path=$2 number=$3 json fields line
+  local total=0 named=0 state='' merged=''
+  FM_PR_RECORD_STATE=
+  FM_PR_RECORD_MERGED=
+  command -v jq >/dev/null 2>&1 || return 1
+  if ! json=$(fm_pr_gitea_read_view_json "$host" "$path" "$number") || [ -z "$json" ]; then
+    return 1
+  fi
+  if ! fields=$(printf '%s' "$json" | jq -r '
+      if type == "object" and (.state | type == "string") and .state != "" then
+        "state=" + .state,
+        "merged=" + (if .merged == true or .merged == "yes" or .merged == "true" then "true"
+          elif .merged == false or .merged == "no" or .merged == "false" then "false"
+          else error("invalid merged value") end)
+      else
+        error("invalid pull request state")
+      end' 2>/dev/null); then
+    return 1
+  fi
+  while IFS= read -r line; do
+    total=$((total + 1))
+    case "$line" in
+      state=*) state=${line#state=} ;;
+      merged=*) merged=${line#merged=} ;;
+      *) continue ;;
+    esac
+    named=$((named + 1))
+  done <<FIELDS
+$fields
+FIELDS
+  if [ "$named" -ne 2 ] || [ "$total" -ne 2 ] || [ -z "$state" ] \
+    || { [ "$merged" != true ] && [ "$merged" != false ]; }; then
+    return 1
+  fi
   # Consumed by bin/fm-crew-state.sh passed_pr_detail.
   # shellcheck disable=SC2034
   FM_PR_RECORD_STATE=$state

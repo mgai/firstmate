@@ -162,6 +162,19 @@ case "${1:-} ${2:-}" in
 esac
 exit 1
 SH
+  cat > "$fb/gitea-axi" <<'SH'
+#!/usr/bin/env bash
+set -u
+case "${1:-} ${2:-}" in
+  "pr view")
+    [ -z "${FM_FAKE_GITEA_READ_LOG:-}" ] || printf '%s\n' "$*" >> "$FM_FAKE_GITEA_READ_LOG"
+    [ "${FM_FAKE_GITEA_READ_FAIL:-0}" = 1 ] && exit 1
+    printf '{"state":"%s","merged":"%s","sha":"0123456789abcdef0123456789abcdef01234567"}\n' \
+      "${FM_FAKE_GITEA_STATE:-closed}" "${FM_FAKE_GITEA_MERGED:-yes}"
+    exit 0 ;;
+esac
+exit 1
+SH
   cat > "$fb/tmux" <<'SH'
 #!/usr/bin/env bash
 set -u
@@ -242,7 +255,7 @@ case "${1:-}" in
 esac
 exit 0
 SH
-  chmod +x "$fb/no-mistakes" "$fb/gh" "$fb/gh-axi" "$fb/glab" "$fb/tmux" "$fb/herdr"
+  chmod +x "$fb/no-mistakes" "$fb/gh" "$fb/gh-axi" "$fb/glab" "$fb/gitea-axi" "$fb/tmux" "$fb/herdr"
   printf '%s\n' "$fb"
 }
 
@@ -312,6 +325,10 @@ reset_fakes() {
   FM_FAKE_GLAB_STATE=merged
   FM_FAKE_GLAB_READ_FAIL=0
   FM_FAKE_GLAB_READ_LOG=
+  FM_FAKE_GITEA_STATE=closed
+  FM_FAKE_GITEA_MERGED=yes
+  FM_FAKE_GITEA_READ_FAIL=0
+  FM_FAKE_GITEA_READ_LOG=
   unset FM_FAKE_PR_47_STATE FM_FAKE_PR_47_MERGED FM_FAKE_PR_48_STATE FM_FAKE_PR_48_MERGED
   export FM_FAKE_AXI_STATUS FM_FAKE_AXI_STATUS_RUN FM_FAKE_RUNS_LIST FM_FAKE_BUSY FM_FAKE_BUSY_TEXT FM_FAKE_TMUX_MISSING FM_FAKE_TMUX_UNREADABLE
   export FM_FAKE_HERDR_BUSY FM_FAKE_HERDR_MISSING FM_FAKE_HERDR_READ_FAIL FM_FAKE_HERDR_HUSK FM_FAKE_HERDR_AGENT_STATUS FM_FAKE_HERDR_PROCESS FM_FAKE_HERDR_SHELL_PID FM_FAKE_CI_LOGS
@@ -319,6 +336,7 @@ reset_fakes() {
   export FM_FAKE_AXI_HOME_ERROR FM_FAKE_AXI_STATUS_RUN_ERROR FM_FAKE_AXI_STATUS_ERROR
   export FM_FAKE_PR_STATE FM_FAKE_PR_MERGED FM_FAKE_PR_READ_FAIL FM_FAKE_PR_READ_LOG FM_FAKE_PR_STATE_AXI
   export FM_FAKE_GLAB_STATE FM_FAKE_GLAB_READ_FAIL FM_FAKE_GLAB_READ_LOG
+  export FM_FAKE_GITEA_STATE FM_FAKE_GITEA_MERGED FM_FAKE_GITEA_READ_FAIL FM_FAKE_GITEA_READ_LOG
   export FM_FAKE_PR_47_STATE FM_FAKE_PR_47_MERGED FM_FAKE_PR_48_STATE FM_FAKE_PR_48_MERGED
 }
 
@@ -1462,6 +1480,63 @@ test_terminal_passed_with_failed_gitlab_read_reports_unknown() {
   assert_contains "$out" "run passed: PR state unknown (unreadable)" "failed GitLab read is honest unknown"
   assert_not_contains "$out" "PR merged" "failed GitLab read must not be reported merged"
   pass "terminal passed run handles failed GitLab read"
+}
+
+test_terminal_passed_with_merged_gitea_pr_reports_merged() {
+  reset_fakes
+  local d read_log out
+  d=$(new_case passed-merged-gitea-pr)
+  make_repo_on_branch "$d/wt" fm/feat-dgiteamerged
+  make_fakebin "$d" >/dev/null
+  fm_write_meta "$d/state/feat-dgiteamerged.meta" \
+    "window=fm:fm-feat-dgiteamerged" "worktree=$d/wt" "kind=ship" \
+    "pr=https://gitea.example/acme/widgets/pulls/12"
+  read_log="$d/gitea-read.log"
+  : > "$read_log"
+  FM_FAKE_GITEA_READ_LOG=$read_log
+  FM_FAKE_GITEA_STATE=closed
+  FM_FAKE_GITEA_MERGED=yes
+  FM_FAKE_AXI_STATUS="$(run_passed_with_pr fm/feat-dgiteamerged https://gitea.example/acme/widgets/pulls/12)"
+  out=$(run_crew_state "$d" feat-dgiteamerged)
+  assert_contains "$out" "run passed: PR merged" "merged Gitea PR is reported merged"
+  assert_grep 'pr view 12 --repo acme/widgets --host https://gitea.example --json' "$read_log" \
+    "Gitea PR read uses the parsed host and repository"
+  pass "terminal passed run reads merged Gitea pull request state"
+}
+
+test_terminal_passed_with_open_gitea_pr_does_not_claim_merged() {
+  reset_fakes
+  local d out
+  d=$(new_case passed-open-gitea-pr)
+  make_repo_on_branch "$d/wt" fm/feat-dgiteaopen
+  make_fakebin "$d" >/dev/null
+  fm_write_meta "$d/state/feat-dgiteaopen.meta" \
+    "window=fm:fm-feat-dgiteaopen" "worktree=$d/wt" "kind=ship" \
+    "pr=https://gitea.example/acme/widgets/pulls/13"
+  FM_FAKE_GITEA_STATE=open
+  FM_FAKE_GITEA_MERGED=no
+  FM_FAKE_AXI_STATUS="$(run_passed_with_pr fm/feat-dgiteaopen https://gitea.example/acme/widgets/pulls/13)"
+  out=$(run_crew_state "$d" feat-dgiteaopen)
+  assert_contains "$out" "run passed: PR open" "open Gitea PR state is named"
+  assert_not_contains "$out" "PR merged" "open Gitea PR must not be reported merged"
+  pass "terminal passed run does not claim an open Gitea pull request merged"
+}
+
+test_terminal_passed_with_failed_gitea_read_reports_unknown() {
+  reset_fakes
+  local d out
+  d=$(new_case passed-unreadable-gitea-pr)
+  make_repo_on_branch "$d/wt" fm/feat-dgiteaunknown
+  make_fakebin "$d" >/dev/null
+  fm_write_meta "$d/state/feat-dgiteaunknown.meta" \
+    "window=fm:fm-feat-dgiteaunknown" "worktree=$d/wt" "kind=ship" \
+    "pr=https://gitea.example/acme/widgets/pulls/14"
+  FM_FAKE_GITEA_READ_FAIL=1
+  FM_FAKE_AXI_STATUS="$(run_passed_with_pr fm/feat-dgiteaunknown https://gitea.example/acme/widgets/pulls/14)"
+  out=$(run_crew_state "$d" feat-dgiteaunknown)
+  assert_contains "$out" "run passed: PR state unknown (unreadable)" "failed Gitea read is honest unknown"
+  assert_not_contains "$out" "PR merged" "failed Gitea read must not be reported merged"
+  pass "terminal passed run handles failed Gitea read"
 }
 
 test_terminal_failed() {
@@ -4891,6 +4966,9 @@ test_terminal_passed_without_readable_pr_identity_reports_unknown
 test_terminal_passed_with_open_gitlab_mr_does_not_claim_merged
 test_terminal_passed_with_merged_gitlab_mr_reports_merged
 test_terminal_passed_with_failed_gitlab_read_reports_unknown
+test_terminal_passed_with_merged_gitea_pr_reports_merged
+test_terminal_passed_with_open_gitea_pr_does_not_claim_merged
+test_terminal_passed_with_failed_gitea_read_reports_unknown
 test_terminal_failed
 test_terminal_failed_ci_orphan_after_green_reads_done
 test_terminal_failed_ci_orphan_status_only_reads_done

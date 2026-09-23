@@ -6,12 +6,12 @@
 # under test - a --secondmate spawn's tab landing in the secondmate's OWN
 # herdr workspace, and a crewmate spawned FROM a secondmate home landing there
 # too - only exists at fm-spawn.sh's own home-shadowing logic (the herdr case
-# arm) and at fm_backend_herdr_workspace_label's FM_HOME read; neither is
+# arm) and at fm_backend_herdr_workspace_label's MY_FM_HOME read; neither is
 # exercised by the adapter-primitive smoke test.
 #
 # Mirrors tests/fm-backend-autodetect-smoke.test.sh's isolated-session
 # convention: a private throwaway HERDR_SESSION (never the captain's
-# default), scratch FM_HOME(s), and scratch local-only projects.
+# default), scratch MY_FM_HOME(s), and scratch local-only projects.
 #
 # Safety (2026-07-02 incident, see tests/herdr-test-safety.sh): cleanup uses
 # ONLY herdr_safe_stop_and_delete, never a bare/inline-prefixed `herdr server
@@ -21,7 +21,7 @@
 #   - a primary-shaped home (no .fm-secondmate-home marker) spawning a
 #     crewmate into the "firstmate" workspace
 #   - a secondmate-shaped home (with .fm-secondmate-home) getting its own
-#     labeled workspace when the PRIMARY spawns it (fm-spawn.sh's FM_HOME
+#     labeled workspace when the PRIMARY spawns it (fm-spawn.sh's MY_FM_HOME
 #     shadow for --secondmate)
 #   - a crewmate spawned FROM that secondmate-shaped home (the secondmate
 #     running its OWN fm-spawn.sh) landing in the secondmate's own workspace -
@@ -130,7 +130,7 @@ PROJ2="$TMP_ROOT/scratch-project-2"; make_scratch_project "$PROJ2"
 # --- 1. primary-shaped home: a crewmate spawns into the "firstmate" space ---
 
 CM1_OUT="$TMP_ROOT/cm1.out"; CM1_ERR="$TMP_ROOT/cm1.err"
-FM_SPAWN_NO_GUARD=1 FM_HOME="$PRIMARY_HOME" FM_ROOT_OVERRIDE="$ROOT" \
+FM_SPAWN_NO_GUARD=1 MY_FM_HOME="$PRIMARY_HOME" FM_ROOT_OVERRIDE="$ROOT" \
   "$ROOT/bin/fm-spawn.sh" cm1 "$PROJ1" "sh -c 'echo primary-crew-ok'" --mode no-mistakes --yolo off --backend herdr \
   >"$CM1_OUT" 2>"$CM1_ERR"
 rc=$?
@@ -155,11 +155,11 @@ CM1_WS_LABEL=$(herdr workspace list --session "$SESSION" 2>&1 | jq -r --arg id "
 pass "real herdr E2E: the primary-shaped home's crewmate landed in the 'firstmate' workspace"
 
 # --- 2. the PRIMARY spawns a secondmate: its tab lands in the SECONDMATE's own space ---
-# (fm-spawn.sh's herdr case arm shadows FM_HOME to the secondmate's home for
+# (fm-spawn.sh's herdr case arm shadows MY_FM_HOME to the secondmate's home for
 # exactly this call - AGENTS.md task herdr-sm-spaces-k4, requirement 3.)
 
 SM_OUT="$TMP_ROOT/sm.out"; SM_ERR="$TMP_ROOT/sm.err"
-FM_SPAWN_NO_GUARD=1 FM_HOME="$PRIMARY_HOME" FM_ROOT_OVERRIDE="$ROOT" \
+FM_SPAWN_NO_GUARD=1 MY_FM_HOME="$PRIMARY_HOME" FM_ROOT_OVERRIDE="$ROOT" \
   "$ROOT/bin/fm-spawn.sh" e2esm1 "$SM_HOME" "sh -c 'echo secondmate-launch-ok'" --secondmate --backend herdr \
   >"$SM_OUT" 2>"$SM_ERR"
 rc=$?
@@ -185,7 +185,7 @@ pass "real herdr E2E: a --secondmate spawn by the PRIMARY lands in the SECONDMAT
 # secondmate workspace (this exact path has never run before this test) -----
 
 CM2_OUT="$TMP_ROOT/cm2.out"; CM2_ERR="$TMP_ROOT/cm2.err"
-FM_SPAWN_NO_GUARD=1 FM_HOME="$SM_HOME" FM_ROOT_OVERRIDE="$ROOT" \
+FM_SPAWN_NO_GUARD=1 MY_FM_HOME="$SM_HOME" FM_ROOT_OVERRIDE="$ROOT" \
   "$ROOT/bin/fm-spawn.sh" cm2 "$PROJ2" "sh -c 'echo sm-crew-ok'" --mode no-mistakes --yolo off --backend herdr \
   >"$CM2_OUT" 2>"$CM2_ERR"
 rc=$?
@@ -210,13 +210,13 @@ pass "real herdr E2E: a crewmate spawned FROM the secondmate-shaped home lands i
 
 # --- 4. list-live recovery: each home sees only its own tabs ---------------
 
-PRIMARY_LIVE=$(FM_HOME="$PRIMARY_HOME" fm_backend_herdr_list_live "$SESSION")
+PRIMARY_LIVE=$(MY_FM_HOME="$PRIMARY_HOME" fm_backend_herdr_list_live "$SESSION")
 assert_contains_local "$PRIMARY_LIVE" "fm-cm1" "the primary home's list_live did not see its own task"
 assert_not_contains_local "$PRIMARY_LIVE" "fm-e2esm1" "the primary home's list_live must not see the secondmate's own task"
 assert_not_contains_local "$PRIMARY_LIVE" "fm-cm2" "the primary home's list_live must not see the secondmate-owned crewmate's task"
 pass "real herdr E2E: list_live from the primary's own context sees only the primary's own task"
 
-SM_LIVE=$(FM_HOME="$SM_HOME" fm_backend_herdr_list_live "$SESSION")
+SM_LIVE=$(MY_FM_HOME="$SM_HOME" fm_backend_herdr_list_live "$SESSION")
 assert_contains_local "$SM_LIVE" "fm-e2esm1" "the secondmate home's list_live did not see its own task"
 assert_contains_local "$SM_LIVE" "fm-cm2" "the secondmate home's list_live did not see the crewmate spawned from it"
 assert_not_contains_local "$SM_LIVE" "fm-cm1" "the secondmate home's list_live must not see the primary's task"

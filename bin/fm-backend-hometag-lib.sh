@@ -18,7 +18,7 @@
 # path, so distinct installations - including multiple primaries on one
 # machine - never collide even though they share one backend-global
 # namespace. Callers source this file AFTER resolving their own
-# FM_HOME/FM_ROOT fallbacks (both adapters already do this for their own
+# MY_FM_HOME/FM_ROOT fallbacks (both adapters already do this for their own
 # purposes before any other function runs).
 #
 # Moving/relocating a firstmate installation changes its FM_ROOT path and
@@ -29,7 +29,7 @@
 FM_BACKEND_HOMETAG_SECONDMATE_MARKER=".fm-secondmate-home"
 
 fm_backend_hometag() {
-  local marker="$FM_HOME/$FM_BACKEND_HOMETAG_SECONDMATE_MARKER" id prefix root hash
+  local marker="$MY_FM_HOME/$FM_BACKEND_HOMETAG_SECONDMATE_MARKER" id prefix root hash
   if [ -f "$marker" ]; then
     id=$(tr -d '[:space:]' < "$marker" 2>/dev/null)
     if [ -n "$id" ]; then

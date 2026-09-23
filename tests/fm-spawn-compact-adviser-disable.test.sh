@@ -287,7 +287,7 @@ test_relaunch_rebuilds_the_switch() {
     } > "$home/state/$id.meta"
 
     mkdir -p "$dir/user-home"
-    out=$(env PATH="$dir/fakebin:$PATH" FM_HOME="$home" FM_FAKE_DIR="$dir/fake" \
+    out=$(env PATH="$dir/fakebin:$PATH" MY_FM_HOME="$home" FM_FAKE_DIR="$dir/fake" \
       HOME="$dir/user-home" CLAUDE_CONFIG_DIR='' FM_SPAWN_NO_GUARD=1 \
       FM_CONTROL_POLL=0.01 FM_CONTROL_EXIT_WAIT=0.05 FM_CONTROL_LAUNCH_WAIT=0.05 \
       "$CONTROL" "$id" relaunch --note 'replacement continues the same task' 2>&1)

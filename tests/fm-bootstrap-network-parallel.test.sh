@@ -223,7 +223,7 @@ SH
 
   out=$(
     PATH="$fakebin:$BASE_PATH" \
-    FM_HOME="$home" \
+    MY_FM_HOME="$home" \
     FM_ROOT_OVERRIDE="$primary" \
     FM_BOOTSTRAP_NETWORK=only \
     FM_SSH_BIN="$fakebin/fake-ssh" \

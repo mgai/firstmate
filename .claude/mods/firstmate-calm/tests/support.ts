@@ -42,11 +42,11 @@ export type World = {
 export type WorldOptions = {
   /** The stored preference text; absent means no file. */
   preference?: string;
-  /** Extra environment beside FM_HOME; pass `{}` with `home: undefined` to unset FM_HOME. */
+  /** Extra environment beside MY_FM_HOME; pass `{}` with `home: undefined` to unset MY_FM_HOME. */
   env?: Record<string, string>;
   /** Function-hooks opt-in value; omitted options default to the active value `1`. */
   functionHooks?: string | undefined;
-  /** The Firstmate home FM_HOME names; undefined leaves FM_HOME unset. */
+  /** The Firstmate home MY_FM_HOME names; undefined leaves MY_FM_HOME unset. */
   home?: string | undefined;
   /** What `$.session.messages()` answers. */
   messages?: readonly { role: "user" | "assistant"; text: string; toolUses: readonly unknown[] }[];
@@ -61,7 +61,7 @@ export function world(on: On, options: WorldOptions = {}): World {
   const home = "home" in options ? options.home : HOME;
   const functionHooks = "functionHooks" in options ? options.functionHooks : "1";
   mock.env(on, {
-    ...(home === undefined ? {} : { FM_HOME: home }),
+    ...(home === undefined ? {} : { MY_FM_HOME: home }),
     ...(options.env ?? {}),
     ...(functionHooks === undefined ? {} : { CLAUDE_CODE_ENABLE_FUNCTION_HOOKS: functionHooks }),
   });

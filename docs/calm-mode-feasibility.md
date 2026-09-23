@@ -42,7 +42,7 @@ $ pi --version
 
 ### Original transcript cleanup
 
-The pre-cleanup reproduction used a real isolated Pi TUI at 180 columns by 44 rows with the tracked Calm and watcher extensions, an isolated `FM_HOME`, and a live home-owned watcher cycle.
+The pre-cleanup reproduction used a real isolated Pi TUI at 180 columns by 44 rows with the tracked Calm and watcher extensions, an isolated `MY_FM_HOME`, and a live home-owned watcher cycle.
 The model called `fm_watch_arm_pi`, the real tool returned `watcher: started Pi extension arm child 1`, and a `done:` status write caused the watcher extension to inject `FIRSTMATE WATCHER WAKE: signal: ...` followed by the stable drain instruction.
 With Calm off, the captured transcript contained the genuine user prompt, the full watcher tool shell, the synthetic user-role wake, four collapsed `Thinking...` labels, built-in tool rows from wake handling, and the final assistant response.
 With the pre-cleanup implementation's Calm mode on, the existing seven built-in tool rows disappeared, but the watcher tool shell, synthetic wake, and all four `Thinking...` labels remained.
@@ -56,7 +56,7 @@ The later duplicate-turn evidence below supersedes custom-message rerouting as a
 
 ### Hidden-block height regression
 
-The 2026-07-23 end-user-aligned reproduction used the installed Pi 0.81.1 TUI at 100 columns by 44 rows, an isolated project and `FM_HOME`, the real `/skill:ahoy` command path, and a deterministic provider that produced five thinking-bearing read calls, five tool results, final hidden thinking, and a visible final response.
+The 2026-07-23 end-user-aligned reproduction used the installed Pi 0.81.1 TUI at 100 columns by 44 rows, an isolated project and `MY_FM_HOME`, the real `/skill:ahoy` command path, and a deterministic provider that produced five thinking-bearing read calls, five tool results, final hidden thinking, and a visible final response.
 With Calm on and Pi's thinking display collapsed, the completed turn left 14 empty rows between the visible collapsed `[skill] ahoy` content row and the first final assistant row.
 With Calm off, the same sequence rendered all six `Thinking...` labels and all five read rows instead of an empty field.
 A controlled baseline containing only the skill row and final response had two standard visible-row separators.
@@ -644,7 +644,7 @@ tmux 3.6a
 
 ### Spike-verified behavior
 
-Every capture came from real Claude Code 2.1.272 TUIs under tmux at 160 by 44 cells, driven by Haiku, with an isolated `FM_HOME` and the inherited session markers stripped.
+Every capture came from real Claude Code 2.1.272 TUIs under tmux at 160 by 44 cells, driven by Haiku, with an isolated `MY_FM_HOME` and the inherited session markers stripped.
 
 - The stock `✽ Verb… (Ns · tokens)` row is absent while the boat draws in its place; over 23 working frames at 0.4s spacing the hull advanced one column every 0.8s to 0.9s (the 880ms cadence), the water row changed on every frame (the quarter-cell swell), the water width was exactly 158 (the 160-cell viewport minus the transcript's 2-cell margin), and the sail stayed one column right of the hull.
 - When the turn settled the boat was gone with no residual row, on both the fullscreen (`CLAUDE_CODE_NO_FLICKER=1`) and main-screen (`CLAUDE_CODE_NO_FLICKER=0`) layouts.
@@ -698,7 +698,7 @@ $ CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 claude plugin validate --strict .claude/mo
   ❯ ./register.ts hooks: session.start, command.run{command=calm}, config.set{key=theme}, turn.step, ui.render{component=Spinner}, ui.render{component=ToolUse}, ui.render{component=ToolResult}, ui.render{component=ToolGroup}, ui.render{component=UserMessage}, ui.render{component=AssistantMessage}
   ❯ ./register.ts calls: $.clock.every (via load), $.command.register, $.config.list (via readTheme), $.env.get (via isActivated, load), $.fs.read (via readPreference), $.fs.write, $.session.messages (via load), $.ui.blit (via repaintShip), $.ui.invalidate, $.ui.resolve, $.ui.toast
   ❯ ./register.ts env writes: nothing
-  ❯ ./register.ts env reads: CLAUDE_CODE_ENABLE_FUNCTION_HOOKS, FM_CONFIG_OVERRIDE, FM_HOME, FM_ROOT_OVERRIDE
+  ❯ ./register.ts env reads: CLAUDE_CODE_ENABLE_FUNCTION_HOOKS, FM_CONFIG_OVERRIDE, MY_FM_HOME, FM_ROOT_OVERRIDE
 ✔ Validation passed
 
 $ CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 claude plugin test .claude/mods/firstmate-calm
@@ -720,7 +720,7 @@ FM_TEST_SUMMARY total=1 failed=0 skipped_gate=0 duration_ms=68438
 The Pi suite above ran against the extracted sprite core with every one of its thirteen cases green, including the working-ship geometry and the interactive TUI case, which is the evidence that the extraction left Pi's drawing unchanged.
 Later the same day the installed Claude Code auto-updated to 2.1.273, and `tests/fm-calm-claude-mod-plugin.test.sh` passed there as well: strict validation accepts the mod from both paths, including the theme hook and configuration read shown above, and the plugin-kit suites pass with the theme cases added.
 
-The opt-in live guard, run on this host against the installed Claude Code 2.1.272 with tmux 3.6a and Haiku, through the shipped `.claude/skills` auto-load path, an isolated project and `FM_HOME`, and the preference already `on` before the flag-off session:
+The opt-in live guard, run on this host against the installed Claude Code 2.1.272 with tmux 3.6a and Haiku, through the shipped `.claude/skills` auto-load path, an isolated project and `MY_FM_HOME`, and the preference already `on` before the flag-off session:
 
 ```text
 $ FM_CLAUDE_CALM_LIVE_E2E=1 tests/fm-calm-claude-mod-live-e2e.test.sh

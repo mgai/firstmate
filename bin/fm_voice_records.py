@@ -150,7 +150,7 @@ class RecordError(Exception):
 
 def default_home():
     """Return the operational home, matching bin/fm-inbox.sh's resolution."""
-    env = os.environ.get("FM_HOME")
+    env = os.environ.get("MY_FM_HOME")
     if env:
         return env
     return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -159,7 +159,7 @@ def default_home():
 def state_dir(home):
     """Return the runtime state directory, resolved as bin/fm-inbox.sh resolves it.
 
-    fm-inbox.sh reads ${FM_STATE_OVERRIDE:-$FM_HOME/state}, and the handover
+    fm-inbox.sh reads ${FM_STATE_OVERRIDE:-$MY_FM_HOME/state}, and the handover
     below queues through fm-inbox.sh with the ambient environment. A reader that
     ignored the override would count notes in one directory while the queue wrote
     them to another, so the agent would tell the captain their request was queued
@@ -517,7 +517,7 @@ def queue_request(text, home=None, root=None):
     inbox = os.path.join(root, "fm-inbox.sh")
     if not os.access(inbox, os.X_OK):
         raise RecordError("cannot run {}".format(inbox))
-    env = dict(os.environ, FM_HOME=home)
+    env = dict(os.environ, MY_FM_HOME=home)
     done = subprocess.run(
         [inbox, "note", body],
         # The relay's stdin is the captain's audio when this runs under

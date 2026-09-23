@@ -126,11 +126,11 @@ cleanup_json_files() {
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FM_ROOT="${FM_ROOT_OVERRIDE:-$(cd "$SCRIPT_DIR/.." && pwd)}"
-FM_HOME="${FM_HOME:-${FM_ROOT_OVERRIDE:-$FM_ROOT}}"
-STATE="${FM_STATE_OVERRIDE:-$FM_HOME/state}"
-DATA="${FM_DATA_OVERRIDE:-$FM_HOME/data}"
-CONFIG="${FM_CONFIG_OVERRIDE:-$FM_HOME/config}"
-PROJECTS="${FM_PROJECTS_OVERRIDE:-$FM_HOME/projects}"
+MY_FM_HOME="${MY_FM_HOME:-${FM_ROOT_OVERRIDE:-$FM_ROOT}}"
+STATE="${FM_STATE_OVERRIDE:-$MY_FM_HOME/state}"
+DATA="${FM_DATA_OVERRIDE:-$MY_FM_HOME/data}"
+CONFIG="${FM_CONFIG_OVERRIDE:-$MY_FM_HOME/config}"
+PROJECTS="${FM_PROJECTS_OVERRIDE:-$MY_FM_HOME/projects}"
 BACKLOG="$DATA/backlog.md"
 SNAPSHOT_NOW=${FM_SNAPSHOT_NOW:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}
 if [ -n "${FM_SNAPSHOT_NOW_EPOCH:-}" ]; then
@@ -325,7 +325,7 @@ crew_state_json() {  # <id> [<captured-meta>] [<captured-status>]
   raw=$(
     fm_run_timed "$FM_SNAPSHOT_CREW_STATE_TIMEOUT" \
       env FM_ROOT_OVERRIDE="$FM_ROOT" \
-      FM_HOME="$FM_HOME" \
+      MY_FM_HOME="$MY_FM_HOME" \
       FM_STATE_OVERRIDE="$STATE" \
       FM_CREW_STATE_META_OVERRIDE="$captured_meta" \
       FM_CREW_STATE_STATUS_OVERRIDE="$captured_status" \
@@ -967,7 +967,7 @@ secondmate_home_summary_json() {  # <backlog-json-file> <tasks-json-file>
   jq -n \
     --arg generated "$SNAPSHOT_NOW" \
     --argjson generated_epoch "$SNAPSHOT_EPOCH" \
-    --arg home "$FM_HOME" \
+    --arg home "$MY_FM_HOME" \
     --argjson child_n "$FM_SNAPSHOT_SECONDMATE_CHILDREN" \
     --argjson queued_n "$FM_SNAPSHOT_SECONDMATE_QUEUED" \
     --argjson decisions_n "$FM_SNAPSHOT_SECONDMATE_DECISIONS" \
@@ -1976,7 +1976,7 @@ contribution_tasks_json() {
     [ -f "$meta" ] && [ ! -L "$meta" ] || continue
     id=$(basename "$meta" .meta)
     merge_authority=unknown
-    if fm_merge_authority_resolve "$FM_HOME" "$STATE" "$meta" "$id"; then
+    if fm_merge_authority_resolve "$MY_FM_HOME" "$STATE" "$meta" "$id"; then
       merge_authority=$FM_MERGE_AUTHORITY
     fi
     jq -n --arg id "$id" --arg kind "$(meta_value "$meta" kind)" \
@@ -2035,7 +2035,7 @@ secondmate_landed_from_current_json "$SECONDMATE_CURRENT_JSON_FILE" "$SECONDMATE
 
 jq -n \
   --arg generated "$SNAPSHOT_NOW" \
-  --arg fm_home "$FM_HOME" \
+  --arg fm_home "$MY_FM_HOME" \
   --arg fm_root "$FM_ROOT" \
   --arg state "$STATE" \
   --arg data "$DATA" \

@@ -141,10 +141,10 @@ fm_test_reap_procevent_homes() {
     seen+="$home"$'\n'
     [ -d "$home/state/procevent" ] || continue
     if [ -n "$claim_root" ]; then
-      FM_HOME="$home" FM_STATE_OVERRIDE="$home/state" FM_PROCEVENT_CLAIM_ROOT="$claim_root" \
+      MY_FM_HOME="$home" FM_STATE_OVERRIDE="$home/state" FM_PROCEVENT_CLAIM_ROOT="$claim_root" \
         "$ROOT/bin/fm-procevent.sh" sweep-home >/dev/null 2>&1 || true
     else
-      FM_HOME="$home" FM_STATE_OVERRIDE="$home/state" \
+      MY_FM_HOME="$home" FM_STATE_OVERRIDE="$home/state" \
         "$ROOT/bin/fm-procevent.sh" sweep-home >/dev/null 2>&1 || true
     fi
   done < "$FM_TEST_PROCEVENT_REGISTRY"

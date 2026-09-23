@@ -69,7 +69,7 @@ test_remote_peek_reads_remote_pane() {
   touched="$dir/tmux-touched"; : > "$touched"
 
   out=$(env PATH="$fb:$PATH" \
-    FM_HOME="$home" FM_STATE_OVERRIDE="$home/state" \
+    MY_FM_HOME="$home" FM_STATE_OVERRIDE="$home/state" \
     FM_SSH_BIN="$fb/fake-ssh" FM_FAKE_SSH_RC=0 \
     FM_FAKE_REMOTE_CAPTURE='● the remote mate is mid-refactor' \
     FM_FAKE_TMUX_TOUCHED="$touched" \
@@ -91,7 +91,7 @@ test_remote_peek_unreachable_fails_loudly_without_death_claim() {
   touched="$dir/tmux-touched"; : > "$touched"
 
   env PATH="$fb:$PATH" \
-    FM_HOME="$home" FM_STATE_OVERRIDE="$home/state" \
+    MY_FM_HOME="$home" FM_STATE_OVERRIDE="$home/state" \
     FM_SSH_BIN="$fb/fake-ssh" FM_FAKE_SSH_RC=255 \
     FM_FAKE_TMUX_TOUCHED="$touched" \
     "$PEEK" rsm >"$dir/out" 2>"$dir/err"; rc=$?

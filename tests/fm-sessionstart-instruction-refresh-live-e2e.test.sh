@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Opt-in real-Pi regression for a post-start AGENTS.md update followed by
 # compaction. It runs an isolated tmux server, throwaway Firstmate checkout,
-# and scratch FM_HOME, so it never drives the caller's Pi session or fleet.
+# and scratch MY_FM_HOME, so it never drives the caller's Pi session or fleet.
 #
 # The portable session-start tests own baseline and output logic. This guard
 # proves the vendor-dependent fact they cannot: Pi's actual session_compact
@@ -123,8 +123,8 @@ cat > "$PROJECT/bin/fm-sessionstart-run.sh" <<'SH'
 #!/usr/bin/env bash
 set -o pipefail
 set -u
-state="${FM_HOME:?}/state"
-printf 'argv=%s pi=%s root=%s home=%s\n' "$*" "${PI_CODING_AGENT:-absent}" "${FM_ROOT_OVERRIDE:-absent}" "${FM_HOME:-absent}" \
+state="${MY_FM_HOME:?}/state"
+printf 'argv=%s pi=%s root=%s home=%s\n' "$*" "${PI_CODING_AGENT:-absent}" "${FM_ROOT_OVERRIDE:-absent}" "${MY_FM_HOME:-absent}" \
   >> "$state/.sessionstart-e2e-sources"
 "$(dirname "$0")/.fm-sessionstart-run.real.sh" "$@" | tee -a "$state/.sessionstart-e2e-output"
 exit "${PIPESTATUS[0]}"
@@ -138,7 +138,7 @@ git -C "$PROJECT" commit -q -m "test: initial instruction contract" || fail "cou
 printf '%s\n' '{"compaction":{"keepRecentTokens":200}}' > "$PROJECT/.pi/settings.json"
 
 tmux -L "$TMUX_SOCKET" new-session -d -s "$TMUX_SESSION" -c "$PROJECT" -x 220 -y 55 \
-  -e "FM_HOME=$HOME_DIR" -e "FM_ROOT_OVERRIDE=$PROJECT" -e "FM_GATE_REFUSE_BYPASS=1" \
+  -e "MY_FM_HOME=$HOME_DIR" -e "FM_ROOT_OVERRIDE=$PROJECT" -e "FM_GATE_REFUSE_BYPASS=1" \
   pi --no-tools -e "$PROJECT/.pi/extensions/fm-primary-turnend-guard.ts" \
   || fail "could not start isolated Pi session"
 

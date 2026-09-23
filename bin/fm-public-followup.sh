@@ -20,7 +20,7 @@
 #
 # ZERO OVERHEAD FOR HOMES THAT DO NOT USE THE RELAY: every subcommand gates
 # first on the authoritative activation contract (a non-empty FMX_PAIRING_TOKEN
-# in $FM_HOME/.env). Read-side and cleanup paths then use an O(1) presence check
+# in $MY_FM_HOME/.env). Read-side and cleanup paths then use an O(1) presence check
 # for registrations this home actually created. A relay-disabled home therefore
 # runs one [ -f ] test before any backlog work: no tasks-axi call, no backlog scan,
 # and no file created. Silent read-side commands return without output; commands
@@ -134,9 +134,9 @@ set -u
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FM_ROOT="${FM_ROOT_OVERRIDE:-$(cd "$SCRIPT_DIR/.." && pwd)}"
-FM_HOME="${FM_HOME:-${FM_ROOT_OVERRIDE:-$FM_ROOT}}"
-STATE="${FM_STATE_OVERRIDE:-$FM_HOME/state}"
-DATA="${FM_DATA_OVERRIDE:-$FM_HOME/data}"
+MY_FM_HOME="${MY_FM_HOME:-${FM_ROOT_OVERRIDE:-$FM_ROOT}}"
+STATE="${FM_STATE_OVERRIDE:-$MY_FM_HOME/state}"
+DATA="${FM_DATA_OVERRIDE:-$MY_FM_HOME/data}"
 
 # shellcheck source=bin/fm-public-followup-lib.sh
 . "$SCRIPT_DIR/fm-public-followup-lib.sh"
@@ -208,11 +208,11 @@ require_tools() {
   command -v tasks-axi >/dev/null 2>&1 || die "tasks-axi is required" 1
 }
 
-# Every tasks-axi call addresses $FM_HOME/data, the home whose backlog owns the
+# Every tasks-axi call addresses $MY_FM_HOME/data, the home whose backlog owns the
 # obligation, through bin/fm-tasks-axi.sh. An inherited FM_DATA_OVERRIDE is
 # cleared because a caller such as a secondmate teardown names the parent home
-# in FM_HOME while its own data override is still in the environment.
-tx() { FM_HOME="$FM_HOME" FM_DATA_OVERRIDE='' "$SCRIPT_DIR/fm-tasks-axi.sh" "$@"; }
+# in MY_FM_HOME while its own data override is still in the environment.
+tx() { MY_FM_HOME="$MY_FM_HOME" FM_DATA_OVERRIDE='' "$SCRIPT_DIR/fm-tasks-axi.sh" "$@"; }
 
 # obligation_json <id>: the complete typed obligation payload on stdout, empty
 # when the backlog simply has no such public-followup item, and a non-zero exit
@@ -237,14 +237,14 @@ pf_field() { printf '%s' "$1" | jq -r "$2 // empty" 2>/dev/null; }
 # with no output when this home has no public-followup work, so callers can
 # invoke unconditionally without a relay-disabled home paying anything.
 gate_or_exit() {
-  fm_pf_relay_active "$FM_HOME" || exit 0
+  fm_pf_relay_active "$MY_FM_HOME" || exit 0
   fm_pf_has_registrations "$STATE" || fm_pf_has_events "$STATE" || exit 0
 }
 
 # --- subcommand: active -----------------------------------------------------
 
 cmd_active() {
-  fm_pf_relay_active "$FM_HOME" || exit 1
+  fm_pf_relay_active "$MY_FM_HOME" || exit 1
   fm_pf_has_registrations "$STATE" || fm_pf_has_events "$STATE" || exit 1
   exit 0
 }
@@ -269,7 +269,7 @@ cmd_register() {
     shift || true
   done
 
-  fm_pf_relay_active "$FM_HOME" \
+  fm_pf_relay_active "$MY_FM_HOME" \
     || die "this home has not opted into the myfirstmate relay, so it cannot own a public commitment" 1
   require_tools
 
@@ -370,11 +370,11 @@ brief_emit_target() {
   local work_home=$1 recorded_home=${2:-} sid kind root home configured_path
   case "$work_home" in
     secondmate:*) sid=${work_home#secondmate:} ;;
-    *) printf '%s\n--home %s\n' "$FM_ROOT/bin/fm-public-followup-emit.sh" "$FM_HOME"; return 0 ;;
+    *) printf '%s\n--home %s\n' "$FM_ROOT/bin/fm-public-followup-emit.sh" "$MY_FM_HOME"; return 0 ;;
   esac
   kind=$(public_followup_route_kind "$sid" "$recorded_home") || return 1
   if [ "$kind" = local ]; then
-    printf '%s\n--home %s\n' "$FM_ROOT/bin/fm-public-followup-emit.sh" "$FM_HOME"
+    printf '%s\n--home %s\n' "$FM_ROOT/bin/fm-public-followup-emit.sh" "$MY_FM_HOME"
     return 0
   fi
   root=$(secondmate_registry_field "$DATA/secondmates.md" "$sid" root 2>/dev/null) || root=
@@ -394,7 +394,7 @@ cmd_brief() {
   local emit_target emit_script emit_home_flag closing_note
   [ -n "$id" ] || { usage; exit 2; }
   fm_pf_slug_valid "$id" || die "unsafe obligation id: $id"
-  fm_pf_relay_active "$FM_HOME" || die "the relay is not active for this home" 1
+  fm_pf_relay_active "$MY_FM_HOME" || die "the relay is not active for this home" 1
   [ -f "$(fm_pf_registry_dir "$STATE")/$id" ] \
     || die "no registration for '$id' in this home" 1
 
@@ -925,7 +925,7 @@ clear_public_followup_link() {
   [ -n "$work_home" ] && [ -n "$work_id" ] || return 1
   case "$work_home" in
     main)
-      home=$FM_HOME
+      home=$MY_FM_HOME
       state=$STATE
       ;;
     secondmate:*)
@@ -956,7 +956,7 @@ clear_public_followup_link() {
       ;;
     *) return 1 ;;
   esac
-  FM_HOME="$home" FM_STATE_OVERRIDE="$state" FM_ROOT_OVERRIDE="$FM_ROOT" \
+  MY_FM_HOME="$home" FM_STATE_OVERRIDE="$state" FM_ROOT_OVERRIDE="$FM_ROOT" \
     "$FM_ROOT/bin/fm-x-followup.sh" --clear "$work_id" >/dev/null
 }
 
@@ -991,7 +991,7 @@ public_followup_legacy_link_status() {
   while IFS=$'\t' read -r work_home work_id; do
     [ -n "$work_home" ] && [ -n "$work_id" ] || return 2
     case "$work_home" in
-      main) home=$FM_HOME ;;
+      main) home=$MY_FM_HOME ;;
       secondmate:*) home=$(public_followup_secondmate_home "${work_home#secondmate:}") || return 2 ;;
       *) return 2 ;;
     esac
@@ -1066,7 +1066,7 @@ cmd_deliver() {
   done
 
   fm_pf_slug_valid "$id" || die "unsafe obligation id: $id"
-  fm_pf_relay_active "$FM_HOME" \
+  fm_pf_relay_active "$MY_FM_HOME" \
     || die "this home has not opted into the myfirstmate relay, so it cannot post a public reply" 1
   require_tools
 
@@ -1156,7 +1156,7 @@ cmd_deliver() {
   esac
 
   rc=0
-  FMX_REPLY_PLATFORM="$platform" FM_HOME="$FM_HOME" \
+  FMX_REPLY_PLATFORM="$platform" MY_FM_HOME="$MY_FM_HOME" \
     "$FM_ROOT/bin/fm-x-reply.sh" "$request" --followup --receipt-file "$receipt" \
     --text-file "$tmp_text" >/dev/null || rc=$?
 
@@ -1225,7 +1225,7 @@ cmd_record_posted() {
   case "$attempt" in ''|*[!0-9]*) die "--attempt <n> is required and must be an integer" ;; esac
   case "$chunks" in ''|*[!0-9]*) die "--chunks <n> is required and must be a positive integer" ;; esac
   [ "$chunks" -ge 1 ] 2>/dev/null || die "--chunks <n> is required and must be a positive integer"
-  fm_pf_relay_active "$FM_HOME" || die "the relay is not active for this home" 1
+  fm_pf_relay_active "$MY_FM_HOME" || die "the relay is not active for this home" 1
   public_followup_registration_valid "$id" \
     || die "public-followup registration for '$id' is missing or invalid; reconcile it before recording a receipt so any legacy X link can be cleared" 1
   require_tools
@@ -1253,7 +1253,7 @@ cmd_record_posted() {
 cmd_guard_work() {
   local work_home=${1:-} work_id=${2:-} bound id payload delivery task_state blocked=0
   [ -n "$work_home" ] && [ -n "$work_id" ] || { usage; exit 2; }
-  fm_pf_relay_active "$FM_HOME" || exit 0
+  fm_pf_relay_active "$MY_FM_HOME" || exit 0
   fm_pf_has_registrations "$STATE" || exit 0
 
   # Reading the registration records needs no tools, so establish whether this
@@ -1318,7 +1318,7 @@ cmd_rechain() {
     shift || true
   done
 
-  fm_pf_relay_active "$FM_HOME" \
+  fm_pf_relay_active "$MY_FM_HOME" \
     || die "this home has not opted into the myfirstmate relay, so it cannot own a public commitment" 1
   require_tools
   fm_pf_slug_valid "$new_id" || die "unsafe obligation id: $new_id"
@@ -1507,7 +1507,7 @@ cmd_retire() {
     shift || true
   done
   fm_pf_slug_valid "$id" || die "unsafe obligation id: $id"
-  fm_pf_relay_active "$FM_HOME" || exit 0
+  fm_pf_relay_active "$MY_FM_HOME" || exit 0
   [ -n "$reason" ] || die "retire requires --reason \"<why the public loop is done>\"" 2
   reason=$(printf '%s' "$reason" | fm_pf_clean_outcome_text)
   [ -n "$reason" ] || die "retire requires --reason \"<why the public loop is done>\"" 2

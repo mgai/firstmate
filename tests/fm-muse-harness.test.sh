@@ -149,7 +149,7 @@ EOF
 run_muse_spawn() {  # <home> <proj> <wt> <fakebin> <id> [extra args...]
   local home=$1 proj=$2 wt=$3 fakebin=$4 id=$5
   shift 5
-  FM_ROOT_OVERRIDE='' FM_HOME="$home" \
+  FM_ROOT_OVERRIDE='' MY_FM_HOME="$home" \
     FM_STATE_OVERRIDE="$home/state" FM_DATA_OVERRIDE="$home/data" \
     FM_PROJECTS_OVERRIDE="$home/projects" FM_CONFIG_OVERRIDE="$home/config" \
     FM_SPAWN_NO_GUARD=1 FM_FAKE_PANE_PATH="$wt" TMUX="fake,1,0" \
@@ -397,7 +397,7 @@ test_spawn_refuses_secondmate() {
   id="muse-secondmate-x1"
   mkdir -p "$home/data/$id" "$home/projects" "$home/state" "$home/config" "$case_dir/muse"
   printf 'charter\n' > "$home/data/$id/brief.md"
-  out=$(cd "$case_dir" && FM_ROOT_OVERRIDE='' FM_HOME="$home" \
+  out=$(cd "$case_dir" && FM_ROOT_OVERRIDE='' MY_FM_HOME="$home" \
     FM_STATE_OVERRIDE="$home/state" FM_DATA_OVERRIDE="$home/data" \
     FM_PROJECTS_OVERRIDE="$home/projects" FM_CONFIG_OVERRIDE="$home/config" \
     FM_SPAWN_NO_GUARD=1 TMUX="fake,1,0" META_API_KEY=test-key \
@@ -433,7 +433,7 @@ EOF
   assert_absent "$home/state/$id.busy-gen" "muse spawn armed a busy record it can never clear"
   printf 'binding_id=retired\nsession_log=%s\n' "$prior" > "$home/state/$id.muse-session-current"
 
-  FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$home" FM_STATE_OVERRIDE="$home/state" \
+  FM_ROOT_OVERRIDE="$ROOT" MY_FM_HOME="$home" FM_STATE_OVERRIDE="$home/state" \
     PATH="$fakebin:$PATH" "$TEARDOWN" "$id" --force >/dev/null 2>&1 \
     || fail "muse teardown failed"
   assert_absent "$binding" "muse session binding survived teardown"
@@ -478,7 +478,7 @@ SH
 }
 
 run_send_key() {  # <home> <fakebin> <id> <key> <keylog>
-  FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$1" FM_STATE_OVERRIDE="$1/state" \
+  FM_ROOT_OVERRIDE="$ROOT" MY_FM_HOME="$1" FM_STATE_OVERRIDE="$1/state" \
     FM_FAKE_KEY_LOG="$5" PATH="$2:$PATH" \
     "$ROOT/bin/fm-send.sh" "$3" --key "$4" 2>&1
 }

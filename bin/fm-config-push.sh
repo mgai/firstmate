@@ -37,7 +37,7 @@ data/secondmates.md is only a fallback for missing home= fields in older or
 incomplete meta records.
 
 Environment overrides follow the rest of firstmate:
-  FM_HOME            active firstmate home
+  MY_FM_HOME            active firstmate home
   FM_ROOT_OVERRIDE  firstmate repo root
   FM_STATE_OVERRIDE state dir
   FM_DATA_OVERRIDE  data dir
@@ -60,10 +60,10 @@ esac
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FM_ROOT="${FM_ROOT_OVERRIDE:-$(cd "$SCRIPT_DIR/.." && pwd)}"
-FM_HOME="${FM_HOME:-${FM_ROOT_OVERRIDE:-$FM_ROOT}}"
-CONFIG="${FM_CONFIG_OVERRIDE:-$FM_HOME/config}"
-STATE="${FM_STATE_OVERRIDE:-$FM_HOME/state}"
-DATA="${FM_DATA_OVERRIDE:-$FM_HOME/data}"
+MY_FM_HOME="${MY_FM_HOME:-${FM_ROOT_OVERRIDE:-$FM_ROOT}}"
+CONFIG="${FM_CONFIG_OVERRIDE:-$MY_FM_HOME/config}"
+STATE="${FM_STATE_OVERRIDE:-$MY_FM_HOME/state}"
+DATA="${FM_DATA_OVERRIDE:-$MY_FM_HOME/data}"
 SECONDMATES_MD="$DATA/secondmates.md"
 
 "$SCRIPT_DIR/fm-guard.sh" || true
@@ -109,7 +109,7 @@ if [ ! -s "$records" ]; then
   exit 0
 fi
 
-echo "config-push: $FM_HOME -> live secondmate homes"
+echo "config-push: $MY_FM_HOME -> live secondmate homes"
 
 seen_homes=""
 errors=0
@@ -152,7 +152,7 @@ while IFS='|' read -r id home _window meta; do
       if printf '%s\n' "$remote_out" | grep -Eq '^(pushed|removed):'; then remote_nudge=1; fi
       [ "$remote_pending" -eq 0 ] || remote_nudge=1
       if [ "$remote_nudge" -eq 1 ]; then
-        if FM_HOME="$FM_HOME" FM_ROOT_OVERRIDE="$FM_ROOT" FM_STATE_OVERRIDE="$STATE" \
+        if MY_FM_HOME="$MY_FM_HOME" FM_ROOT_OVERRIDE="$FM_ROOT" FM_STATE_OVERRIDE="$STATE" \
           "$SCRIPT_DIR/fm-send.sh" "fm-$id" "$FM_REMOTE_SECOND_MATE_NUDGE_MESSAGE" >/dev/null 2>&1; then
           rm -f -- "$remote_marker"
           echo "  config-reread: sent"
@@ -204,9 +204,9 @@ while IFS='|' read -r id home _window meta; do
     errors=1
     continue
   }
-  if fm_config_reread_retry_queue_is_full "$FM_HOME" "$id"; then
+  if fm_config_reread_retry_queue_is_full "$MY_FM_HOME" "$id"; then
     fm_config_reread_retry_pending "$id" "$home_real" || true
-    if fm_config_reread_retry_queue_is_full "$FM_HOME" "$id"; then
+    if fm_config_reread_retry_queue_is_full "$MY_FM_HOME" "$id"; then
       echo "  config-reread: error - retry instruction queue is full"
       errors=1
       fm_lock_release "$home_lock" || true
@@ -222,17 +222,17 @@ while IFS='|' read -r id home _window meta; do
   }
   reports="$reports $report"
   if FM_CONFIG_INHERIT_REPORT="$report" FM_CONFIG_INHERIT_LIVE=1 \
-    propagate_secondmate_inheritance "$FM_HOME" "$home_real" "$CONFIG" "$DATA"; then
+    propagate_secondmate_inheritance "$MY_FM_HOME" "$home_real" "$CONFIG" "$DATA"; then
     :
   else
     errors=1
   fi
   print_item_report "$report"
   reread_pending=0
-  if fm_config_reread_has_pending "$home_real" || fm_config_reread_has_staged "$FM_HOME" "$id"; then
+  if fm_config_reread_has_pending "$home_real" || fm_config_reread_has_staged "$MY_FM_HOME" "$id"; then
     reread_pending=1
   fi
-  if reread_out=$(FM_HOME="$FM_HOME" FM_ROOT_OVERRIDE="$FM_ROOT" \
+  if reread_out=$(MY_FM_HOME="$MY_FM_HOME" FM_ROOT_OVERRIDE="$FM_ROOT" \
     FM_STATE_OVERRIDE="$STATE" \
     fm_config_send_reread_nudge "$id" "$home_real" "$report" 2>&1); then
     if [ -n "$(fm_config_reread_changed_items "$report")" ] || [ "$reread_pending" -eq 1 ]; then

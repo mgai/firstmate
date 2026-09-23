@@ -729,13 +729,13 @@ test_supervision_protocol_follows_corrected_verdict() {
   fakebin=$(blind_ancestry_bin "$dir/blind")
 
   got=$(env -u CLAUDECODE -u PI_CODING_AGENT -u FM_PI_HARNESS -u GROK_AGENT \
-    -u CURSOR_AGENT -u CURSOR_INVOKED_AS CLAUDECODE=1 FM_HOME="$home" \
+    -u CURSOR_AGENT -u CURSOR_INVOKED_AS CLAUDECODE=1 MY_FM_HOME="$home" \
     PATH="$fakebin:$BASE_PATH" "$RENDER")
   assert_contains "$got" "primary harness: claude" \
     "with ancestry blinded, the retained marker must still render claude (the case is otherwise vacuous)"
 
   got=$(env -u CLAUDECODE -u PI_CODING_AGENT -u FM_PI_HARNESS -u GROK_AGENT \
-    -u CURSOR_AGENT -u CURSOR_INVOKED_AS CLAUDECODE=1 FM_HOME="$home" \
+    -u CURSOR_AGENT -u CURSOR_INVOKED_AS CLAUDECODE=1 MY_FM_HOME="$home" \
     "$bin" -c "r=\$(\"$RENDER\"); printf '%s' \"\$r\"")
   assert_contains "$got" "primary harness: codex" \
     "a Codex primary carrying a retained CLAUDECODE did not render the Codex protocol"

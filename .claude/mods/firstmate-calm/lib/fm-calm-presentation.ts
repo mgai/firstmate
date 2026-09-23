@@ -18,7 +18,7 @@ export { CALM_PRESERVE_MIN_CHARS } from "./fm-calm-preservation.ts";
 
 /** The environment variables that select the effective Firstmate home, as the mod reads them. */
 export type CalmHomeEnvironment = {
-  readonly FM_HOME?: string | undefined;
+  readonly MY_FM_HOME?: string | undefined;
   readonly FM_ROOT_OVERRIDE?: string | undefined;
   readonly FM_CONFIG_OVERRIDE?: string | undefined;
 };
@@ -42,13 +42,13 @@ export function calmCodeRootFromPluginRoot(pluginRoot: string): string {
 
 /**
  * The per-home `config/calm` path, resolved exactly as the Pi extension resolves it:
- * `FM_HOME`, then `FM_ROOT_OVERRIDE`, then the tracked code root, with
+ * `MY_FM_HOME`, then `FM_ROOT_OVERRIDE`, then the tracked code root, with
  * `FM_CONFIG_OVERRIDE` naming the config directory outright when present.
  */
 export function calmPreferencePath(env: CalmHomeEnvironment, pluginRoot: string): string {
   const configDirectory =
     env.FM_CONFIG_OVERRIDE ||
-    `${env.FM_HOME || env.FM_ROOT_OVERRIDE || calmCodeRootFromPluginRoot(pluginRoot)}/config`;
+    `${env.MY_FM_HOME || env.FM_ROOT_OVERRIDE || calmCodeRootFromPluginRoot(pluginRoot)}/config`;
   return `${configDirectory}/calm`;
 }
 

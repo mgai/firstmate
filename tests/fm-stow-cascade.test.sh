@@ -103,7 +103,7 @@ run_cascade() { # <primary-home> [env assignments...]
     PATH="$FAKEBIN:$BASE_PATH" \
     HOME="${HOME:-/tmp}" \
     TMPDIR="${TMPDIR:-/tmp}" \
-    FM_HOME="$home" \
+    MY_FM_HOME="$home" \
     FM_SSH_BIN="$FAKEBIN/fake-ssh" \
     "$@" \
     "$CASCADE"

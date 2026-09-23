@@ -98,7 +98,7 @@ write_mate_meta() {
 
 run_reconcile() { # <home> [--startup]
   local home=$1 option=${2:-}
-  PATH="$WORLD/fakebin:$PATH" FM_ROOT_OVERRIDE="$WORLD/root" FM_HOME="$home" \
+  PATH="$WORLD/fakebin:$PATH" FM_ROOT_OVERRIDE="$WORLD/root" MY_FM_HOME="$home" \
     FM_STATE_OVERRIDE="$home/state" FM_DATA_OVERRIDE="$home/data" FM_CONFIG_OVERRIDE="$home/config" \
     FM_INACTIVE_RECONCILE_SECS=60 FM_INACTIVE_CREW_STATE_BIN="$WORLD/fakebin/fm-crew-state.sh" \
     FM_FORGE_LOG="$WORLD/forge.log" "$RECON" scan ${option:+"$option"}
@@ -108,7 +108,7 @@ run_reconcile() { # <home> [--startup]
 # caller holding its meta lock.
 run_report() { # <home> <child>
   local home=$1 child=$2
-  PATH="$WORLD/fakebin:$PATH" FM_ROOT_OVERRIDE="$WORLD/root" FM_HOME="$home" \
+  PATH="$WORLD/fakebin:$PATH" FM_ROOT_OVERRIDE="$WORLD/root" MY_FM_HOME="$home" \
     FM_STATE_OVERRIDE="$home/state" FM_DATA_OVERRIDE="$home/data" FM_CONFIG_OVERRIDE="$home/config" \
     FM_INACTIVE_CREW_STATE_BIN="$WORLD/fakebin/fm-crew-state.sh" \
     FM_FORGE_LOG="$WORLD/forge.log" "$RECON" report "$child"
@@ -155,11 +155,11 @@ test_main_direct_terminal_presentation_receipt() {
   [ "$(outcome_count "$MAIN" pending)" = 1 ] || fail "main did not retain presentation receipt"
 
   err="$WORLD/drain.err"
-  FM_HOME="$MAIN" FM_STATE_OVERRIDE="$MAIN/state" "$DRAIN" >/dev/null 2> "$err"
+  MY_FM_HOME="$MAIN" FM_STATE_OVERRIDE="$MAIN/state" "$DRAIN" >/dev/null 2> "$err"
   seq=$(sed -n 's/^WAKE_ACK_REQUIRED:.*--ack-through \([0-9][0-9]*\) --recovery-generation .*/\1/p' "$err")
   generation=$(sed -n 's/^WAKE_ACK_REQUIRED:.*--recovery-generation \([A-Za-z0-9._-][A-Za-z0-9._-]*\)$/\1/p' "$err")
   [ -n "$seq" ] && [ -n "$generation" ] || fail "main presentation did not require durable acknowledgement"
-  FM_HOME="$MAIN" FM_STATE_OVERRIDE="$MAIN/state" "$DRAIN" --ack-through "$seq" --recovery-generation "$generation"
+  MY_FM_HOME="$MAIN" FM_STATE_OVERRIDE="$MAIN/state" "$DRAIN" --ack-through "$seq" --recovery-generation "$generation"
   [ "$(outcome_count "$MAIN" presented)" = 1 ] || fail "acknowledged presentation did not receive its own receipt"
   pass "main direct terminal presentation has a durable receipt"
 }
@@ -257,7 +257,7 @@ test_busy_child_does_not_starve_later_ledger_outcomes() {
   write_child "$MATE" a-busy 'done: busy child finished'
   write_child "$MATE" b-ready 'done: later child finished'
   printf 'epoch=%s\ncursor=\n' "$(date +%s)" > "$MATE/state/.inactive-outcome-reconcile"
-  FM_HOME="$MATE" FM_STATE_OVERRIDE="$MATE/state" bash -c '
+  MY_FM_HOME="$MATE" FM_STATE_OVERRIDE="$MATE/state" bash -c '
     . "$1/bin/fm-wake-lib.sh"
     lock=$(fm_meta_lock_path "$FM_STATE_OVERRIDE/a-busy.meta")
     fm_lock_acquire_wait "$lock"
@@ -500,7 +500,7 @@ test_report_avoids_scan_meta_lock_inversion() {
   local holder scan_pid report_pid i completed=0
   make_world report-lock-order; bind_secondmate local
   write_child "$MATE" child 'done: final word'
-  FM_HOME="$MATE" FM_STATE_OVERRIDE="$MATE/state" bash -c '
+  MY_FM_HOME="$MATE" FM_STATE_OVERRIDE="$MATE/state" bash -c '
     . "$1/bin/fm-wake-lib.sh"
     lock=$(fm_meta_lock_path "$FM_STATE_OVERRIDE/child.meta")
     fm_lock_acquire_wait "$lock"
@@ -656,7 +656,7 @@ SH
   while [ "$i" -lt 40 ] && [ ! -e "$WORLD/state-started" ]; do sleep 0.05; i=$((i + 1)); done
   [ -e "$WORLD/state-started" ] || fail "reconciliation did not begin its state snapshot"
 
-  FM_HOME="$MATE" FM_STATE_OVERRIDE="$MATE/state" bash -c '
+  MY_FM_HOME="$MATE" FM_STATE_OVERRIDE="$MATE/state" bash -c '
     . "$1/bin/fm-wake-lib.sh"
     meta="$FM_STATE_OVERRIDE/child.meta"
     lock=$(fm_meta_lock_path "$meta")
@@ -723,7 +723,7 @@ test_watcher_hook_and_idle_secondmate_exemption() {
   local out pid i
   make_world watcher; write_child "$MAIN" child 'done: green'; prime_seen "$MAIN/state" "$MAIN/state/child.status"
   out="$WORLD/watch.out"
-  PATH="$WORLD/fakebin:$PATH" FM_HOME="$MAIN" FM_STATE_OVERRIDE="$MAIN/state" \
+  PATH="$WORLD/fakebin:$PATH" MY_FM_HOME="$MAIN" FM_STATE_OVERRIDE="$MAIN/state" \
     FM_INACTIVE_RECONCILE_SECS=60 FM_INACTIVE_CREW_STATE_BIN="$WORLD/fakebin/fm-crew-state.sh" \
     FM_FORGE_LOG="$WORLD/forge.log" FM_POLL=1 FM_SIGNAL_GRACE=1 FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 \
     FM_FAKE_CREW_STATE='done' "$WATCH" > "$out" 2>&1 &
@@ -739,7 +739,7 @@ test_watcher_hook_and_idle_secondmate_exemption() {
   grep -Fq 'check: inactive-outcome' "$out" || fail "watcher did not surface its reconciliation result"
 
   make_world idle-secondmate; bind_secondmate local; write_mate_meta; prime_seen "$MAIN/state" "$MAIN/state/mate.status"
-  PATH="$WORLD/fakebin:$PATH" FM_HOME="$MAIN" FM_STATE_OVERRIDE="$MAIN/state" FM_POLL=1 FM_SIGNAL_GRACE=1 \
+  PATH="$WORLD/fakebin:$PATH" MY_FM_HOME="$MAIN" FM_STATE_OVERRIDE="$MAIN/state" FM_POLL=1 FM_SIGNAL_GRACE=1 \
     FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 "$WATCH" > "$WORLD/idle.out" 2>&1 &
   pid=$!; sleep 2; kill -0 "$pid" 2>/dev/null || fail "idle secondmate watcher exited unexpectedly"; reap "$pid"
   grep -F 'stale:' "$WORLD/idle.out" >/dev/null && fail "idle secondmate was treated as a wedge"
@@ -755,7 +755,7 @@ test_watcher_poll_delivers_child_ledger_line_to_parent() {
   make_world watcher-ledger; bind_secondmate local
   write_child "$MATE" child 'done: PR https://example.test/owner/repo/pull/1 checks green'
   prime_seen "$MATE/state" "$MATE/state/child.status"
-  PATH="$WORLD/fakebin:$PATH" FM_HOME="$MATE" FM_STATE_OVERRIDE="$MATE/state" FM_DATA_OVERRIDE="$MATE/data" \
+  PATH="$WORLD/fakebin:$PATH" MY_FM_HOME="$MATE" FM_STATE_OVERRIDE="$MATE/state" FM_DATA_OVERRIDE="$MATE/data" \
     FM_CONFIG_OVERRIDE="$MATE/config" FM_INACTIVE_RECONCILE_SECS=60 \
     FM_INACTIVE_CREW_STATE_BIN="$WORLD/fakebin/fm-crew-state.sh" FM_FORGE_LOG="$WORLD/forge.log" \
     FM_POLL=1 FM_SIGNAL_GRACE=1 FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 \
@@ -807,7 +807,7 @@ SH
 test_full_scan_budget_includes_wake_lock_wait() {
   local holder started elapsed i
   make_world wake-lock; write_child "$MAIN" child 'done: green'
-  FM_HOME="$MAIN" FM_STATE_OVERRIDE="$MAIN/state" bash -c '
+  MY_FM_HOME="$MAIN" FM_STATE_OVERRIDE="$MAIN/state" bash -c '
     . "$1/bin/fm-wake-lib.sh"
     fm_lock_acquire_wait "$FM_WAKE_QUEUE_LOCK"
     : > "$2"
@@ -868,10 +868,10 @@ test_notice_recovery_does_not_duplicate_wake() {
   [ "$(wake_count "$MATE" 'inactive-reconcile:')" = 1 ] || fail "recovery duplicated an already queued notice"
 
   err="$WORLD/drain.err"
-  FM_HOME="$MATE" FM_STATE_OVERRIDE="$MATE/state" "$DRAIN" >/dev/null 2> "$err"
+  MY_FM_HOME="$MATE" FM_STATE_OVERRIDE="$MATE/state" "$DRAIN" >/dev/null 2> "$err"
   seq=$(sed -n 's/^WAKE_ACK_REQUIRED:.*--ack-through \([0-9][0-9]*\) --recovery-generation .*/\1/p' "$err")
   generation=$(sed -n 's/^WAKE_ACK_REQUIRED:.*--recovery-generation \([A-Za-z0-9._-][A-Za-z0-9._-]*\)$/\1/p' "$err")
-  FM_HOME="$MATE" FM_STATE_OVERRIDE="$MATE/state" "$DRAIN" --ack-through "$seq" --recovery-generation "$generation"
+  MY_FM_HOME="$MATE" FM_STATE_OVERRIDE="$MATE/state" "$DRAIN" --ack-through "$seq" --recovery-generation "$generation"
   FM_FAKE_CREW_STATE='failed' run_reconcile "$MATE" --startup
   [ "$(wake_count "$MATE" 'inactive-reconcile:')" = 0 ] || fail "acknowledged notice was emitted again"
   pass "notice recovery remains idempotent across queue acknowledgement"

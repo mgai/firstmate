@@ -88,7 +88,7 @@
 # home already uses for other tools.
 #
 # Environment:
-#   FM_HOME              operational home whose state/ and data/ are used.
+#   MY_FM_HOME              operational home whose state/ and data/ are used.
 #
 # PRIVACY: `say` sends your audio and `ask` sends your question to Bedrock.
 # `note`, `announce`, `reply`, `receipts`, `ready`, `status`, `list` and `drain`
@@ -119,12 +119,12 @@ export PATH
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FM_ROOT="$(cd "$SELF_DIR/.." && pwd)"
-FM_HOME="${FM_HOME:-$FM_ROOT}"
-STATE="${FM_STATE_OVERRIDE:-$FM_HOME/state}"
-DATA="${FM_DATA_OVERRIDE:-$FM_HOME/data}"
+MY_FM_HOME="${MY_FM_HOME:-$FM_ROOT}"
+STATE="${FM_STATE_OVERRIDE:-$MY_FM_HOME/state}"
+DATA="${FM_DATA_OVERRIDE:-$MY_FM_HOME/data}"
 INBOX="$STATE/inbox"
 
-CONFIG="${FM_CONFIG_OVERRIDE:-$FM_HOME/config}"
+CONFIG="${FM_CONFIG_OVERRIDE:-$MY_FM_HOME/config}"
 
 die() { printf 'fm-inbox: %s\n' "$*" >&2; exit 1; }
 
@@ -208,7 +208,7 @@ load_wake_lib() {
   [ "${FM_INBOX_WAKE_LIB:-}" = 1 ] && return 0
   [ -r "$lib" ] || return 1
   # shellcheck source=bin/fm-wake-lib.sh
-  FM_ROOT_OVERRIDE="$FM_ROOT" FM_HOME="$FM_HOME" STATE="$STATE" . "$lib"
+  FM_ROOT_OVERRIDE="$FM_ROOT" MY_FM_HOME="$MY_FM_HOME" STATE="$STATE" . "$lib"
   FM_INBOX_WAKE_LIB=1
 }
 
@@ -669,7 +669,7 @@ cmd_receipts() {
     esac
   done
   need_python
-  python3 - "$INBOX" "$ANNOUNCED_DIR" "$REPLIES" "$FM_HOME" \
+  python3 - "$INBOX" "$ANNOUNCED_DIR" "$REPLIES" "$MY_FM_HOME" \
     "$RECEIPTS_PENDING_BOUND" "$RECEIPTS_HANDLED_BOUND" "$RECEIPTS_REPLIES_BOUND" \
     "$all_pending" "$all_handled" "$all_replies" "$after" \
     "$(date -u +%Y-%m-%dT%H:%M:%SZ)" <<'PY'
@@ -908,7 +908,7 @@ cmd_ready() {
   else
     FM_SUPERVISION_MODEL=$resolved_model \
       fm_watcher_supervision_verdict "$STATE" "$watch" "${FM_GUARD_GRACE:-300}" \
-        "$FM_HOME" "$FM_ROOT"
+        "$MY_FM_HOME" "$FM_ROOT"
     if [ "$FM_WATCHER_VERDICT_OK" = true ]; then
       consumer_state=healthy
       consumer_reason="supervised"
@@ -932,7 +932,7 @@ cmd_ready() {
 
   python3 - "$lock_state" "$lock_pid" "$live_harness" \
     "$consumer_state" "$consumer_reason" "$beacon_age" \
-    "$posture" "$can_receive" "$observed" "$FM_HOME" <<'PY'
+    "$posture" "$can_receive" "$observed" "$MY_FM_HOME" <<'PY'
 import json, sys
 from pathlib import Path
 (lock_state, lock_pid, live_harness, consumer_state, consumer_reason,
@@ -1043,7 +1043,7 @@ cmd_status() {
   [ -d "$INBOX" ] && pending=$(find "$INBOX" -maxdepth 1 -name '*.note' 2>/dev/null | wc -l | tr -d ' ')
 
   printf '=== firstmate status (read-only, no wake sent) ===\n'
-  printf 'home     %s\n' "$FM_HOME"
+  printf 'home     %s\n' "$MY_FM_HOME"
   printf 'time     %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   printf 'inbox    %s note(s) waiting for firstmate\n' "$pending"
 

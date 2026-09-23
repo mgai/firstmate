@@ -78,7 +78,7 @@ REC
     "the remote-seeded spawn did not report success"
   assert_grep "worktree=$POOL_DIR" "$HOME_DIR/state/$id.meta" \
     "the remote-seeded spawn did not publish its allocated pool worktree"
-  lock=$(FM_HOME="$HOME_DIR" bash -c '. "$1"; fm_treehouse_project_lock_path "$2"' _ \
+  lock=$(MY_FM_HOME="$HOME_DIR" bash -c '. "$1"; fm_treehouse_project_lock_path "$2"' _ \
     "$ROOT/bin/fm-wake-lib.sh" "$PROJECT_DIR") \
     || fail "the launched remote-seeded home could not resolve its Treehouse project lock"
   case "$lock" in
@@ -87,7 +87,7 @@ REC
   esac
   if [ "${FM_TEST_EVIDENCE:-0}" = 1 ]; then
     printf '# remote-seeded Treehouse spawn command\n'
-    printf '$ FM_HOME=%s bin/fm-spawn.sh %s %s --scout\n%s\nexit=%s\n' \
+    printf '$ MY_FM_HOME=%s bin/fm-spawn.sh %s %s --scout\n%s\nexit=%s\n' \
       "$HOME_DIR" "$id" "$PROJECT_DIR" "$out" "$status"
     printf 'published worktree=%s\nresolved project lock=%s\n' "$POOL_DIR" "$lock"
   fi

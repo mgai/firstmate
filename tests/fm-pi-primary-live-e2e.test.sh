@@ -188,7 +188,7 @@ run_native_ahoy_regressions() {
   printf '%s\n' \
     '#!/usr/bin/env bash' \
     'set -u' \
-    'file="${FM_HOME:?}/state/session-start-count"' \
+    'file="${MY_FM_HOME:?}/state/session-start-count"' \
     'count=0' \
     '[ ! -f "$file" ] || count=$(sed -n "1p" "$file")' \
     'count=$((count + 1))' \
@@ -216,7 +216,7 @@ run_native_ahoy_regressions() {
 
   first_out=$(
     cd "$AHOY_PROJECT" &&
-      FM_HOME="$first_home" pi --print --approve --no-session --no-context-files --no-extensions \
+      MY_FM_HOME="$first_home" pi --print --approve --no-session --no-context-files --no-extensions \
         -e .pi/extensions/fm-primary-turnend-guard.ts \
         --no-skills --skill .agents/skills \
         --model openai-codex/gpt-5.6-sol --thinking low \
@@ -229,7 +229,7 @@ run_native_ahoy_regressions() {
 
   later_out=$(
     cd "$AHOY_PROJECT" &&
-      FM_HOME="$later_home" pi --print --approve --no-session --no-context-files --no-extensions \
+      MY_FM_HOME="$later_home" pi --print --approve --no-session --no-context-files --no-extensions \
         -e .pi/extensions/fm-primary-turnend-guard.ts \
         --no-skills --skill .agents/skills \
         --model openai-codex/gpt-5.6-sol --thinking low \
@@ -269,7 +269,7 @@ chmod +x "$PROJECT/bin/fm-operational-input.sh"
 mkdir -p "$HOME_DIR/state" "$HOME_DIR/config"
 
 "$TMUX" -L "$SOCKET" new-session -d -s "$SESSION" -c "$PROJECT" \
-  "env FM_HOME='$HOME_DIR' FM_ROOT_OVERRIDE='$PROJECT' FM_POLL=1 FM_SIGNAL_GRACE=0 FM_HEARTBEAT=600 bash -lc 'printf \"%s\\n\" \"\$\$\" > \"\$FM_HOME/state/.lock\"; pi --approve --no-session --no-context-files --no-extensions -e .pi/extensions/fm-calm.ts -e .pi/extensions/fm-primary-turnend-guard.ts -e .pi/extensions/fm-primary-pi-watch.ts --model openai-codex/gpt-5.6-sol --thinking low; rc=\$?; printf \"PI_EXIT=%s\\n\" \"\$rc\"; sleep 300'"
+  "env MY_FM_HOME='$HOME_DIR' FM_ROOT_OVERRIDE='$PROJECT' FM_POLL=1 FM_SIGNAL_GRACE=0 FM_HEARTBEAT=600 bash -lc 'printf \"%s\\n\" \"\$\$\" > \"\$MY_FM_HOME/state/.lock\"; pi --approve --no-session --no-context-files --no-extensions -e .pi/extensions/fm-calm.ts -e .pi/extensions/fm-primary-turnend-guard.ts -e .pi/extensions/fm-primary-pi-watch.ts --model openai-codex/gpt-5.6-sol --thinking low; rc=\$?; printf \"PI_EXIT=%s\\n\" \"\$rc\"; sleep 300'"
 
 i=0
 while [ "$i" -lt 120 ]; do
@@ -369,7 +369,7 @@ kill -TERM "$arm_pid" 2>/dev/null || fail "could not intentionally stop the isol
 wait_pid_dead "$watcher_pid" || fail "intentionally stopped watcher stayed alive"
 wait_pid_dead "$arm_pid" || fail "intentionally stopped arm stayed alive"
 sleep 2
-alarm=$(FM_HOME="$HOME_DIR" FM_ROOT_OVERRIDE="$PROJECT" FM_GUARD_GRACE=1 \
+alarm=$(MY_FM_HOME="$HOME_DIR" FM_ROOT_OVERRIDE="$PROJECT" FM_GUARD_GRACE=1 \
   FM_SUPERVISION_MODEL=extension "$PROJECT/bin/fm-guard.sh" 2>&1)
 printf '%s\n' "$alarm" | grep -Fq 'WATCHER DOWN - SUPERVISION IS OFF' \
   || fail "an intentionally stopped live Pi chain did not raise the genuine outage alarm: $alarm"

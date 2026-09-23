@@ -64,12 +64,12 @@ script("fm-turnend-guard.sh", "#!/usr/bin/env bash\nexit 0\n");
 script(
   "fm-watch-arm.sh",
   `#!/usr/bin/env bash
-if [ "\${1:-}" = --handling-delivered ]; then printf 'confirmed\\n' >> "$FM_HOME/state/arm.log"; exit 0; fi
-printf 'arm\\n' >> "$FM_HOME/state/arm.log"
+if [ "\${1:-}" = --handling-delivered ]; then printf 'confirmed\\n' >> "$MY_FM_HOME/state/arm.log"; exit 0; fi
+printf 'arm\\n' >> "$MY_FM_HOME/state/arm.log"
 printf 'watcher: started pid=%s (beacon fresh) recovery-generation=native-smoke\\n' "$$"
 trap 'exit 0' TERM INT
 while :; do
- if [ -f "$FM_HOME/state/trigger" ]; then rm -f "$FM_HOME/state/trigger"; printf 'check: native-worker-complete\\n'; exit 0; fi
+ if [ -f "$MY_FM_HOME/state/trigger" ]; then rm -f "$MY_FM_HOME/state/trigger"; printf 'check: native-worker-complete\\n'; exit 0; fi
  sleep 0.05
 done
 `,
@@ -77,7 +77,7 @@ done
 const own = path.join(fixture, "own-lock.ts");
 fs.writeFileSync(
   own,
-  `import {writeFileSync,appendFileSync} from 'node:fs'; export default function(pi){pi.on('session_start',()=>writeFileSync(process.env.FM_HOME+'/state/.lock',String(process.pid)+'\\n'));pi.events.on('codex-native:progress',event=>appendFileSync(process.env.FM_HOME+'/state/progress-events',JSON.stringify(event)+'\\n'));}`,
+  `import {writeFileSync,appendFileSync} from 'node:fs'; export default function(pi){pi.on('session_start',()=>writeFileSync(process.env.MY_FM_HOME+'/state/.lock',String(process.pid)+'\\n'));pi.events.on('codex-native:progress',event=>appendFileSync(process.env.MY_FM_HOME+'/state/progress-events',JSON.stringify(event)+'\\n'));}`,
 );
 const peer = path.join(fixture, "native-peer.mjs");
 fs.writeFileSync(
@@ -85,7 +85,7 @@ fs.writeFileSync(
   `#!/usr/bin/env node
 import fs from 'node:fs';
 let buffer='',counter=0,config;
-const log=(data)=>fs.appendFileSync(process.env.FM_HOME+'/state/native.log',JSON.stringify(data)+'\\n');
+const log=(data)=>fs.appendFileSync(process.env.MY_FM_HOME+'/state/native.log',JSON.stringify(data)+'\\n');
 const emit=(x)=>process.stdout.write(JSON.stringify(x)+'\\n');
 async function control(name,args={}){
  const response=await fetch(config.url,{method:'POST',headers:{...config.http_headers,'Content-Type':'application/json',Accept:'application/json, text/event-stream'},body:JSON.stringify({jsonrpc:'2.0',id:++counter,method:'tools/call',params:{name,arguments:args}})});
@@ -183,7 +183,7 @@ async function start(resume) {
     cwd: repo,
     env: {
       ...process.env,
-      FM_HOME: home,
+      MY_FM_HOME: home,
       FM_ROOT_OVERRIDE: repo,
       PI_CODEX_NATIVE_BIN: peer,
       PI_CODING_AGENT_DIR: path.join(fixture, "pi-config"),
@@ -266,7 +266,7 @@ try {
       "--summary",
       "WORKER_DONE_SENTINEL verified fixture completion",
     ],
-    { env: { ...process.env, FM_HOME: home } },
+    { env: { ...process.env, MY_FM_HOME: home } },
   );
   fs.writeFileSync(path.join(state, "trigger"), "complete\n");
   await wait(

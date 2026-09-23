@@ -43,7 +43,7 @@ signal: $P/state/mate.status
 
 $ # Step 2: the mate registers the PR with fm-pr-check; the ready line with the canonical URL reaches the parent from the script itself
 
-$ FM_HOME=$M FM_STATE_OVERRIDE=$M/state bin/fm-pr-check.sh child https://github.com/kunchenguid/firstmate/pull/9999
+$ MY_FM_HOME=$M FM_STATE_OVERRIDE=$M/state bin/fm-pr-check.sh child https://github.com/kunchenguid/firstmate/pull/9999
 armed: state/child.check.sh
 
 $ cat $P/state/mate.status
@@ -57,12 +57,12 @@ signal: $P/state/mate.status
 
 $ # Step 3: the mate holds a task for the captain; the hold reaches the parent from fm-captain-hold itself
 
-$ FM_HOME=$M bin/fm-captain-hold.sh hold child-call --title 'Pick the rollout window' --reason 'rollout window choice pending' --repo alpha
+$ MY_FM_HOME=$M bin/fm-captain-hold.sh hold child-call --title 'Pick the rollout window' --reason 'rollout window choice pending' --repo alpha
 child-call
 
 $ # Step 4: the captain's answer is recorded in the mate home; the close reaches the parent from fm-captain-hold itself
 
-$ FM_HOME=$M bin/fm-captain-hold.sh answer child-call --decision-file decision.txt   (decision: roll out on Monday)
+$ MY_FM_HOME=$M bin/fm-captain-hold.sh answer child-call --decision-file decision.txt   (decision: roll out on Monday)
 answered: child-call
 
 $ cat $P/state/mate.status   (final parent channel)

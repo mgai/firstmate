@@ -142,7 +142,7 @@ drain_ack_pair() {  # <drain-stderr>
 
 start_rearm_arm() {  # <home> <state> <fakebin> <arm-out> [predecessor-arm-pid]
   local home=$1 state=$2 fakebin=$3 armout=$4 predecessor=${5:-} i
-  PATH="$fakebin:$PATH" FM_HOME="$home" FM_STATE_OVERRIDE="$state" \
+  PATH="$fakebin:$PATH" MY_FM_HOME="$home" FM_STATE_OVERRIDE="$state" \
     FM_POLL=1 FM_SIGNAL_GRACE=0 FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 \
     FM_WATCH_PREDECESSOR_ARM_PID="$predecessor" \
     "$WATCH_ARM" --restart > "$armout" &
@@ -258,14 +258,14 @@ test_rearm_resurfaces_durable_queue_and_remote_open_decision() {
   # secondmate's decision onto the parent status surface the shared fold owns.
   write_remote_delta "$result" \
     'needs-decision [key=remote-signoff]: remote secondmate is held for captain sign-off'
-  FM_HOME="$home" FM_STATE_OVERRIDE="$state" FM_DATA_OVERRIDE="$home/data" \
+  MY_FM_HOME="$home" FM_STATE_OVERRIDE="$state" FM_DATA_OVERRIDE="$home/data" \
     "$ROOT/bin/fm-procevent-remote-reply.sh" ingest ios "$result" >/dev/null \
     || fail "remote parent-reply ingest failed"
 
   # Drain once before the outage to establish the incremental cursor and the
   # signal suppressor that a watcher had already observed. The decision remains
   # intentionally open across the watcher-down interval.
-  FM_HOME="$home" FM_STATE_OVERRIDE="$state" "$DRAIN" > "$dir/baseline-drain.out" \
+  MY_FM_HOME="$home" FM_STATE_OVERRIDE="$state" "$DRAIN" > "$dir/baseline-drain.out" \
     || fail "baseline drain failed"
   ack_wakes "$state" || fail "baseline handling acknowledgement failed"
   grep -F 'remote secondmate is held for captain sign-off' "$dir/baseline-drain.out" >/dev/null \
@@ -299,7 +299,7 @@ test_rearm_resurfaces_durable_queue_and_remote_open_decision() {
   # The normal wake-handling drain is the one owner of both queue consumption
   # and the cursor-backed fold. It must expose every queued record and the
   # already-open remote decision without relying on another user message.
-  FM_HOME="$home" FM_STATE_OVERRIDE="$state" "$DRAIN" > "$drainout" \
+  MY_FM_HOME="$home" FM_STATE_OVERRIDE="$state" "$DRAIN" > "$drainout" \
     || fail "drain after re-arm recovery failed"
   grep "$(printf '\tcheck\tremote-reply-ios\t')" "$drainout" >/dev/null \
     || fail "remote-reply wake queued during downtime was not drained"
@@ -326,7 +326,7 @@ test_rearm_resurfaces_durable_queue_and_remote_open_decision() {
   start_rearm_arm "$home" "$state" "$fakebin" "$dir/decision-handling-successor.out" "$decision_recovery_arm"
   is_live_non_zombie "$ARM_PID" || fail "decision handling successor re-triggered before the drain"
   decision_successor=$ARM_PID
-  FM_HOME="$home" FM_STATE_OVERRIDE="$state" "$DRAIN" > "$dir/decision-only-drain.out" \
+  MY_FM_HOME="$home" FM_STATE_OVERRIDE="$state" "$DRAIN" > "$dir/decision-only-drain.out" \
     2> "$dir/decision-only-drain.err" || fail "decision-only drain after re-arm recovery failed"
   grep -F 'ios [key=remote-signoff] needs-decision: remote secondmate is held for captain sign-off' \
     "$dir/decision-only-drain.out" >/dev/null \
@@ -346,7 +346,7 @@ test_rearm_resurfaces_durable_queue_and_remote_open_decision() {
   wait_for_exit "$ARM_PID" 80 || fail "interrupted decision handling was not recovered on successor re-arm"
   grep -F 'check: rearm-resurface' "$dir/interrupted-decision-arm.out" >/dev/null \
     || fail "successor did not re-surface the unacknowledged decision recovery"
-  FM_HOME="$home" FM_STATE_OVERRIDE="$state" "$DRAIN" > "$dir/replayed-decision-drain.out" \
+  MY_FM_HOME="$home" FM_STATE_OVERRIDE="$state" "$DRAIN" > "$dir/replayed-decision-drain.out" \
     2> "$dir/replayed-decision-drain.err" || fail "replayed decision recovery drain failed"
   grep -F 'ios [key=remote-signoff] needs-decision: remote secondmate is held for captain sign-off' \
     "$dir/replayed-decision-drain.out" >/dev/null \
@@ -410,7 +410,7 @@ test_delivery_gap_wake_is_recovered_once() {
   grep -q '^signal:' "$dir/first-arm.out" \
     || fail "first watcher did not report its delivered wake"
 
-  FM_HOME="$home" FM_STATE_OVERRIDE="$state" "$DRAIN" > "$dir/first-drain.out" \
+  MY_FM_HOME="$home" FM_STATE_OVERRIDE="$state" "$DRAIN" > "$dir/first-drain.out" \
     || fail "first handling drain failed"
   ack_wakes "$state" || fail "first handling acknowledgement failed"
   append_wake "$state" check startup-network 'check: startup-network during handling gap'
@@ -420,7 +420,7 @@ test_delivery_gap_wake_is_recovered_once() {
   grep -F 'check: rearm-resurface' "$dir/gap-arm.out" >/dev/null \
     || fail "delivery-gap successor did not emit one recovery wake: $(cat "$dir/gap-arm.out")"
 
-  FM_HOME="$home" FM_STATE_OVERRIDE="$state" "$DRAIN" > "$dir/gap-drain.out" \
+  MY_FM_HOME="$home" FM_STATE_OVERRIDE="$state" "$DRAIN" > "$dir/gap-drain.out" \
     || fail "delivery-gap recovery drain failed"
   grep "$(printf '\tcheck\tstartup-network\t')" "$dir/gap-drain.out" >/dev/null \
     || fail "wake queued in the delivery gap was not drained"
@@ -483,7 +483,7 @@ test_interrupted_handling_is_redrained_on_rearm() {
   esac
   handling_generation=$(recovery_marker_generation "$state/.watcher-down")
   handling_watcher_pid=$(sed -n 's/^watcher: started pid=\([0-9][0-9]*\).* recovery-generation=.*$/\1/p' "$dir/handling-successor-arm.out")
-  FM_HOME="$home" FM_STATE_OVERRIDE="$state" "$WATCH_ARM" --handling-delivered "$handling_generation" \
+  MY_FM_HOME="$home" FM_STATE_OVERRIDE="$state" "$WATCH_ARM" --handling-delivered "$handling_generation" \
     --watcher-pid "$handling_watcher_pid" \
     || fail "confirmed prompt delivery did not begin handling"
   case "$(cat "$state/.watcher-down" 2>/dev/null || true)" in
@@ -492,7 +492,7 @@ test_interrupted_handling_is_redrained_on_rearm() {
   esac
   ! grep -F 'check: rearm-resurface' "$dir/handling-successor-arm.out" >/dev/null \
     || fail "expected handling successor emitted a recursive recovery wake"
-  FM_HOME="$home" FM_STATE_OVERRIDE="$state" "$DRAIN" > "$dir/interrupted-drain.out" \
+  MY_FM_HOME="$home" FM_STATE_OVERRIDE="$state" "$DRAIN" > "$dir/interrupted-drain.out" \
     2> "$dir/interrupted-drain.err" || fail "handling drain did not expose the durable wake"
   grep "$(printf '\tsignal\tinterrupted.status\t')" "$dir/interrupted-drain.out" >/dev/null \
     || fail "handling drain did not present the durable wake"
@@ -511,7 +511,7 @@ test_interrupted_handling_is_redrained_on_rearm() {
   wait_for_exit "$ARM_PID" 80 || fail "successor after interruption did not re-surface the pending wake"
   grep -F 'check: rearm-resurface' "$dir/recovery-arm.out" >/dev/null \
     || fail "successor after interruption did not emit durable recovery"
-  FM_HOME="$home" FM_STATE_OVERRIDE="$state" "$DRAIN" > "$dir/replay-drain.out" \
+  MY_FM_HOME="$home" FM_STATE_OVERRIDE="$state" "$DRAIN" > "$dir/replay-drain.out" \
     2> "$dir/replay-drain.err" || fail "successor could not re-drain the interrupted wake"
   grep "$(printf '\tsignal\tinterrupted.status\t')" "$dir/replay-drain.out" >/dev/null \
     || fail "successor did not re-drain the still-durable wake"
@@ -542,7 +542,7 @@ test_malformed_marker_is_quarantined_once() {
   invalid_count=$(find "$state" -maxdepth 1 -type d -name '.watcher-down.invalid.*' | wc -l | tr -d '[:space:]')
   [ "$invalid_count" -eq 1 ] || fail "malformed marker was not quarantined exactly once"
 
-  FM_HOME="$home" FM_STATE_OVERRIDE="$state" "$DRAIN" > "$dir/recovery-drain.out" \
+  MY_FM_HOME="$home" FM_STATE_OVERRIDE="$state" "$DRAIN" > "$dir/recovery-drain.out" \
     || fail "malformed-marker recovery drain failed"
   ack_wakes "$state" || fail "malformed-marker handling acknowledgement failed"
   start_rearm_arm "$home" "$state" "$fakebin" "$dir/stable-successor.out"
@@ -571,7 +571,7 @@ test_recovery_consumption_serializes_queue_publication() {
     || fail "publisher did not restore recovery evidence"
   grep "$(printf '\tcheck\tstartup-network\t')" "$state/.wake-queue" >/dev/null \
     || fail "publisher did not durably append its wake"
-  FM_HOME="$home" FM_STATE_OVERRIDE="$state" "$DRAIN" > "$dir/drain.out" \
+  MY_FM_HOME="$home" FM_STATE_OVERRIDE="$state" "$DRAIN" > "$dir/drain.out" \
     || fail "publisher recovery drain failed"
   grep "$(printf '\tcheck\tstartup-network\t')" "$dir/drain.out" >/dev/null \
     || fail "publisher wake was not surfaced and drained"
@@ -625,7 +625,7 @@ test_markerless_legacy_queue_is_recovered_on_arm() {
     pending:downtime:*|announced:downtime:*) ;;
     *) fail "markerless legacy queue was not adopted into downtime recovery" ;;
   esac
-  FM_HOME="$home" FM_STATE_OVERRIDE="$state" "$DRAIN" > "$dir/drain.out" \
+  MY_FM_HOME="$home" FM_STATE_OVERRIDE="$state" "$DRAIN" > "$dir/drain.out" \
     || fail "adopted legacy queue could not be drained"
   grep -F "$row" "$dir/drain.out" >/dev/null \
     || fail "adopted legacy wake was not presented"
@@ -650,7 +650,7 @@ test_handling_window_close_keeps_the_acknowledgement_valid() {
   grep "$(printf '\tsignal\thandled.status\t')" "$state/.wake-queue" >/dev/null \
     || fail "delivered wake was not durable before handling"
 
-  FM_HOME="$home" FM_STATE_OVERRIDE="$state" "$DRAIN" > "$dir/drain.out" 2> "$dir/drain.err" \
+  MY_FM_HOME="$home" FM_STATE_OVERRIDE="$state" "$DRAIN" > "$dir/drain.out" 2> "$dir/drain.err" \
     || fail "handling drain did not present the durable wake"
   pair=$(drain_ack_pair "$dir/drain.err") \
     || fail "drain did not print a generation-bound acknowledgement command"
@@ -675,7 +675,7 @@ test_handling_window_close_keeps_the_acknowledgement_valid() {
   grep "$(printf '\tsignal\tduring-handling.status\t')" "$state/.wake-queue" >/dev/null \
     || fail "the newer handling-window wake was over-consumed"
 
-  FM_HOME="$home" FM_STATE_OVERRIDE="$state" "$DRAIN" > "$dir/remaining-drain.out" \
+  MY_FM_HOME="$home" FM_STATE_OVERRIDE="$state" "$DRAIN" > "$dir/remaining-drain.out" \
     2> "$dir/remaining-drain.err" || fail "remaining wake could not be re-drained"
   pair=$(drain_ack_pair "$dir/remaining-drain.err") \
     || fail "remaining drain did not print an acknowledgement command"
@@ -715,7 +715,7 @@ test_moved_generation_acknowledgement_is_self_healing() {
   is_live_non_zombie "$ARM_PID" || fail "moved-generation fixture watcher did not stay live"
   printf 'done: first handled wake\n' > "$state/first.status"
   wait_for_exit "$ARM_PID" 120 || fail "fixture watcher did not deliver its first wake"
-  FM_HOME="$home" FM_STATE_OVERRIDE="$state" "$DRAIN" > "$dir/first-drain.out" \
+  MY_FM_HOME="$home" FM_STATE_OVERRIDE="$state" "$DRAIN" > "$dir/first-drain.out" \
     2> "$dir/first-drain.err" || fail "first drain did not present the durable wake"
   pair=$(drain_ack_pair "$dir/first-drain.err") \
     || fail "first drain did not print a generation-bound acknowledgement command"
@@ -760,7 +760,7 @@ test_moved_generation_acknowledgement_is_self_healing() {
     || fail "row consumption under a stale generation retired the pending episode"
 
   # Following the printed remedy closes the episode, so the loop is self-healing.
-  FM_HOME="$home" FM_STATE_OVERRIDE="$state" "$DRAIN" > "$dir/redrain.out" \
+  MY_FM_HOME="$home" FM_STATE_OVERRIDE="$state" "$DRAIN" > "$dir/redrain.out" \
     2> "$dir/redrain.err" || fail "the remedy re-drain did not run"
   pair=$(drain_ack_pair "$dir/redrain.err") \
     || fail "the remedy re-drain did not print the newer acknowledgement command"
@@ -816,7 +816,7 @@ test_arm_refuses_an_unusable_launch_confirm_window() {
   armout="$dir/arm.out"
   mkdir -p "$home/data"
 
-  PATH="$fakebin:$PATH" FM_HOME="$home" FM_STATE_OVERRIDE="$state" \
+  PATH="$fakebin:$PATH" MY_FM_HOME="$home" FM_STATE_OVERRIDE="$state" \
     FM_POLL=1 FM_SIGNAL_GRACE=0 FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 \
     FM_ARM_CONFIRM_TIMEOUT=5 FM_PROCEVENT_LAUNCH_CONFIRM_SECONDS=5s \
     "$WATCH_ARM" > "$armout" 2>&1 &

@@ -79,7 +79,7 @@
 # first; a row with no comparable date keeps its payload order after every dated
 # row. Anything else in that field refuses rather than sorting on garbage.
 #
-# The board path is stable - $FM_HOME/.lavish/bearings-board.html - so a
+# The board path is stable - $MY_FM_HOME/.lavish/bearings-board.html - so a
 # re-invocation rebuilds the same file in place, which keeps the same Lavish
 # session URL and the same canonical process-event source id. Injection escapes
 # every `<` in the compact JSON as the \u003c string escape, so a payload string
@@ -90,7 +90,7 @@ set -eu
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FM_ROOT="${FM_ROOT_OVERRIDE:-$(cd "$SCRIPT_DIR/.." && pwd)}"
-FM_HOME="${FM_HOME:-$FM_ROOT}"
+MY_FM_HOME="${MY_FM_HOME:-$FM_ROOT}"
 
 TEMPLATE="${FM_BEARINGS_BOARD_TEMPLATE:-$SCRIPT_DIR/../.agents/skills/bearings/assets/board-template.html}"
 PLACEHOLDER='__FM_BEARINGS_BOARD_DATA__'
@@ -109,7 +109,7 @@ fail() {
   exit 1
 }
 
-board_path() { printf '%s/.lavish/bearings-board.html\n' "$FM_HOME"; }
+board_path() { printf '%s/.lavish/bearings-board.html\n' "$MY_FM_HOME"; }
 
 validate_payload() {  # <data.json>
   jq -e --arg schema "$BOARD_SCHEMA" '

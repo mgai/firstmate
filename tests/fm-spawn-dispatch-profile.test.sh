@@ -165,7 +165,7 @@ test_relative_home_overrides_launch_with_absolute_cross_process_paths() {
 
   out=$(
     cd "$CASE_DIR" || exit 1
-    CDPATH="$CASE_DIR/cdpath" FM_ROOT_OVERRIDE='' FM_HOME=home \
+    CDPATH="$CASE_DIR/cdpath" FM_ROOT_OVERRIDE='' MY_FM_HOME=home \
       FM_STATE_OVERRIDE=home/state FM_DATA_OVERRIDE=home/data \
       FM_PROJECTS_OVERRIDE=home/projects FM_CONFIG_OVERRIDE=home/config \
       FM_SPAWN_NO_GUARD=1 FM_FAKE_PANE_PATH="$WT_DIR" TMUX="fake,1,0" \
@@ -194,7 +194,7 @@ test_home_defaults_preserve_absolute_or_resolve_relative_paths() {
   : > "$LAUNCH_LOG"
   out=$(
     cd "$CASE_DIR" || exit 1
-    FM_ROOT_OVERRIDE='' FM_HOME=home \
+    FM_ROOT_OVERRIDE='' MY_FM_HOME=home \
       FM_STATE_OVERRIDE='' FM_DATA_OVERRIDE='' \
       FM_PROJECTS_OVERRIDE=home/projects FM_CONFIG_OVERRIDE=home/config \
       FM_SPAWN_NO_GUARD=1 FM_FAKE_PANE_PATH="$WT_DIR" TMUX="fake,1,0" \
@@ -203,18 +203,18 @@ test_home_defaults_preserve_absolute_or_resolve_relative_paths() {
       "$SPAWN" "$relative_id" "$PROJ_DIR" --mode no-mistakes --yolo off 2>&1
   )
   status=$?
-  expect_code 0 "$status" "spawn with relative FM_HOME defaults should succeed"
+  expect_code 0 "$status" "spawn with relative MY_FM_HOME defaults should succeed"
   launch=$(cat "$LAUNCH_LOG")
   assert_contains "$launch" "-e '$home_real/state/$relative_id.pi-ext.ts'" \
-    "relative FM_HOME leaked into Pi's default cross-process extension path"
+    "relative MY_FM_HOME leaked into Pi's default cross-process extension path"
   assert_contains "$launch" "< '$home_real/data/$relative_id/launch-brief.md'" \
-    "relative FM_HOME leaked into the default cross-process brief path"
+    "relative MY_FM_HOME leaked into the default cross-process brief path"
 
   linked_home="$CASE_DIR/home-link"
   ln -s "$HOME_DIR" "$linked_home"
   : > "$LAUNCH_LOG"
   out=$(
-    FM_ROOT_OVERRIDE='' FM_HOME="$linked_home" \
+    FM_ROOT_OVERRIDE='' MY_FM_HOME="$linked_home" \
       FM_STATE_OVERRIDE='' FM_DATA_OVERRIDE='' \
       FM_PROJECTS_OVERRIDE="$linked_home/projects" FM_CONFIG_OVERRIDE="$linked_home/config" \
       FM_SPAWN_NO_GUARD=1 FM_FAKE_PANE_PATH="$WT_DIR" TMUX="fake,1,0" \
@@ -223,13 +223,13 @@ test_home_defaults_preserve_absolute_or_resolve_relative_paths() {
       "$SPAWN" "$absolute_id" "$PROJ_DIR" --mode no-mistakes --yolo off 2>&1
   )
   status=$?
-  expect_code 0 "$status" "spawn with absolute symlink-spelled FM_HOME defaults should succeed"
+  expect_code 0 "$status" "spawn with absolute symlink-spelled MY_FM_HOME defaults should succeed"
   launch=$(cat "$LAUNCH_LOG")
   assert_contains "$launch" "-e '$linked_home/state/$absolute_id.pi-ext.ts'" \
-    "absolute FM_HOME spelling changed in Pi's default cross-process extension path"
+    "absolute MY_FM_HOME spelling changed in Pi's default cross-process extension path"
   assert_contains "$launch" "< '$linked_home/data/$absolute_id/launch-brief.md'" \
-    "absolute FM_HOME spelling changed in the default cross-process brief path"
-  pass "FM_HOME defaults resolve relative paths and preserve absolute spellings"
+    "absolute MY_FM_HOME spelling changed in the default cross-process brief path"
+  pass "MY_FM_HOME defaults resolve relative paths and preserve absolute spellings"
 }
 
 test_absolute_override_spelling_is_preserved_in_launch_paths() {
@@ -242,7 +242,7 @@ test_absolute_override_spelling_is_preserved_in_launch_paths() {
   : > "$LAUNCH_LOG"
 
   out=$(
-    FM_ROOT_OVERRIDE='' FM_HOME="$linked_home" \
+    FM_ROOT_OVERRIDE='' MY_FM_HOME="$linked_home" \
       FM_STATE_OVERRIDE="$linked_home/state" FM_DATA_OVERRIDE="$linked_home/data" \
       FM_PROJECTS_OVERRIDE="$linked_home/projects" FM_CONFIG_OVERRIDE="$linked_home/config" \
       FM_SPAWN_NO_GUARD=1 FM_FAKE_PANE_PATH="$WT_DIR" TMUX="fake,1,0" \
@@ -268,18 +268,18 @@ test_unresolvable_relative_overrides_fail_loudly() {
 
   out=$(
     cd "$CASE_DIR" || exit 1
-    FM_ROOT_OVERRIDE='' FM_HOME=missing-home \
+    FM_ROOT_OVERRIDE='' MY_FM_HOME=missing-home \
       FM_STATE_OVERRIDE='' FM_DATA_OVERRIDE='' \
       "$SPAWN" "$id" "$PROJ_DIR" --mode no-mistakes --yolo off 2>&1
   )
   status=$?
   expect_code 1 "$status" "spawn with an unresolvable relative home should fail"
-  assert_contains "$out" "FM_HOME directory cannot be resolved: missing-home" \
-    "spawn did not name the unresolvable FM_HOME"
+  assert_contains "$out" "MY_FM_HOME directory cannot be resolved: missing-home" \
+    "spawn did not name the unresolvable MY_FM_HOME"
 
   out=$(
     cd "$CASE_DIR" || exit 1
-    FM_ROOT_OVERRIDE='' FM_HOME=home \
+    FM_ROOT_OVERRIDE='' MY_FM_HOME=home \
       FM_STATE_OVERRIDE=missing-state FM_DATA_OVERRIDE=home/data \
       "$SPAWN" "$id" "$PROJ_DIR" --mode no-mistakes --yolo off 2>&1
   )
@@ -290,7 +290,7 @@ test_unresolvable_relative_overrides_fail_loudly() {
 
   out=$(
     cd "$CASE_DIR" || exit 1
-    FM_ROOT_OVERRIDE='' FM_HOME=home \
+    FM_ROOT_OVERRIDE='' MY_FM_HOME=home \
       FM_STATE_OVERRIDE=home/state FM_DATA_OVERRIDE=missing-data \
       "$SPAWN" "$id" "$PROJ_DIR" --mode no-mistakes --yolo off 2>&1
   )
@@ -802,7 +802,7 @@ test_pi_signed_missing_binary_refuses_before_endpoint_or_metadata() {
   rm -f "$FAKEBIN_DIR/pi-signed"
   : > "$LAUNCH_LOG"
 
-  out=$(FM_ROOT_OVERRIDE='' FM_HOME="$HOME_DIR" \
+  out=$(FM_ROOT_OVERRIDE='' MY_FM_HOME="$HOME_DIR" \
     FM_STATE_OVERRIDE="$HOME_DIR/state" FM_DATA_OVERRIDE="$HOME_DIR/data" \
     FM_PROJECTS_OVERRIDE="$HOME_DIR/projects" FM_CONFIG_OVERRIDE="$HOME_DIR/config" \
     FM_SPAWN_NO_GUARD=1 FM_FAKE_PANE_PATH="$WT_DIR" TMUX="fake,1,0" \
@@ -1204,7 +1204,7 @@ test_launch_environment_inherited_by_secondmate() {
     || fail "secondmate did not inherit the launch environment contract"
   cat > "$FAKEBIN_DIR/codex" <<'SH'
 #!/bin/sh
-printf '%s\n' "${FM_TEST_AMBIENT_SENTINEL-unset}" "$FM_TEST_ALLOWED" "$FM_HOME" "${FM_STATE_OVERRIDE-unset}"
+printf '%s\n' "${FM_TEST_AMBIENT_SENTINEL-unset}" "$FM_TEST_ALLOWED" "$MY_FM_HOME" "${FM_STATE_OVERRIDE-unset}"
 SH
   chmod +x "$FAKEBIN_DIR/codex"
   result=$(env -i HOME="$HOME_DIR/user-home" PATH="$FAKEBIN_DIR:$PATH" \
@@ -1234,7 +1234,7 @@ run_launch_environment_inheritance() {
         propagate_inheritable_config "$home/config" "$dest/config"
     )
   else
-    FM_HOME="$home" FM_ROOT_OVERRIDE="$ROOT" FM_CONFIG_OVERRIDE="$home/config" \
+    MY_FM_HOME="$home" FM_ROOT_OVERRIDE="$ROOT" FM_CONFIG_OVERRIDE="$home/config" \
       FM_DATA_OVERRIDE="$home/data" FM_INHERITABLE_CONFIG=launch-env-allowlist \
       FM_SSH_BIN="$fakebin/inherit-ssh" \
       "$ROOT/bin/fm-remote-inherit-push.sh" inherited-env "$generation"
@@ -1268,7 +1268,7 @@ remote_home=$(printf '%s' "$5" | base64 --decode)
 args=()
 while IFS= read -r -d '' arg; do args+=("$arg"); done < <(printf '%s' "$6" | base64 --decode)
 [ "${args[0]}" = fm-remote-inherit.sh ] || exit 92
-FM_HOME="$remote_home" FM_STATE_OVERRIDE="$remote_home/state" \
+MY_FM_HOME="$remote_home" FM_STATE_OVERRIDE="$remote_home/state" \
   exec "$remote_root/bin/${args[0]}" "${args[@]:1}"
 SH
     chmod +x "$FAKEBIN_DIR/inherit-ssh"
@@ -1325,9 +1325,9 @@ test_worker_launch_delivers_role_scope() {
       fi
     else
       if [ "$kind" = scout ]; then
-        FM_HOME="$HOME_DIR" "$ROOT/bin/fm-brief.sh" "$id" arbitrary-project-name --scout >/dev/null || fail "scout scaffold failed"
+        MY_FM_HOME="$HOME_DIR" "$ROOT/bin/fm-brief.sh" "$id" arbitrary-project-name --scout >/dev/null || fail "scout scaffold failed"
       else
-        FM_HOME="$HOME_DIR" "$ROOT/bin/fm-brief.sh" "$id" arbitrary-project-name --mode "$kind" >/dev/null || fail "$kind scaffold failed"
+        MY_FM_HOME="$HOME_DIR" "$ROOT/bin/fm-brief.sh" "$id" arbitrary-project-name --mode "$kind" >/dev/null || fail "$kind scaffold failed"
       fi
       brief="$HOME_DIR/data/$id/brief.md"
       content=$(cat "$brief")

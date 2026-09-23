@@ -41,21 +41,21 @@ install_runner() {  # <case-dir>
   cat > "$dir/bin/fm-afk-launch.sh" <<'SH'
 #!/usr/bin/env bash
 [ "${1:-}" = stop ] || exit 2
-printf 'stop\n' >> "$FM_HOME/stop.log"
-rm -f "$FM_HOME/state/.afk"
-if [ -e "$FM_HOME/state/.fail-terminal-stop-once" ]; then
-  rm -f "$FM_HOME/state/.fail-terminal-stop-once"
+printf 'stop\n' >> "$MY_FM_HOME/stop.log"
+rm -f "$MY_FM_HOME/state/.afk"
+if [ -e "$MY_FM_HOME/state/.fail-terminal-stop-once" ]; then
+  rm -f "$MY_FM_HOME/state/.fail-terminal-stop-once"
   exit 1
 fi
-rm -f "$FM_HOME/state/.afk-daemon-terminal"
+rm -f "$MY_FM_HOME/state/.afk-daemon-terminal"
 "$(dirname "$0")/fm-afk-contract.sh" archive >/dev/null
 SH
   cat > "$dir/bin/fm-wake-drain.sh" <<'SH'
 #!/usr/bin/env bash
-file="$FM_HOME/state/.fake-drain"
+file="$MY_FM_HOME/state/.fake-drain"
 if [ "${1:-}" = --ack-through ]; then
   [ "${3:-}" = --recovery-generation ] && [ "${4:-}" = fixture-generation ] || exit 2
-  printf '%s\n' "$2" >> "$FM_HOME/state/.fake-drain-acks"
+  printf '%s\n' "$2" >> "$MY_FM_HOME/state/.fake-drain-acks"
   : > "$file"
   exit 0
 fi
@@ -70,7 +70,7 @@ SH
 
 run_return() {  # <case-dir> <mode>
   local dir=$1 mode=$2
-  FM_HOME="$dir/home" FM_STATE_OVERRIDE="$dir/home/state" "$dir/bin/fm-afk-return.sh" "$mode" 2>&1
+  MY_FM_HOME="$dir/home" FM_STATE_OVERRIDE="$dir/home/state" "$dir/bin/fm-afk-return.sh" "$mode" 2>&1
 }
 
 ack_return() {  # <case-dir> <return-output>
@@ -78,7 +78,7 @@ ack_return() {  # <case-dir> <return-output>
   sequence=$(printf '%s\n' "$output" | sed -n 's/^WAKE_ACK_REQUIRED:.*--ack-through \([0-9][0-9]*\) --recovery-generation [A-Za-z0-9._-][A-Za-z0-9._-]*$/\1/p' | tail -1)
   generation=$(printf '%s\n' "$output" | sed -n 's/^WAKE_ACK_REQUIRED:.*--ack-through [0-9][0-9]* --recovery-generation \([A-Za-z0-9._-][A-Za-z0-9._-]*\)$/\1/p' | tail -1)
   [ -n "$sequence" ] && [ -n "$generation" ] || fail "return output lacked a generation-bound post-handling acknowledgement: $output"
-  FM_HOME="$dir/home" FM_STATE_OVERRIDE="$dir/home/state" \
+  MY_FM_HOME="$dir/home" FM_STATE_OVERRIDE="$dir/home/state" \
     "$dir/bin/fm-wake-drain.sh" --ack-through "$sequence" --recovery-generation "$generation"
 }
 
@@ -140,7 +140,7 @@ test_return_gate_owns_remediation_and_reports_catchup_to_bearings() {
   # catch-up posture as content rather than refusing. The blocked worker still
   # projects as its own Underway row, and the catch-up posture is a separate
   # action-free Charted Next gate row that never becomes a Captain's Call entry.
-  out=$(FM_HOME="$dir/home" FM_STATE_OVERRIDE="$dir/home/state" "$ROOT/bin/fm-bearings-snapshot.sh" --json 2>&1) \
+  out=$(MY_FM_HOME="$dir/home" FM_STATE_OVERRIDE="$dir/home/state" "$ROOT/bin/fm-bearings-snapshot.sh" --json 2>&1) \
     || fail "Bearings should render behind the return catch-up gate: $out"
   # The live projected state of the blocked worker follows its endpoint, which
   # this fixture deliberately does not stand up; what the gate must no longer
@@ -156,7 +156,7 @@ test_return_gate_owns_remediation_and_reports_catchup_to_bearings() {
                       and (.title | test("^1 blocker"))))
     and ([.decisions_open[].id] | index("(return-catchup)") | not)' >/dev/null \
     || fail "Bearings did not reserve the catch-up posture outside bounded action-free gate rows: $out"
-  toon=$(FM_HOME="$dir/home" FM_STATE_OVERRIDE="$dir/home/state" "$ROOT/bin/fm-bearings-snapshot.sh" 2>&1) \
+  toon=$(MY_FM_HOME="$dir/home" FM_STATE_OVERRIDE="$dir/home/state" "$ROOT/bin/fm-bearings-snapshot.sh" 2>&1) \
     || fail "default Bearings should render behind the return catch-up gate: $toon"
   gate_header=$(printf '%s\n' "$toon" | awk '/^gates\[[0-9]+\]\{/ { print; exit }')
   assert_contains "$gate_header" '{id,title,blocked_by,reason,owner,filed}' "catch-up removed filed from the TOON gate schema"
@@ -165,7 +165,7 @@ test_return_gate_owns_remediation_and_reports_catchup_to_bearings() {
   # The guard itself still separates its two branches by exit status, so an
   # active away window keeps refusing while catch-up reports.
   set +e
-  out=$(FM_HOME="$dir/home" FM_STATE_OVERRIDE="$dir/home/state" "$dir/bin/fm-afk-return.sh" guard 2>&1)
+  out=$(MY_FM_HOME="$dir/home" FM_STATE_OVERRIDE="$dir/home/state" "$dir/bin/fm-afk-return.sh" guard 2>&1)
   rc=$?
   set -e
   [ "$rc" -eq 4 ] || fail "the catch-up branch should be distinguishable by exit status (rc=$rc): $out"
@@ -186,7 +186,7 @@ test_return_gate_owns_remediation_and_reports_catchup_to_bearings() {
 
   printf 'resolved [key=synthetic-dependency]: refreshed the synthetic token and resumed the task\n' >> "$dir/home/state/repair-task.status"
   out=$(run_return "$dir" check) || fail "resolved blocker did not clear return catch-up: $out"
-  FM_HOME="$dir/home" FM_STATE_OVERRIDE="$dir/home/state" "$ROOT/bin/fm-bearings-snapshot.sh" --json \
+  MY_FM_HOME="$dir/home" FM_STATE_OVERRIDE="$dir/home/state" "$ROOT/bin/fm-bearings-snapshot.sh" --json \
     | jq -e '[.gates[].id] | index("(return-catchup)") | not' >/dev/null \
     || fail "the cleared gate left the catch-up posture row in Bearings"
   assert_contains "$out" 'catch-up clear' "successful check did not announce that ordinary work may proceed"
@@ -265,7 +265,7 @@ test_evidence_publication_failure_preserves_wake_for_redrain() {
   : > "$dir/read-only-output"
 
   set +e
-  FM_HOME="$dir/home" FM_STATE_OVERRIDE="$dir/home/state" \
+  MY_FM_HOME="$dir/home" FM_STATE_OVERRIDE="$dir/home/state" \
     "$dir/bin/fm-afk-return.sh" begin 3< "$dir/read-only-output" >&3 2> "$dir/failed.err"
   rc=$?
   set -e
@@ -297,7 +297,7 @@ test_away_reentry_refuses_pending_return_gate() {
   mkdir -p "$dir/home/state" "$dir/home/data" "$dir/home/config"
   printf 'schema\tfm-afk-return.v1\nphase\tblocked\n' > "$dir/home/state/.afk-return-catchup"
   set +e
-  out=$(FM_HOME="$dir/home" FM_STATE_OVERRIDE="$dir/home/state" "$ROOT/bin/fm-afk-launch.sh" start-native 2>&1)
+  out=$(MY_FM_HOME="$dir/home" FM_STATE_OVERRIDE="$dir/home/state" "$ROOT/bin/fm-afk-launch.sh" start-native 2>&1)
   rc=$?
   set -e
   [ "$rc" -ne 0 ] || fail "away re-entry succeeded while return catch-up was pending"
@@ -357,13 +357,13 @@ test_check_retries_recorded_terminal_teardown() {
 contract_in() {  # <case-dir> <args...>
   local dir=$1
   shift
-  FM_HOME="$dir/home" FM_STATE_OVERRIDE="$dir/home/state" "$dir/bin/fm-afk-contract.sh" "$@"
+  MY_FM_HOME="$dir/home" FM_STATE_OVERRIDE="$dir/home/state" "$dir/bin/fm-afk-contract.sh" "$@"
 }
 
 outcome_in() {  # <case-dir> <args...>
   local dir=$1
   shift
-  FM_HOME="$dir/home" FM_STATE_OVERRIDE="$dir/home/state" "$dir/bin/fm-branch-outcome.sh" "$@"
+  MY_FM_HOME="$dir/home" FM_STATE_OVERRIDE="$dir/home/state" "$dir/bin/fm-branch-outcome.sh" "$@"
 }
 
 line_of() {  # <haystack> <needle> -> 1-based line number of the first match, or empty
@@ -460,7 +460,7 @@ test_return_brief_composes_from_record_store_and_held_set() {
   assert_contains "$second" 'supervision ran through the away window with no detected gap' "check lost the health snapshot taken at begin"
   assert_contains "$second" 'catch-up clear' "check did not clear the gate"
   [ ! -e "$gate" ] || fail "the cleared check left the gate behind"
-  FM_HOME="$dir/home" FM_STATE_OVERRIDE="$dir/home/state" "$dir/bin/fm-afk-return.sh" guard \
+  MY_FM_HOME="$dir/home" FM_STATE_OVERRIDE="$dir/home/state" "$dir/bin/fm-afk-return.sh" guard \
     || fail "guard still refused after the record was archived and the gate cleared"
   pass "the return brief renders health, the words with the session account, waiting, could-not-fix, handled, and cost from durable records, and the gate shrinks to what the away session could not fix"
 }
@@ -593,7 +593,7 @@ SH
   : > "$dir/home/state/.fake-drain"
   gate="$dir/home/state/.afk-return-catchup"
   set +e
-  out=$(PATH="$dir/fakebin:$PATH" FM_HOME="$dir/home" FM_STATE_OVERRIDE="$dir/home/state" \
+  out=$(PATH="$dir/fakebin:$PATH" MY_FM_HOME="$dir/home" FM_STATE_OVERRIDE="$dir/home/state" \
     "$dir/bin/fm-afk-return.sh" begin 2>&1)
   rc=$?
   set -e
@@ -604,14 +604,14 @@ SH
   # refusal must name what actually holds it instead of promising a blocker
   # list it cannot produce, and Bearings must carry that same reason.
   set +e
-  guard_out=$(FM_HOME="$dir/home" FM_STATE_OVERRIDE="$dir/home/state" "$dir/bin/fm-afk-return.sh" guard 2>&1)
+  guard_out=$(MY_FM_HOME="$dir/home" FM_STATE_OVERRIDE="$dir/home/state" "$dir/bin/fm-afk-return.sh" guard 2>&1)
   guard_rc=$?
   set -e
   [ "$guard_rc" -eq 4 ] || fail "a blockerless catch-up gate should use the catch-up branch (rc=$guard_rc): $guard_out"
   assert_contains "$guard_out" 'no open blocker' "the blockerless refusal did not say the gate lists no blocker"
   assert_contains "$guard_out" 'catch-up retained: held set unreadable' "the blockerless refusal did not name the retention reason"
   assert_not_contains "$guard_out" 'every listed blocker' "the blockerless refusal still demanded an empty blocker list"
-  FM_HOME="$dir/home" FM_STATE_OVERRIDE="$dir/home/state" "$ROOT/bin/fm-bearings-snapshot.sh" --json \
+  MY_FM_HOME="$dir/home" FM_STATE_OVERRIDE="$dir/home/state" "$ROOT/bin/fm-bearings-snapshot.sh" --json \
     | jq -e '.gates | any(.id == "(return-catchup)" and (.title | startswith("catch-up retained:")))' >/dev/null \
     || fail "Bearings did not carry the blockerless catch-up retention reason"
   waiting=$(printf '%s\n' "$out" | awk '/^Waiting on you:/{show=1} /^Tried and failed, or could not be fixed:/{show=0} show')
@@ -704,7 +704,7 @@ test_return_guard_refuses_while_the_record_exists() {
   contract_in "$dir" propose >/dev/null 2>&1 || fail "could not propose the away-posture record"
   contract_in "$dir" confirm >/dev/null 2>&1 || fail "could not write the away-posture record"
   set +e
-  out=$(FM_HOME="$dir/home" FM_STATE_OVERRIDE="$dir/home/state" "$dir/bin/fm-afk-return.sh" guard 2>&1)
+  out=$(MY_FM_HOME="$dir/home" FM_STATE_OVERRIDE="$dir/home/state" "$dir/bin/fm-afk-return.sh" guard 2>&1)
   rc=$?
   set -e
   [ "$rc" -eq 3 ] || fail "guard should refuse while the away-posture record exists (rc=$rc): $out"

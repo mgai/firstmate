@@ -34,14 +34,14 @@ matrix_case A05 allow 'exec bin/fm-watch-checkpoint.sh --seconds 180'
 matrix_case A06 allow "$ROOT/bin/fm-watch-checkpoint.sh --seconds 180"
 matrix_case A07 allow "cd '$ROOT'; exec bin/fm-watch-arm.sh"
 matrix_case A08 allow "cd '../firstmate'; bin/fm-watch-checkpoint.sh --seconds 180"
-matrix_case A09 allow "export FM_HOME='$ROOT'; bin/fm-watch-checkpoint.sh --seconds 180"
+matrix_case A09 allow "export MY_FM_HOME='$ROOT'; bin/fm-watch-checkpoint.sh --seconds 180"
 matrix_case A10 allow 'source config/x-mode.env; bin/fm-watch-checkpoint.sh --seconds 180'
 matrix_case A11 allow "source 'config/x-mode.env'; bin/fm-watch-checkpoint.sh --seconds 180"
 matrix_case A12 allow "source './config/x-mode.env'; bin/fm-watch-checkpoint.sh --seconds 180"
 matrix_case A13 allow "source '$ROOT/config/x-mode.env'; bin/fm-watch-checkpoint.sh --seconds 180"
 matrix_case A14 allow "[ -f 'config/x-mode.env' ] && source 'config/x-mode.env'; exec bin/fm-watch-arm.sh"
 matrix_case A15 allow "cd $ROOT && exec bin/fm-watch-arm.sh"
-matrix_case A16 allow "export FM_HOME=$ROOT && bin/fm-watch-checkpoint.sh --seconds 180"
+matrix_case A16 allow "export MY_FM_HOME=$ROOT && bin/fm-watch-checkpoint.sh --seconds 180"
 matrix_case A17 allow $'source "config/x-mode.env"\nbin/fm-watch-checkpoint.sh --seconds 180'
 
 matrix_case R01 allow "pgrep -fl '/bin/fm-watch.sh' || true"
@@ -109,11 +109,11 @@ matrix_case D42 deny 'bin/fm-watch-{arm,checkpoint}.sh &'
 matrix_case D43 deny 'bin/fm-watch-arm.sh* &'
 matrix_case D44 deny "pattern='fm-watch'; pkill -f \"\$pattern\""
 matrix_case D45 deny "p=\$(pgrep -f '/bin/fm-watch.sh'); q=\$p; kill \$q"
-matrix_case D46 deny '$FM_HOME/bin/fm-watch-arm.sh &'
+matrix_case D46 deny '$MY_FM_HOME/bin/fm-watch-arm.sh &'
 matrix_case D47 deny '$HOME/firstmate/bin/fm-watch-arm.sh | cat'
 matrix_case D48 deny '~/firstmate/bin/fm-watch-arm.sh &'
 matrix_case D49 deny 'bin/fm-watch.sh'
-matrix_case D50 deny '$FM_HOME/bin/fm-watch.sh'
+matrix_case D50 deny '$MY_FM_HOME/bin/fm-watch.sh'
 matrix_case D51 deny '~/firstmate/bin/fm-watch.sh --restart'
 matrix_case D52 deny "bin/fm-\$'\x77'atch-arm.sh &"
 matrix_case D53 deny 'bin/fm-$"watch"-arm.sh &'
@@ -127,8 +127,8 @@ matrix_case E01 allow "bin/fm-watch-checkpoint.sh --seconds '180;still-one-arg'"
 matrix_case E02 allow "bin/fm-watch-checkpoint.sh --label 'fm-watch-arm.sh; literal argument'"
 matrix_case E03 allow 'bin/fm-watch-arm.sh # output > file &'
 matrix_case E04 allow $'# setup comment with fm-watch.sh; && >\nsource "config/x-mode.env"\nbin/fm-watch-checkpoint.sh --seconds 180'
-matrix_case E05 deny "FM_HOME=$ROOT bin/fm-watch-checkpoint.sh --seconds 180"
-matrix_case E06 deny "env FM_HOME=$ROOT bin/fm-watch-arm.sh"
+matrix_case E05 deny "MY_FM_HOME=$ROOT bin/fm-watch-checkpoint.sh --seconds 180"
+matrix_case E06 deny "env MY_FM_HOME=$ROOT bin/fm-watch-arm.sh"
 matrix_case E07 deny "source '/tmp/not-firstmate/config/x-mode.env'; bin/fm-watch-checkpoint.sh --seconds 180"
 matrix_case E08 deny "bash -lc 'bin/fm-watch-checkpoint.sh --seconds 180'"
 matrix_case E09 deny '(bin/fm-watch-checkpoint.sh --seconds 180)'
@@ -136,8 +136,8 @@ matrix_case E10 deny "eval 'bin/fm-watch-arm.sh &'"
 matrix_case E11 deny "exec bash -lc 'bin/fm-watch-arm.sh &'"
 matrix_case E12 allow 'bash -lc "$WATCHER_COMMAND" # fm-watch-arm.sh'
 matrix_case E13 allow "printf '%s\\n' 'argument has ; and fm-watch-arm.sh and &&'"
-matrix_case E14 allow '$FM_HOME/bin/fm-teardown.sh &'
-matrix_case E15 allow '$FM_HOME/bin/fm-watch-arm.sh'
+matrix_case E14 allow '$MY_FM_HOME/bin/fm-teardown.sh &'
+matrix_case E15 allow '$MY_FM_HOME/bin/fm-watch-arm.sh'
 matrix_case E16 allow '~/firstmate/bin/fm-watch-checkpoint.sh --seconds 180'
 matrix_case E17 allow 'for f in 1; do echo fm-watch; done'
 
@@ -226,12 +226,12 @@ test_direct_policy_contract() {
   assert_policy direct-unclassifiable $'deny\tunclassifiable-protected-command' "bin/fm-watch-arm.sh 'unterminated"
   assert_policy direct-unsupported $'deny\tunclassifiable-protected-command' 'if true; then bin/fm-watch-arm.sh; fi'
   assert_policy direct-constructed-payload $'deny\twatcher-nested' "WATCHER='bin/fm-watch-arm.sh &'; bash -lc \"\$WATCHER\""
-  assert_policy direct-parameter-export allow 'export FM_HOME=${HOME}; bin/fm-watch-checkpoint.sh --seconds 180'
-  assert_policy direct-expanded-arm-blessed allow '$FM_HOME/bin/fm-watch-arm.sh'
-  assert_policy direct-expanded-arm-background $'deny\twatcher-background' '$FM_HOME/bin/fm-watch-arm.sh &'
+  assert_policy direct-parameter-export allow 'export MY_FM_HOME=${HOME}; bin/fm-watch-checkpoint.sh --seconds 180'
+  assert_policy direct-expanded-arm-blessed allow '$MY_FM_HOME/bin/fm-watch-arm.sh'
+  assert_policy direct-expanded-arm-background $'deny\twatcher-background' '$MY_FM_HOME/bin/fm-watch-arm.sh &'
   assert_policy direct-expanded-arm-pipeline $'deny\twatcher-pipeline' '$HOME/firstmate/bin/fm-watch-arm.sh | cat'
   assert_policy direct-watch-not-blessed $'deny\twatcher-direct' 'bin/fm-watch.sh'
-  assert_policy direct-watch-expanded $'deny\twatcher-direct' '$FM_HOME/bin/fm-watch.sh'
+  assert_policy direct-watch-expanded $'deny\twatcher-direct' '$MY_FM_HOME/bin/fm-watch.sh'
   assert_policy direct-watch-safe-shape $'deny\twatcher-direct' 'cd /tmp; bin/fm-watch.sh'
   heredoc_data=$'cat <<\'EOF\'\nbin/fm-watch-arm.sh &\nEOF'
   heredoc_watcher=$'bin/fm-watch-arm.sh <<\'EOF\'\ndata only\nEOF'
@@ -337,7 +337,7 @@ test_prefilter_is_strict_superset() {
   [ "$rc" -eq 2 ] || fail "prefilter must delegate a locale-string-encoded protected path, not fast-allow it, got exit $rc"
   # The marker is specifically $ followed by a quote, not any $ expansion: an
   # ordinary $VAR that is not a watcher reference still takes the fast path.
-  "$CHECK" --command '$FM_HOME/bin/fm-teardown.sh &' >/dev/null 2>&1
+  "$CHECK" --command '$MY_FM_HOME/bin/fm-teardown.sh &' >/dev/null 2>&1
   rc=$?
   [ "$rc" -eq 0 ] || fail "a benign \$VAR non-watcher command must still fast-allow, got exit $rc"
   "$CHECK" --command 'echo "$HOME/scratch" && ls -la' >/dev/null 2>&1

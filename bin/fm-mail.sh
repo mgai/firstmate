@@ -40,7 +40,7 @@
 # lands; a persistently unfetchable uid is never skipped and never re-wakes.
 #
 # Deployment - credentials and endpoints are read from the environment,
-# filling missing keys from the gitignored $FM_HOME/.env (same convention
+# filling missing keys from the gitignored $MY_FM_HOME/.env (same convention
 # as the Relay/FMX token; env wins). Add these four required values, plus
 # the optional ports and timeout:
 #   FM_MAIL_USER=<imap/smtp account>
@@ -50,12 +50,12 @@
 #   FM_SMTP_HOST=<smtp host>
 #   FM_SMTP_PORT=<smtp port>     (default 465, implicit TLS)
 #   FM_MAIL_TIMEOUT=<seconds>    (default 20; IMAP/SMTP socket timeout)
-# FM_HOME falls back to the repo root when unset. This script carries no secret
+# MY_FM_HOME falls back to the repo root when unset. This script carries no secret
 # and no default endpoint that could resolve against a wrong home; FM_MAIL_USER,
 # FM_MAIL_PASS, FM_IMAP_HOST, and FM_SMTP_HOST are always required, and
 # FM_MAIL_PASS is never logged. The wake library is sourced from next to this
-# script, not from $FM_HOME/bin; cursor, journal, retry set, and queue stay
-# under $FM_HOME/state.
+# script, not from $MY_FM_HOME/bin; cursor, journal, retry set, and queue stay
+# under $MY_FM_HOME/state.
 #
 # IMAP/SMTP work is delegated to bin/fm-mail.py (imaplib/smtplib, implicit TLS
 # on 993/465). STARTTLS and port 587 are not supported. BODY.PEEK is used on
@@ -65,11 +65,11 @@ set -euo pipefail
 
 # --- resolve home, env, and endpoints -------------------------------------
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-FM_HOME="${FM_HOME:-}"
-if [ -z "$FM_HOME" ]; then
-  FM_HOME="$(cd "$SCRIPT_DIR/.." && pwd)"
+MY_FM_HOME="${MY_FM_HOME:-}"
+if [ -z "$MY_FM_HOME" ]; then
+  MY_FM_HOME="$(cd "$SCRIPT_DIR/.." && pwd)"
 fi
-ENV_FILE="$FM_HOME/.env"
+ENV_FILE="$MY_FM_HOME/.env"
 # Load the home .env for keys not already set, so a direct invocation's
 # environment overrides .env exactly like the Relay/FMX contract (fmx_env_get:
 # "env wins over .env"). Tolerates a leading "export ", surrounding whitespace,
@@ -102,7 +102,7 @@ fi
 
 for r in FM_MAIL_USER FM_MAIL_PASS FM_IMAP_HOST FM_SMTP_HOST; do
   if [ -z "${!r:-}" ]; then
-    echo "fm-mail: missing required \$FM_HOME/.env value: $r" >&2
+    echo "fm-mail: missing required \$MY_FM_HOME/.env value: $r" >&2
     echo "fm-mail: add $r (and the other three FM_MAIL_* values) to $ENV_FILE" >&2
     exit 1
   fi
@@ -142,7 +142,7 @@ if [ ! -f "$PY_BIN" ]; then
   exit 1
 fi
 
-STATE_DIR="$FM_HOME/state"
+STATE_DIR="$MY_FM_HOME/state"
 mkdir -p "$STATE_DIR"
 CURSOR="$STATE_DIR/.mail-seen"
 # Durable emission journal: every successfully published poll wake records its

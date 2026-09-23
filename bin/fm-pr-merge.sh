@@ -114,8 +114,8 @@ set -eu
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FM_ROOT="${FM_ROOT_OVERRIDE:-$(cd "$SCRIPT_DIR/.." && pwd)}"
-FM_HOME="${FM_HOME:-${FM_ROOT_OVERRIDE:-$FM_ROOT}}"
-STATE="${FM_STATE_OVERRIDE:-$FM_HOME/state}"
+MY_FM_HOME="${MY_FM_HOME:-${FM_ROOT_OVERRIDE:-$FM_ROOT}}"
+STATE="${FM_STATE_OVERRIDE:-$MY_FM_HOME/state}"
 
 # shellcheck source=bin/fm-pr-lib.sh
 . "$SCRIPT_DIR/fm-pr-lib.sh"
@@ -992,7 +992,7 @@ record_pr_metadata() {
 
 require_released_captain_hold() {
   local hold_status=0
-  FM_HOME="$FM_HOME" FM_STATE_OVERRIDE="$STATE" \
+  MY_FM_HOME="$MY_FM_HOME" FM_STATE_OVERRIDE="$STATE" \
     "$SCRIPT_DIR/fm-captain-hold.sh" open "$ID" --distinguish-absent || hold_status=$?
   case "$hold_status" in
     0)
@@ -1014,7 +1014,7 @@ FM_PR_MERGE_AUTHORITY=
 # resolved here. An unreadable record refuses rather than being skipped.
 resolve_merge_authority() {
   FM_PR_MERGE_AUTHORITY=
-  if fm_merge_authority_resolve "$FM_HOME" "$STATE" "$META" "$ID"; then
+  if fm_merge_authority_resolve "$MY_FM_HOME" "$STATE" "$META" "$ID"; then
     FM_PR_MERGE_AUTHORITY=$FM_MERGE_AUTHORITY
     return 0
   fi
@@ -1435,7 +1435,7 @@ esac
 # refused or failed merge above, and a queued forge merge exits without an
 # outcome while its existing poll remains armed.
 outcome_rc=0
-fm_merge_outcome_report "$FM_HOME" "$STATE" "$ID" "$URL" self \
+fm_merge_outcome_report "$MY_FM_HOME" "$STATE" "$ID" "$URL" self \
   "${FM_PR_MERGE_AUTHORITY:-}" || outcome_rc=$?
 case "$outcome_rc" in
   0) ;;

@@ -280,10 +280,10 @@ set -eu
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FM_ROOT="${FM_ROOT_OVERRIDE:-$(cd "$SCRIPT_DIR/.." && pwd)}"
-FM_HOME="${FM_HOME:-${FM_ROOT_OVERRIDE:-$FM_ROOT}}"
-STATE="${FM_STATE_OVERRIDE:-$FM_HOME/state}"
-DATA="${FM_DATA_OVERRIDE:-$FM_HOME/data}"
-CONFIG="${FM_CONFIG_OVERRIDE:-$FM_HOME/config}"
+MY_FM_HOME="${MY_FM_HOME:-${FM_ROOT_OVERRIDE:-$FM_ROOT}}"
+STATE="${FM_STATE_OVERRIDE:-$MY_FM_HOME/state}"
+DATA="${FM_DATA_OVERRIDE:-$MY_FM_HOME/data}"
+CONFIG="${FM_CONFIG_OVERRIDE:-$MY_FM_HOME/config}"
 SECONDMATE_REG="$DATA/secondmates.md"
 SUB_HOME_MARKER=".fm-secondmate-home"
 SUB_HOME_PARENT_MARKER=".fm-secondmate-parent"
@@ -547,7 +547,7 @@ fi
 TEARDOWN_BACKLOG_TRANSITION=close
 if [ "$TEARDOWN_BACKLOG_APPLIES" = 1 ]; then
   TEARDOWN_CAPTAIN_OPEN_STATUS=0
-  TEARDOWN_CAPTAIN_OPEN_OUT=$(FM_HOME="$FM_HOME" FM_STATE_OVERRIDE="$STATE" \
+  TEARDOWN_CAPTAIN_OPEN_OUT=$(MY_FM_HOME="$MY_FM_HOME" FM_STATE_OVERRIDE="$STATE" \
     FM_DATA_OVERRIDE="$DATA" FM_CONFIG_OVERRIDE="$CONFIG" \
     "$SCRIPT_DIR/fm-captain-hold.sh" open "$ID" 2>&1) || TEARDOWN_CAPTAIN_OPEN_STATUS=$?
   case "$TEARDOWN_CAPTAIN_OPEN_STATUS" in
@@ -1103,7 +1103,7 @@ if [ "$TEARDOWN_LEGACY_PENDING" = 1 ]; then
   TEARDOWN_LEGACY_ACCEPTED=1
 fi
 
-PUBLIC_FOLLOWUP_HOME=$FM_HOME
+PUBLIC_FOLLOWUP_HOME=$MY_FM_HOME
 PUBLIC_FOLLOWUP_STATE=$STATE
 PUBLIC_FOLLOWUP_WORK_HOME=main
 PUBLIC_FOLLOWUP_PARENT_UNRESOLVED=0
@@ -1130,14 +1130,14 @@ public_followup_resolve_primary_home() {
   secondmate_registry_validate_bindings "$registry" secondmate_registry_path_key "$id" "$child" || return 1
   printf '%s\n' "$parent"
 }
-if [ -f "$FM_HOME/$SUB_HOME_MARKER" ]; then
-  SECOND_MATE_ID=$(sed -n '1p' "$FM_HOME/$SUB_HOME_MARKER")
+if [ -f "$MY_FM_HOME/$SUB_HOME_MARKER" ]; then
+  SECOND_MATE_ID=$(sed -n '1p' "$MY_FM_HOME/$SUB_HOME_MARKER")
   # The durable parent record (written once at seeding, next to the identity
   # marker) names this home's route to its parent: "local" when they share a
   # filesystem, "remote" when the parent lives on another machine. Absent for
   # a home seeded before this record existed, which preserves today's exact
   # env-var-only behavior for that legacy home rather than guessing its route.
-  PARENT_ROUTE_FILE="$FM_HOME/$SUB_HOME_PARENT_MARKER"
+  PARENT_ROUTE_FILE="$MY_FM_HOME/$SUB_HOME_PARENT_MARKER"
   PARENT_ROUTE_RECORD=absent
   PARENT_ROUTE=
   PARENT_ROUTE_HOME=
@@ -1161,8 +1161,8 @@ if [ -f "$FM_HOME/$SUB_HOME_MARKER" ]; then
     # from the file, never from the process environment, so an unrelated
     # export in the remote host's own login shell cannot trigger it the way
     # fm_pf_relay_active's environment-wins rule would.
-    if [ -f "$FM_HOME/.env" ]; then
-      HOME_ENV_TOKEN=$(fmx_env_get FMX_PAIRING_TOKEN "$FM_HOME/.env")
+    if [ -f "$MY_FM_HOME/.env" ]; then
+      HOME_ENV_TOKEN=$(fmx_env_get FMX_PAIRING_TOKEN "$MY_FM_HOME/.env")
       [ -z "$HOME_ENV_TOKEN" ] || PUBLIC_FOLLOWUP_PARENT_RELAY_ACTIVE=1
     fi
     if [ "$PUBLIC_FOLLOWUP_PARENT_RELAY_ACTIVE" = 1 ]; then
@@ -1189,7 +1189,7 @@ if [ -f "$FM_HOME/$SUB_HOME_MARKER" ]; then
       && fm_pf_home_id_valid "secondmate:$SECOND_MATE_ID"; then
       PUBLIC_FOLLOWUP_WORK_HOME="secondmate:$SECOND_MATE_ID"
       if PUBLIC_FOLLOWUP_HOME=$(public_followup_resolve_primary_home \
-          "$PRIMARY_HOME_CANDIDATE" "$FM_HOME" "$SECOND_MATE_ID"); then
+          "$PRIMARY_HOME_CANDIDATE" "$MY_FM_HOME" "$SECOND_MATE_ID"); then
         PUBLIC_FOLLOWUP_STATE="$PUBLIC_FOLLOWUP_HOME/state"
         PUBLIC_FOLLOWUP_PARENT_UNRESOLVED=0
         if [ "$FORCE" != "--force" ] \
@@ -1209,7 +1209,7 @@ if [ -f "$FM_HOME/$SUB_HOME_MARKER" ]; then
       if fm_pf_relay_active "$PRIMARY_HOME_CANDIDATE"; then
         PUBLIC_FOLLOWUP_PARENT_RELAY_ACTIVE=1
       fi
-    elif fm_pf_relay_active "$FM_HOME"; then
+    elif fm_pf_relay_active "$MY_FM_HOME"; then
       PUBLIC_FOLLOWUP_PARENT_RELAY_ACTIVE=1
     fi
     if [ "$PUBLIC_FOLLOWUP_PARENT_RELAY_ACTIVE" = 1 ]; then
@@ -1217,7 +1217,7 @@ if [ -f "$FM_HOME/$SUB_HOME_MARKER" ]; then
       if fm_pf_home_id_valid "secondmate:$SECOND_MATE_ID"; then
         PUBLIC_FOLLOWUP_WORK_HOME="secondmate:$SECOND_MATE_ID"
         if PUBLIC_FOLLOWUP_HOME=$(public_followup_resolve_primary_home \
-            "$PRIMARY_HOME_CANDIDATE" "$FM_HOME" "$SECOND_MATE_ID"); then
+            "$PRIMARY_HOME_CANDIDATE" "$MY_FM_HOME" "$SECOND_MATE_ID"); then
           PUBLIC_FOLLOWUP_STATE="$PUBLIC_FOLLOWUP_HOME/state"
           PUBLIC_FOLLOWUP_PARENT_UNRESOLVED=0
           if [ "$FORCE" != "--force" ] \
@@ -1236,10 +1236,10 @@ if [ -f "$FM_HOME/$SUB_HOME_MARKER" ]; then
   fi
 elif [ "$KIND" = secondmate ]; then
   PUBLIC_FOLLOWUP_WORK_HOME="secondmate:$ID"
-  if [ "$FORCE" != "--force" ] && fm_pf_relay_active "$FM_HOME"; then
+  if [ "$FORCE" != "--force" ] && fm_pf_relay_active "$MY_FM_HOME"; then
     PUBLIC_FOLLOWUP_RELAY_ACTIVE=1
   fi
-elif [ "$FORCE" != "--force" ] && fm_pf_relay_active "$FM_HOME"; then
+elif [ "$FORCE" != "--force" ] && fm_pf_relay_active "$MY_FM_HOME"; then
   PUBLIC_FOLLOWUP_RELAY_ACTIVE=1
 fi
 
@@ -2247,7 +2247,7 @@ collect_local_firstmate_states() {
   local record_state=$1 root home reg line child known existing i=0
   local -a homes
   TREEHOUSE_OWNER_STATES=("$record_state")
-  root=$(fm_firstmate_root_home "$FM_HOME") || {
+  root=$(fm_firstmate_root_home "$MY_FM_HOME") || {
     echo "REFUSED: cannot resolve the root Firstmate home; nothing was changed" >&2
     return 1
   }
@@ -2395,7 +2395,7 @@ validate_removal_target() {
   [ -n "$target" ] || return 0
   [ -e "$target" ] || return 0
   abs_target=$(removal_target_abs_path "$target")
-  if abs_home=$(cd "$FM_HOME" 2>/dev/null && pwd -P); then
+  if abs_home=$(cd "$MY_FM_HOME" 2>/dev/null && pwd -P); then
     :
   else
     abs_home=
@@ -2490,7 +2490,7 @@ validate_child_worktree_for_removal() {
   [ -n "$target" ] || return 0
   [ -e "$target" ] || return 0
   abs_target=$(validate_removal_target "$target" "child worktree") || return 1
-  if abs_home=$(cd "$FM_HOME" 2>/dev/null && pwd -P); then
+  if abs_home=$(cd "$MY_FM_HOME" 2>/dev/null && pwd -P); then
     if path_is_ancestor_of "$abs_home" "$abs_target"; then
       echo "REFUSED: unsafe child worktree removal target $target is inside the active firstmate home" >&2
       return 1
@@ -2679,7 +2679,7 @@ restore_firstmate_home_process_events() {
   if [ ! -f "$runner" ] || [ -L "$runner" ] || [ ! -x "$runner" ]; then
     runner="$SCRIPT_DIR/fm-procevent.sh"
   fi
-  if ! FM_HOME="$home" FM_ROOT_OVERRIDE="$FM_ROOT" "$runner" reconcile >/dev/null; then
+  if ! MY_FM_HOME="$home" FM_ROOT_OVERRIDE="$FM_ROOT" "$runner" reconcile >/dev/null; then
     echo "error: process-event restoration could not rearm $label $home; active waits may remain retired; recover registrations from $backup" >&2
     return "$TEARDOWN_PROCEVENT_RESTORE_FAILED"
   fi
@@ -2693,7 +2693,7 @@ cleanup_firstmate_home_process_events() {
     echo "REFUSED: $label $home has process-event state but no sweep-capable bin/fm-procevent.sh; restore the home script and rerun teardown" >&2
     return 1
   fi
-  if ! FM_HOME="$home" FM_ROOT_OVERRIDE="$home" "$runner" sweep-home; then
+  if ! MY_FM_HOME="$home" FM_ROOT_OVERRIDE="$home" "$runner" sweep-home; then
     echo "REFUSED: process-event cleanup is incomplete for $label $home; preserving the home, lease, and retirement records for retry" >&2
     return 1
   fi
@@ -2710,7 +2710,7 @@ preflight_firstmate_home_process_events() {
     echo "REFUSED: $label $home has process-event state but no sweep-capable bin/fm-procevent.sh; restore the home script and rerun teardown" >&2
     return 1
   fi
-  if ! FM_HOME="$home" FM_ROOT_OVERRIDE="$home" "$runner" sweep-home --preflight >/dev/null; then
+  if ! MY_FM_HOME="$home" FM_ROOT_OVERRIDE="$home" "$runner" sweep-home --preflight >/dev/null; then
     echo "REFUSED: process-event cleanup cannot safely proceed for $label $home; preserving the home, lease, and retirement records for retry" >&2
     return 1
   fi
@@ -3161,7 +3161,7 @@ cleanup_firstmate_home_children() {
       elif [ "$child_backend" = zellij ]; then
         # Zellij titles are scoped by the owning home tag, so forced secondmate
         # cleanup must verify child tabs as that child home, not the parent.
-        ( unset FM_ROOT_OVERRIDE; FM_HOME=$home FM_ROOT=$home fm_backend_kill "$child_backend" "$child_t" "$(meta_value "$child_meta" zellij_tab_id)" "fm-$child_id" ) \
+        ( unset FM_ROOT_OVERRIDE; MY_FM_HOME=$home FM_ROOT=$home fm_backend_kill "$child_backend" "$child_t" "$(meta_value "$child_meta" zellij_tab_id)" "fm-$child_id" ) \
           || { endpoint_close_refusal "child $child_id" "$child_backend" "$child_t" 0; return 1; }
       else
         fm_backend_kill "$child_backend" "$child_t" "$(meta_value "$child_meta" zellij_tab_id)" "fm-$child_id" \
@@ -3304,7 +3304,7 @@ if [ "$KIND" = scout ] && [ "$FORCE" != "--force" ]; then
     echo "The report is the work product. Have the crewmate write it, or use --force after explicit discard approval." >&2
     exit 1
   fi
-  if ! FM_HOME="$FM_HOME" FM_STATE_OVERRIDE="$STATE" FM_DATA_OVERRIDE="$DATA" \
+  if ! MY_FM_HOME="$MY_FM_HOME" FM_STATE_OVERRIDE="$STATE" FM_DATA_OVERRIDE="$DATA" \
       FM_CONFIG_OVERRIDE="$CONFIG" "$SCRIPT_DIR/fm-captain-hold.sh" verify "$ID" >/dev/null; then
     echo "REFUSED: scout task $ID has not passed the captain-call completion gate." >&2
     echo "Inventory its report and any visual review through bin/fm-captain-hold.sh before teardown." >&2
@@ -3325,7 +3325,7 @@ if [ "$FORCE" != "--force" ] \
   && [ -n "$PUBLIC_FOLLOWUP_STATE" ] \
   && [ "$PUBLIC_FOLLOWUP_RELAY_ACTIVE" = 1 ] \
   && fm_pf_has_registrations "$PUBLIC_FOLLOWUP_STATE"; then
-  if ! PUBLIC_FOLLOWUP_BLOCKING=$(FM_HOME="$PUBLIC_FOLLOWUP_HOME" FM_STATE_OVERRIDE="$PUBLIC_FOLLOWUP_STATE" \
+  if ! PUBLIC_FOLLOWUP_BLOCKING=$(MY_FM_HOME="$PUBLIC_FOLLOWUP_HOME" FM_STATE_OVERRIDE="$PUBLIC_FOLLOWUP_STATE" \
       "$SCRIPT_DIR/fm-public-followup.sh" guard-work "$PUBLIC_FOLLOWUP_WORK_HOME" "$ID" 2>/dev/null); then
     echo "REFUSED: task $ID still owes a public reply through the myfirstmate relay." >&2
     printf '%s\n' "$PUBLIC_FOLLOWUP_BLOCKING" >&2
@@ -3615,7 +3615,7 @@ if [ "$BACKEND" = herdr ]; then
   fi
 fi
 if [ "$KIND" != secondmate ]; then
-  if ! FM_HOME="$FM_HOME" FM_STATE_OVERRIDE="$STATE" FM_DATA_OVERRIDE="$DATA" \
+  if ! MY_FM_HOME="$MY_FM_HOME" FM_STATE_OVERRIDE="$STATE" FM_DATA_OVERRIDE="$DATA" \
       "$SCRIPT_DIR/fm-inactive-reconcile.sh" report "$ID"; then
     echo "error: $ID's final outcome has not reached the parent channel; retaining every durable task record so a rerun can retry the delivery" >&2
     exit 1
@@ -3666,7 +3666,7 @@ teardown_launch_home_token() {
   esac
   printf '%s' "$hash"
 }
-LAUNCH_HOME_TOKEN=$(teardown_launch_home_token "$FM_HOME") || LAUNCH_HOME_TOKEN=
+LAUNCH_HOME_TOKEN=$(teardown_launch_home_token "$MY_FM_HOME") || LAUNCH_HOME_TOKEN=
 if [ -n "$LAUNCH_HOME_TOKEN" ]; then
   rm -rf "/tmp/fm-$ID+$LAUNCH_HOME_TOKEN"
 fi

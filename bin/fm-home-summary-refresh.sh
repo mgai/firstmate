@@ -4,7 +4,7 @@
 # Usage: fm-home-summary-refresh.sh [--best-effort]
 #
 # The published state/home-summary.json is the exact
-# `fm-fleet-snapshot.sh --secondmate-home-summary` document for this FM_HOME.
+# `fm-fleet-snapshot.sh --secondmate-home-summary` document for this MY_FM_HOME.
 # Its schema remains `fm-secondmate-home-summary.v1`, declares the current hold
 # classifier contract, and includes both the existing generated timestamp and
 # generated_epoch for freshness arithmetic.
@@ -29,11 +29,11 @@ set -u
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FM_ROOT="${FM_ROOT_OVERRIDE:-$(cd "$SCRIPT_DIR/.." && pwd)}"
-FM_HOME="${FM_HOME:-${FM_ROOT_OVERRIDE:-$FM_ROOT}}"
-STATE="${FM_STATE_OVERRIDE:-$FM_HOME/state}"
-DATA="${FM_DATA_OVERRIDE:-$FM_HOME/data}"
-CONFIG="${FM_CONFIG_OVERRIDE:-$FM_HOME/config}"
-PROJECTS="${FM_PROJECTS_OVERRIDE:-$FM_HOME/projects}"
+MY_FM_HOME="${MY_FM_HOME:-${FM_ROOT_OVERRIDE:-$FM_ROOT}}"
+STATE="${FM_STATE_OVERRIDE:-$MY_FM_HOME/state}"
+DATA="${FM_DATA_OVERRIDE:-$MY_FM_HOME/data}"
+CONFIG="${FM_CONFIG_OVERRIDE:-$MY_FM_HOME/config}"
+PROJECTS="${FM_PROJECTS_OVERRIDE:-$MY_FM_HOME/projects}"
 LEDGER="$STATE/home-summary.json"
 ERROR_LOG="$STATE/.home-summary-refresh.log"
 REFRESH_LOCK="$STATE/.home-summary-refresh.lock"
@@ -126,7 +126,7 @@ home_summary_refresh_once() {
 
   if env \
     FM_ROOT_OVERRIDE="$FM_ROOT" \
-    FM_HOME="$FM_HOME" \
+    MY_FM_HOME="$MY_FM_HOME" \
     FM_STATE_OVERRIDE="$STATE" \
     FM_DATA_OVERRIDE="$DATA" \
     FM_CONFIG_OVERRIDE="$CONFIG" \
@@ -149,7 +149,7 @@ home_summary_refresh_once() {
   fi
   rm -f -- "$HOME_SUMMARY_ERR_TMP"
   HOME_SUMMARY_ERR_TMP=
-  if ! jq -e --arg home "$FM_HOME" '
+  if ! jq -e --arg home "$MY_FM_HOME" '
     .schema == "fm-secondmate-home-summary.v1"
     and .hold_classifier_schema == "fm-captain-hold-buckets.v1"
     and .home == $home

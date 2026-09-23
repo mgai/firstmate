@@ -21,7 +21,7 @@ mkdir -p "$PARENT/data" "$PARENT/state" "$REMOTE/state" "$REMOTE/data/reply" "$C
 # tests/fm-remote-job-orphan-reap.test.sh pins. Stop the whole worker tree.
 cleanup() {
   local worker_pid=''
-  FM_HOME="$PARENT" FM_PROCEVENT_CLAIM_ROOT="$CLAIMS" \
+  MY_FM_HOME="$PARENT" FM_PROCEVENT_CLAIM_ROOT="$CLAIMS" \
     "$ROOT/bin/fm-procevent.sh" sweep-home >/dev/null 2>&1 || true
   if [ -f "$TMP_ROOT/remote-jobs/worker.pid" ]; then
     worker_pid=$(cat "$TMP_ROOT/remote-jobs/worker.pid")
@@ -59,7 +59,7 @@ SH
 chmod +x "$FAKEBIN/fake-ssh"
 
 remote_env() {
-  FM_HOME="$PARENT" \
+  MY_FM_HOME="$PARENT" \
   FM_ROOT_OVERRIDE="$ROOT" \
   FM_PROCEVENT_CLAIM_ROOT="$CLAIMS" \
   FM_SSH_BIN="$FAKEBIN/fake-ssh" \

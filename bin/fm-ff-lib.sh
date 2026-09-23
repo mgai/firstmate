@@ -1,6 +1,6 @@
 # shellcheck shell=bash
 # Shared fast-forward machinery for firstmate self-sync.
-# Usage: . bin/fm-ff-lib.sh   (after FM_ROOT and FM_HOME are set)
+# Usage: . bin/fm-ff-lib.sh   (after FM_ROOT and MY_FM_HOME are set)
 #
 # This is the one implementation of "advance a firstmate checkout to a base by a
 # clean fast-forward, never forcing, merging, or stashing" used by every sync
@@ -142,7 +142,7 @@ validate_secondmate_home() {
     VALIDATION_ERROR="not a directory"
     return 1
   }
-  abs_active_home=$(resolved_existing_dir "$FM_HOME") || {
+  abs_active_home=$(resolved_existing_dir "$MY_FM_HOME") || {
     VALIDATION_ERROR="active firstmate home is not a directory"
     return 1
   }
@@ -532,7 +532,7 @@ process_secondmate() {
   esac
   FF_SEEN_HOMES="$FF_SEEN_HOMES $home_real"
 
-  ff_target "$home_real" "secondmate $id" "$base_mode" yes yes "$id" "${FM_STATE_OVERRIDE:-$FM_HOME/state}"
+  ff_target "$home_real" "secondmate $id" "$base_mode" yes yes "$id" "${FM_STATE_OVERRIDE:-$MY_FM_HOME/state}"
   if [ -n "$window" ] && { [ "$FF_STATUS" = "updated" ] || [ "$FF_STATUS" = "current" ]; } \
     && type fm_ff_after_secondmate_settled >/dev/null 2>&1; then
     fm_ff_after_secondmate_settled "$id" "$home_real" "$window" "$FF_STATUS" "$FF_INSTR"
@@ -555,7 +555,7 @@ process_secondmate() {
 # FF_NUDGE_WINDOWS / FF_SEEN_HOMES, which the caller resets before and reads after.
 # The registry argument is only for home= fallback on older or incomplete meta records.
 sweep_live_secondmate_metas() {
-  local state=$1 base_mode=$2 nudge_requires_instr=${3:-no} registry=${4:-$FM_HOME/data/secondmates.md} id home window meta
+  local state=$1 base_mode=$2 nudge_requires_instr=${3:-no} registry=${4:-$MY_FM_HOME/data/secondmates.md} id home window meta
   [ -d "$state" ] || return 0
   while IFS='|' read -r id home window meta; do
     if grep -q '^remote_host=.' "$meta" 2>/dev/null; then continue; fi

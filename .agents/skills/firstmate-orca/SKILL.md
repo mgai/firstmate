@@ -24,7 +24,7 @@ Use raw `orca` only when the helper surface cannot answer the inspection questio
 ## Preflight
 
 Work from the current firstmate home or repo root.
-If `FM_HOME` is set, remember that operational state lives under `$FM_HOME` while the helper scripts still run from this repo's `bin/`.
+If `MY_FM_HOME` is set, remember that operational state lives under `$MY_FM_HOME` while the helper scripts still run from this repo's `bin/`.
 
 Before switching or spawning against Orca:
 

@@ -195,7 +195,7 @@ printf '# Backlog\n' > "$CAPTAIN/data/backlog.md"
 ADD_LOG="$CAPTAIN/add.log"
 HOLD_OUT="$CAPTAIN/hold.out"
 HOLD_STATUS=0
-PATH="$CAPTAIN_FAKEBIN:$BASE_PATH" FM_HOME="$CAPTAIN" \
+PATH="$CAPTAIN_FAKEBIN:$BASE_PATH" MY_FM_HOME="$CAPTAIN" \
   FM_STATE_OVERRIDE="$CAPTAIN/state" FM_DATA_OVERRIDE="$CAPTAIN/data" \
   FM_CONFIG_OVERRIDE="$CAPTAIN/config" FM_BACKLOG_ROW_TIMEOUT_SECS="$BOUND_SECS" \
   FM_TEST_TASKS_AXI_ADD_LOG="$ADD_LOG" \
@@ -224,7 +224,7 @@ fm_write_meta "$CAPTAIN/state/wedged-origin.meta" \
 
 VERIFY_OUT="$CAPTAIN/verify.out"
 VERIFY_STATUS=0
-PATH="$CAPTAIN_FAKEBIN:$BASE_PATH" FM_HOME="$CAPTAIN" \
+PATH="$CAPTAIN_FAKEBIN:$BASE_PATH" MY_FM_HOME="$CAPTAIN" \
   FM_STATE_OVERRIDE="$CAPTAIN/state" FM_DATA_OVERRIDE="$CAPTAIN/data" \
   FM_CONFIG_OVERRIDE="$CAPTAIN/config" FM_BACKLOG_ROW_TIMEOUT_SECS="$BOUND_SECS" \
   "$ROOT/bin/fm-captain-hold.sh" verify wedged-origin > "$VERIFY_OUT" 2>&1 || VERIFY_STATUS=$?
@@ -256,7 +256,7 @@ printf 'schema=fm-decision-binding.v1\norigin=wedged-origin\n' \
 REQ_OUT="$REQ/req.out"
 REQ_STATUS=0
 printf 'wedged-req\n' \
-  | PATH="$REQ_FAKEBIN:$BASE_PATH" FM_HOME="$REQ" \
+  | PATH="$REQ_FAKEBIN:$BASE_PATH" MY_FM_HOME="$REQ" \
     FM_STATE_OVERRIDE="$REQ/state" FM_DATA_OVERRIDE="$REQ/data" \
     FM_CONFIG_OVERRIDE="$REQ/config" FM_BACKLOG_ROW_TIMEOUT_SECS="$BOUND_SECS" \
     "$ROOT/bin/fm-captain-hold.sh" reconcile-requests --source-id probe --source 'test capture' \
@@ -343,7 +343,7 @@ fm_write_meta "$MIG/state/wedged-origin.meta" \
 
 VERIFY_MIG_OUT="$MIG/verify.out"
 VERIFY_MIG_STATUS=0
-PATH="$MIG_FAKEBIN:$BASE_PATH" FM_HOME="$MIG" \
+PATH="$MIG_FAKEBIN:$BASE_PATH" MY_FM_HOME="$MIG" \
   FM_STATE_OVERRIDE="$MIG/state" FM_DATA_OVERRIDE="$MIG/data" \
   FM_CONFIG_OVERRIDE="$MIG/config" FM_BACKLOG_ROW_TIMEOUT_SECS="$BOUND_SECS" \
   FM_TEST_PREFIXED_GLOB='bd-*' \
@@ -409,7 +409,7 @@ fm_write_meta "$E2E_HOME/state/wedged-task.meta" \
 DIGEST="$E2E/digest.out"
 DIGEST_START=$(date +%s)
 env -u CLAUDECODE -u PI_CODING_AGENT -u FM_PI_HARNESS -u GROK_AGENT \
-  FM_HOME="$E2E_HOME" FM_ROOT_OVERRIDE="$E2E_ROOT" PATH="$E2E_FAKEBIN:$BASE_PATH" \
+  MY_FM_HOME="$E2E_HOME" FM_ROOT_OVERRIDE="$E2E_ROOT" PATH="$E2E_FAKEBIN:$BASE_PATH" \
   FM_BACKLOG_ROW_TIMEOUT_SECS="$BOUND_SECS" \
   "$ROOT/bin/fm-session-start.sh" > "$DIGEST" 2>&1 || true
 DIGEST_ELAPSED=$(elapsed_since "$DIGEST_START")

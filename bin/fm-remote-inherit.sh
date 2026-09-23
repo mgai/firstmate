@@ -10,7 +10,7 @@
 # quarantined before replacement or removal and its converged copy is read-only.
 set -eu
 
-FM_HOME=${FM_HOME:?FM_HOME is required}
+MY_FM_HOME=${MY_FM_HOME:?MY_FM_HOME is required}
 MAX_BYTES=1048576
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -58,13 +58,13 @@ case "$EXPECTED_HASH" in ''|*[!A-Fa-f0-9]*) die "expected SHA-256 is invalid" ;;
 EXPECTED_HASH=$(printf '%s' "$EXPECTED_HASH" | tr 'A-F' 'a-f')
 case "$GENERATION" in ''|*[!0-9]*) die "generation must be a positive integer" ;; esac
 [ "${#GENERATION}" -le 18 ] && [ "$GENERATION" -ge 1 ] || die "generation is outside the supported range"
-HOME_REAL=$(CDPATH='' cd -- "$FM_HOME" 2>/dev/null && pwd -P) || die "FM_HOME is unavailable"
+HOME_REAL=$(CDPATH='' cd -- "$MY_FM_HOME" 2>/dev/null && pwd -P) || die "MY_FM_HOME is unavailable"
 PARENT="$HOME_REAL/$(dirname "$REL")"
 # The captain accepts this config/data parent TOCTOU within Firstmate's single-user trust boundary.
 [ ! -L "$PARENT" ] || die "inherited destination parent is a symlink"
 mkdir -p "$PARENT" || die "cannot create inherited destination parent"
 PARENT_REAL=$(CDPATH='' cd -- "$PARENT" && pwd -P)
-case "$PARENT_REAL" in "$HOME_REAL/config"|"$HOME_REAL/data") ;; *) die "inherited destination escapes FM_HOME" ;; esac
+case "$PARENT_REAL" in "$HOME_REAL/config"|"$HOME_REAL/data") ;; *) die "inherited destination escapes MY_FM_HOME" ;; esac
 DEST="$PARENT_REAL/$(basename "$REL")"
 [ ! -L "$DEST" ] || die "inherited destination is a symlink"
 if [ -e "$DEST" ]; then

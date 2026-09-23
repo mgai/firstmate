@@ -134,7 +134,7 @@ describe("/calm", () => {
     expect(files.has(PREFERENCE)).toBe(false);
   });
 
-  test("falls back to FM_ROOT_OVERRIDE, then the tracked code root above the plugin, when FM_HOME is unset", async ($, on) => {
+  test("falls back to FM_ROOT_OVERRIDE, then the tracked code root above the plugin, when MY_FM_HOME is unset", async ($, on) => {
     const { files } = world(on, { home: undefined, env: { FM_ROOT_OVERRIDE: "/root/override" } });
     await $.command.run(calmCommand());
     expect(files.get("/root/override/config/calm")).toBe("on\n");

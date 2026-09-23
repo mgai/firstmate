@@ -261,7 +261,7 @@ jobs:
                 event_rc=0
                 if (
                   export FM_ROOT_OVERRIDE="$GITHUB_WORKSPACE"
-                  export FM_HOME="$RUNNER_TEMP/fm-windows-herdr-home"
+                  export MY_FM_HOME="$RUNNER_TEMP/fm-windows-herdr-home"
                   export FM_BACKEND_EVENTS_CAPABILITY_CONFIRMED=1
                   . "$GITHUB_WORKSPACE/bin/fm-backend.sh"
                   fm_backend_source herdr

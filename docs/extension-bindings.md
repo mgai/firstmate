@@ -28,7 +28,7 @@ A captured external result therefore remains unhandled until the existing Firstm
 ## Discovery and package installation
 
 Discovery reads only regular mode-`0600` JSON files in the effective home's mode-`0700` `config/extensions.d/` directory.
-The effective home follows the repository convention of `FM_HOME`, then `FM_ROOT_OVERRIDE`, then the tracked Firstmate root, but no environment value names a package or binding inside that home.
+The effective home follows the repository convention of `MY_FM_HOME`, then `FM_ROOT_OVERRIDE`, then the tracked Firstmate root, but no environment value names a package or binding inside that home.
 The current directory, project files, task copies, worker text, Pi packages, and package-manager metadata are never searched.
 A package cannot bind an adapter name already owned by an installed `bin/fm-procevent-<adapter>.sh` built-in.
 If a later Firstmate release adds the same built-in name, already captured extension evidence retains its immutable package owner and is never reinterpreted by that built-in; the pinned extension registration remains explicit until owner-matched retirement.

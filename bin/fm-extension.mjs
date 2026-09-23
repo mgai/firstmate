@@ -40,7 +40,7 @@
 //           handshakes, then invokes source.poll, result.classify,
 //           result.terminal, or result.silent through strict JSON.
 //
-// Discovery is only $FM_HOME/config/extensions.d/*.json. Current directories,
+// Discovery is only $MY_FM_HOME/config/extensions.d/*.json. Current directories,
 // projects, task copies, environment payloads, worker text, and Pi packages are
 // never searched. Package executables are spawned directly with shell=false,
 // receive one bounded UTF-8 JSON document on stdin, and must return exactly one
@@ -408,7 +408,7 @@ async function maybeLstat(target) {
 }
 
 async function activeHome() {
-  const configured = process.env.FM_HOME || process.env.FM_ROOT_OVERRIDE || CODE_ROOT;
+  const configured = process.env.MY_FM_HOME || process.env.FM_ROOT_OVERRIDE || CODE_ROOT;
   const absolute = path.resolve(configured);
   const info = await maybeLstat(absolute);
   if (!info || !info.isDirectory()) fail("home-invalid", `Firstmate home is not a directory: ${absolute}`);
@@ -2249,7 +2249,7 @@ async function cmdRetireBindingLocked(args) {
 async function runLifecycleRetirement(mode, args) {
   const command = path.join(CODE_ROOT, "bin", "fm-procevent.sh");
   const home = await activeHome();
-  const env = { PATH: sanitizedPath(), LANG: "C", LC_ALL: "C", HOME: process.env.HOME || home, FM_HOME: home, FM_ROOT_OVERRIDE: CODE_ROOT };
+  const env = { PATH: sanitizedPath(), LANG: "C", LC_ALL: "C", HOME: process.env.HOME || home, MY_FM_HOME: home, FM_ROOT_OVERRIDE: CODE_ROOT };
   if (process.env.FM_STATE_OVERRIDE) env.FM_STATE_OVERRIDE = process.env.FM_STATE_OVERRIDE;
   if (process.env.XDG_STATE_HOME) env.XDG_STATE_HOME = process.env.XDG_STATE_HOME;
   if (process.env.FM_PROCEVENT_CLAIM_ROOT) env.FM_PROCEVENT_CLAIM_ROOT = process.env.FM_PROCEVENT_CLAIM_ROOT;
@@ -2285,7 +2285,7 @@ async function runLifecycleRetirement(mode, args) {
 async function runLifecycleProcessEvent(args) {
   const command = path.join(CODE_ROOT, "bin", "fm-procevent.sh");
   const home = await activeHome();
-  const env = { PATH: sanitizedPath(), LANG: "C", LC_ALL: "C", HOME: process.env.HOME || home, FM_HOME: home, FM_ROOT_OVERRIDE: CODE_ROOT };
+  const env = { PATH: sanitizedPath(), LANG: "C", LC_ALL: "C", HOME: process.env.HOME || home, MY_FM_HOME: home, FM_ROOT_OVERRIDE: CODE_ROOT };
   if (process.env.FM_STATE_OVERRIDE) env.FM_STATE_OVERRIDE = process.env.FM_STATE_OVERRIDE;
   if (process.env.XDG_STATE_HOME) env.XDG_STATE_HOME = process.env.XDG_STATE_HOME;
   if (process.env.FM_PROCEVENT_CAPTURE_SOURCE_LOCK_HELD === "1") env.FM_PROCEVENT_CAPTURE_SOURCE_LOCK_HELD = "1";
@@ -2323,7 +2323,7 @@ async function runLifecycleProcessEvent(args) {
 async function runLifecycleBinding(commandName, args) {
   const command = path.join(CODE_ROOT, "bin", "fm-procevent.sh");
   const home = await activeHome();
-  const env = { PATH: sanitizedPath(), LANG: "C", LC_ALL: "C", HOME: process.env.HOME || home, FM_HOME: home, FM_ROOT_OVERRIDE: CODE_ROOT };
+  const env = { PATH: sanitizedPath(), LANG: "C", LC_ALL: "C", HOME: process.env.HOME || home, MY_FM_HOME: home, FM_ROOT_OVERRIDE: CODE_ROOT };
   if (process.env.FM_STATE_OVERRIDE) env.FM_STATE_OVERRIDE = process.env.FM_STATE_OVERRIDE;
   if (process.env.XDG_STATE_HOME) env.XDG_STATE_HOME = process.env.XDG_STATE_HOME;
   if (process.env.FM_PROCEVENT_CLAIM_ROOT) env.FM_PROCEVENT_CLAIM_ROOT = process.env.FM_PROCEVENT_CLAIM_ROOT;
@@ -2389,7 +2389,7 @@ async function runInheritedLifecycleRetirement(args) {
 async function bindingRetirementPreflight(home, bindingDigest) {
   await cleanupRecordedInvocations(home, { bindingDigest });
   const command = path.join(CODE_ROOT, "bin", "fm-procevent.sh");
-  const env = { PATH: sanitizedPath(), LANG: "C", LC_ALL: "C", HOME: process.env.HOME || home, FM_HOME: home, FM_ROOT_OVERRIDE: CODE_ROOT };
+  const env = { PATH: sanitizedPath(), LANG: "C", LC_ALL: "C", HOME: process.env.HOME || home, MY_FM_HOME: home, FM_ROOT_OVERRIDE: CODE_ROOT };
   if (process.env.FM_STATE_OVERRIDE) env.FM_STATE_OVERRIDE = process.env.FM_STATE_OVERRIDE;
   if (process.env.XDG_STATE_HOME) env.XDG_STATE_HOME = process.env.XDG_STATE_HOME;
   if (process.env.FM_PROCEVENT_CLAIM_ROOT) env.FM_PROCEVENT_CLAIM_ROOT = process.env.FM_PROCEVENT_CLAIM_ROOT;

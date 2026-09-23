@@ -137,18 +137,18 @@ esac
 # drive a crewmate's lifecycle (see bin/fm-gate-refuse-lib.sh).
 fm_refuse_if_gate_agent
 
-if [ -z "${FM_HOME+x}" ] || [ -z "${FM_HOME:-}" ]; then
-  echo "error: FM_HOME is not set; fm-control refuses to resolve a task without an explicit firstmate home" >&2
+if [ -z "${MY_FM_HOME+x}" ] || [ -z "${MY_FM_HOME:-}" ]; then
+  echo "error: MY_FM_HOME is not set; fm-control refuses to resolve a task without an explicit firstmate home" >&2
   exit 1
 fi
-[ -d "$FM_HOME" ] || {
-  echo "error: FM_HOME '$FM_HOME' is not a directory" >&2
+[ -d "$MY_FM_HOME" ] || {
+  echo "error: MY_FM_HOME '$MY_FM_HOME' is not a directory" >&2
   exit 1
 }
-STATE="${FM_STATE_OVERRIDE:-$FM_HOME/state}"
-DATA="${FM_DATA_OVERRIDE:-$FM_HOME/data}"
+STATE="${FM_STATE_OVERRIDE:-$MY_FM_HOME/state}"
+DATA="${FM_DATA_OVERRIDE:-$MY_FM_HOME/data}"
 [ -d "$STATE" ] || {
-  echo "error: state dir '$STATE' is missing; fm-control cannot resolve tasks for FM_HOME '$FM_HOME'" >&2
+  echo "error: state dir '$STATE' is missing; fm-control cannot resolve tasks for MY_FM_HOME '$MY_FM_HOME'" >&2
   exit 1
 }
 

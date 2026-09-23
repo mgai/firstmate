@@ -11,7 +11,7 @@
 # It resolves the parent channel through fm_parent_channel_destination
 # (bin/fm-parent-channel-lib.sh): a local mate writes the parent home's
 # state/<id>.status, and a remote mate writes this home's
-# state/parent-replies.status. Call it from the secondmate home with FM_HOME
+# state/parent-replies.status. Call it from the secondmate home with MY_FM_HOME
 # set to that home.
 #
 # Usage:
@@ -23,7 +23,7 @@
 #   fm-secondmate-report.sh --doc done abcdef0123456789 data/x/report.md "see report"
 set -eu
 
-CALLER_FM_HOME=${FM_HOME:-}
+CALLER_FM_HOME=${MY_FM_HOME:-}
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=bin/fm-pending-reply-lib.sh
 . "$SCRIPT_DIR/fm-pending-reply-lib.sh"
@@ -69,7 +69,7 @@ esac
 HOME_DIR=$CALLER_FM_HOME
 case "$HOME_DIR" in
   '')
-    echo "error: FM_HOME is required so the helper can resolve the parent channel" >&2
+    echo "error: MY_FM_HOME is required so the helper can resolve the parent channel" >&2
     exit 1
     ;;
 esac

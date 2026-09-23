@@ -680,7 +680,7 @@ run_send_case() {  # <bin-root> <fakebin> <log> <home> -- <send args...>
   local bin=$1 fb=$2 log=$3 home=$4; shift 4
   [ "${1:-}" = -- ] && shift
   : > "$log"
-  env PATH="$fb:$PATH" FM_ROOT_OVERRIDE="$bin" FM_HOME="$home" FM_TMUX_LOG="$log" \
+  env PATH="$fb:$PATH" FM_ROOT_OVERRIDE="$bin" MY_FM_HOME="$home" FM_TMUX_LOG="$log" \
     FM_SEND_SETTLE=0 FM_SEND_SLEEP=0 \
     "$bin/bin/fm-send.sh" "$@" >/dev/null 2>&1
 }
@@ -770,10 +770,10 @@ test_peek_conformance_old_vs_new() {
   neutral_root="$TMP_ROOT/peek-neutral-root"; mkdir -p "$neutral_root"
 
   : > "$log_old"
-  out_old=$(PATH="$fb:$PATH" FM_ROOT_OVERRIDE="$neutral_root" FM_HOME="$home" FM_TMUX_LOG="$log_old" \
+  out_old=$(PATH="$fb:$PATH" FM_ROOT_OVERRIDE="$neutral_root" MY_FM_HOME="$home" FM_TMUX_LOG="$log_old" \
     "$old_bin/bin/fm-peek.sh" "sess:win" 25 2>/dev/null)
   : > "$log_new"
-  out_new=$(PATH="$fb:$PATH" FM_ROOT_OVERRIDE="$neutral_root" FM_HOME="$home" FM_TMUX_LOG="$log_new" \
+  out_new=$(PATH="$fb:$PATH" FM_ROOT_OVERRIDE="$neutral_root" MY_FM_HOME="$home" FM_TMUX_LOG="$log_new" \
     "$ROOT/bin/fm-peek.sh" "sess:win" 25 2>/dev/null)
 
   [ "$out_old" = "$out_new" ] || fail "fm-peek output differs old vs new"$'\n'"--- old ---"$'\n'"$out_old"$'\n'"--- new ---"$'\n'"$out_new"
@@ -1024,7 +1024,7 @@ test_spawn_refuses_unknown_backend_flag() {
   local out status
   # bogus names a backend with no adapter at all; zellij and orca both
   # graduated to real adapters and have their own spawn tests.
-  out=$(FM_ROOT_OVERRIDE='' FM_HOME='' FM_STATE_OVERRIDE='' FM_DATA_OVERRIDE='' \
+  out=$(FM_ROOT_OVERRIDE='' MY_FM_HOME='' FM_STATE_OVERRIDE='' FM_DATA_OVERRIDE='' \
     FM_PROJECTS_OVERRIDE='' FM_CONFIG_OVERRIDE='' FM_SPAWN_NO_GUARD=1 \
     "$ROOT/bin/fm-spawn.sh" nope-backend-z1 projects/none claude --mode no-mistakes --yolo off --backend bogus 2>&1)
   status=$?
@@ -1035,7 +1035,7 @@ test_spawn_refuses_unknown_backend_flag() {
 
 test_spawn_refuses_codex_app_backend_flag() {
   local out status
-  out=$(FM_ROOT_OVERRIDE='' FM_HOME='' FM_STATE_OVERRIDE='' FM_DATA_OVERRIDE='' \
+  out=$(FM_ROOT_OVERRIDE='' MY_FM_HOME='' FM_STATE_OVERRIDE='' FM_DATA_OVERRIDE='' \
     FM_PROJECTS_OVERRIDE='' FM_CONFIG_OVERRIDE='' FM_SPAWN_NO_GUARD=1 \
     "$ROOT/bin/fm-spawn.sh" nope-codex-app-z1 projects/none claude --mode no-mistakes --yolo off --backend codex-app 2>&1)
   status=$?
@@ -1046,7 +1046,7 @@ test_spawn_refuses_codex_app_backend_flag() {
 
 test_spawn_refuses_unknown_fm_backend_env() {
   local out status
-  out=$(FM_ROOT_OVERRIDE='' FM_HOME='' FM_STATE_OVERRIDE='' FM_DATA_OVERRIDE='' \
+  out=$(FM_ROOT_OVERRIDE='' MY_FM_HOME='' FM_STATE_OVERRIDE='' FM_DATA_OVERRIDE='' \
     FM_PROJECTS_OVERRIDE='' FM_CONFIG_OVERRIDE='' FM_SPAWN_NO_GUARD=1 FM_BACKEND=bogus \
     "$ROOT/bin/fm-spawn.sh" nope-backend-z2 projects/none claude --mode no-mistakes --yolo off 2>&1)
   status=$?

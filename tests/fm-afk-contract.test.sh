@@ -23,7 +23,7 @@ make_home() {  # <name> -> prints the home dir
 contract() {  # <home> <args...>
   local home=$1
   shift
-  FM_HOME="$home" FM_STATE_OVERRIDE="$home/state" "$CONTRACT" "$@"
+  MY_FM_HOME="$home" FM_STATE_OVERRIDE="$home/state" "$CONTRACT" "$@"
 }
 
 # A confirmed record in the retired version 1 shape, exactly as the clause

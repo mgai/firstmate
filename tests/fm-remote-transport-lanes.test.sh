@@ -150,7 +150,7 @@ rmdir "$STATE_ROOT/.seq-claims/999999"
 pass "atomic sequence claims remain unique and reap only after expiry"
 
 fm_on() {
-  FM_HOME="$LOCAL_HOME" \
+  MY_FM_HOME="$LOCAL_HOME" \
   FM_ROOT_OVERRIDE="$REMOTE_ROOT" \
   FM_SSH_BIN="$FAKEBIN/fake-ssh" \
   FM_FAKE_REMOTE_ENTRYPOINT="$REMOTE_ROOT/bin/fm-remote-entrypoint.sh" \
@@ -331,7 +331,7 @@ pass "a caller killed mid-wait stops its running job's process group"
 ORPHAN_START="$TMP_ROOT/orphan-cancel-start"
 ORPHAN_FINISH="$TMP_ROOT/orphan-cancel-finish"
 # shellcheck disable=SC2016 # Expansion is deliberately deferred to the child shell.
-env FM_HOME="$LOCAL_HOME" FM_ROOT_OVERRIDE="$REMOTE_ROOT" \
+env MY_FM_HOME="$LOCAL_HOME" FM_ROOT_OVERRIDE="$REMOTE_ROOT" \
   FM_SSH_BIN="$FAKEBIN/fake-ssh" \
   FM_FAKE_REMOTE_ENTRYPOINT="$REMOTE_ROOT/bin/fm-remote-entrypoint.sh" \
   FM_REMOTE_JOB_STATE_ROOT="$STATE_ROOT" FM_REMOTE_JOB_PLATFORM_OVERRIDE=Linux \
@@ -358,7 +358,7 @@ pass "a signal-less caller disconnect cancels the abandoned job through the pare
 BURST_BEGAN=$(date +%s)
 for tag in c1 c2 c3; do
   rc=0
-  fm_run_timed 15 env FM_HOME="$LOCAL_HOME" FM_ROOT_OVERRIDE="$REMOTE_ROOT" \
+  fm_run_timed 15 env MY_FM_HOME="$LOCAL_HOME" FM_ROOT_OVERRIDE="$REMOTE_ROOT" \
     FM_SSH_BIN="$FAKEBIN/fake-ssh" \
     FM_FAKE_REMOTE_ENTRYPOINT="$REMOTE_ROOT/bin/fm-remote-entrypoint.sh" \
     FM_REMOTE_JOB_STATE_ROOT="$STATE_ROOT" FM_REMOTE_JOB_PLATFORM_OVERRIDE=Linux \
@@ -376,7 +376,7 @@ printf 'rsm\n' > "$HOME_A/.fm-secondmate-home"
 printf '# fixture secondmate home\n' > "$HOME_A/AGENTS.md"
 mkdir -p "$HOME_A/state" "$HOME_A/bin"
 rc=0
-fm_run_timed 20 env FM_HOME="$LOCAL_HOME" FM_ROOT_OVERRIDE="$REMOTE_ROOT" \
+fm_run_timed 20 env MY_FM_HOME="$LOCAL_HOME" FM_ROOT_OVERRIDE="$REMOTE_ROOT" \
   FM_SSH_BIN="$FAKEBIN/fake-ssh" \
   FM_FAKE_REMOTE_ENTRYPOINT="$REMOTE_ROOT/bin/fm-remote-entrypoint.sh" \
   FM_REMOTE_JOB_STATE_ROOT="$STATE_ROOT" FM_REMOTE_JOB_PLATFORM_OVERRIDE=Linux \

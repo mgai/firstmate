@@ -70,7 +70,7 @@ Options:
   --model <id>          Nova Sonic model id.         default from config
   --profile <name>      AWS profile.                 default from config
   --voice <id>          output voice.                default matthew
-  --home <dir>          firstmate home for records.  default $FM_HOME or this repo
+  --home <dir>          firstmate home for records.  default $MY_FM_HOME or this repo
   --scope <name>        override the read scope for this run.
   --tail-ms <int>       silence appended on talk end. default 400
   --turn-timeout <sec>  how long --self-test waits.   default 40

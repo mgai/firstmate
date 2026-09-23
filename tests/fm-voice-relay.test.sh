@@ -367,7 +367,7 @@ while IFS= read -r inbox_knob; do
   [ -n "$inbox_knob" ] || continue
   inbox_env+=(-u "$inbox_knob")
 done < <(env | sed -n 's/^\(FM_INBOX_[A-Za-z0-9_]*\)=.*/\1/p' | sort -u)
-inbox_env+=(FM_HOME="$CONFIG_HOME" FM_STATE_OVERRIDE="$CONFIG_HOME/state"
+inbox_env+=(MY_FM_HOME="$CONFIG_HOME" FM_STATE_OVERRIDE="$CONFIG_HOME/state"
             FM_CONFIG_OVERRIDE="$CONFIG_HOME/config")
 
 # And a stub that records any attempt, so "no model call" is a checked fact rather
@@ -428,7 +428,7 @@ assert_contains "$inbox_help" 'PRIVACY:' \
   "the help must say which subcommands send anything to a model"
 assert_contains "$inbox_help" 'make no network call at all' \
   "the help must name the subcommands that stay on this host"
-assert_contains "$inbox_help" 'FM_HOME' \
+assert_contains "$inbox_help" 'MY_FM_HOME' \
   "the help must keep its environment section"
 assert_contains "$inbox_help" 'inbox-ask-model' \
   "the help must name the files a home has to write"
@@ -3537,7 +3537,7 @@ moved=$(FM_DATA_OVERRIDE="$alt_data" verb_status --scope full) \
 assert_contains "$moved" 'moved-one' \
   "the reader must take the backlog from the overridden data directory"
 assert_contains "$moved" '"in_flight": 1' "and count only what that backlog holds"
-inbox_moved=$(FM_HOME="$VERB_HOME" FM_STATE_OVERRIDE="$VERB_HOME/state" \
+inbox_moved=$(MY_FM_HOME="$VERB_HOME" FM_STATE_OVERRIDE="$VERB_HOME/state" \
   FM_DATA_OVERRIDE="$alt_data" "$ROOT/bin/fm-inbox.sh" status) \
   || fail "fm-inbox status with an overridden data directory failed"
 assert_contains "$inbox_moved" 'moved-one' \
@@ -3649,7 +3649,7 @@ pass "the configured read scope is honoured"
 before=$(find "$HOME_FIXTURE/state" -maxdepth 2 -name '*.note' | wc -l | tr -d '[:space:]')
 [ "$before" = 0 ] || fail "fixture should start with an empty inbox"
 
-handed=$(FM_HOME="$HOME_FIXTURE" python3 "$ROOT/bin/fm_voice_records.py" queue \
+handed=$(MY_FM_HOME="$HOME_FIXTURE" python3 "$ROOT/bin/fm_voice_records.py" queue \
   "Refactor the login module and open a pull request for it" \
   --home "$HOME_FIXTURE") || fail "handover failed"
 assert_contains "$handed" '"queued": true' "handover should report the request queued"
@@ -3677,7 +3677,7 @@ assert_contains "$paired" '"captain_notes_waiting": 1' \
 pass "handover queues the request for firstmate and wakes it exactly once"
 
 # The same pairing when the state directory is moved. bin/fm-inbox.sh resolves
-# ${FM_STATE_OVERRIDE:-$FM_HOME/state} and the handover queues through it with
+# ${FM_STATE_OVERRIDE:-$MY_FM_HOME/state} and the handover queues through it with
 # the ambient environment, so a reader that ignored the override would count
 # notes in a directory nothing writes to.
 alt_state="$TMP_ROOT/state-elsewhere"
@@ -4136,7 +4136,7 @@ PATH=$PATH
 HOME=$E2E/desktop-home
 PYTHONPATH=$E2E/fakesdk
 PYTHONDONTWRITEBYTECODE=1
-FM_HOME=$E2E/home
+MY_FM_HOME=$E2E/home
 FM_FAKE_STATE=$E2E/turn-counter
 FM_FAKE_LOG=$E2E/model-sessions.jsonl
 FM_FAKE_THINK=0.4
@@ -4537,7 +4537,7 @@ pass "a model session that ends mid-conversation costs one turn, not the relay"
 
 set +e
 env -i PATH="$PATH" HOME="$E2E/desktop-home" PYTHONPATH="$E2E/fakesdk" \
-  PYTHONDONTWRITEBYTECODE=1 FM_HOME="$E2E/home" \
+  PYTHONDONTWRITEBYTECODE=1 MY_FM_HOME="$E2E/home" \
   AWS_ACCESS_KEY_ID="$E2E_KEY" \
   AWS_SECRET_ACCESS_KEY=desktop-secret-not-a-real-key \
   python3 - "$ROOT/bin" <<'PY'
@@ -4649,7 +4649,7 @@ relay_self_test() {
   local clip=$1
   shift
   env -i PATH="$PATH" HOME="$E2E/desktop-home" PYTHONPATH="$E2E/fakesdk" \
-    PYTHONDONTWRITEBYTECODE=1 FM_HOME="$E2E/home" \
+    PYTHONDONTWRITEBYTECODE=1 MY_FM_HOME="$E2E/home" \
     FM_FAKE_STATE="$SELFTEST/turn-counter" FM_FAKE_LOG="$SELFTEST/sessions.jsonl" \
     FM_FAKE_THINK=0.4 FM_FAKE_REPLY_SECONDS=0.4 FM_FAKE_SCRIPT=status \
     AWS_ACCESS_KEY_ID="$E2E_KEY" \

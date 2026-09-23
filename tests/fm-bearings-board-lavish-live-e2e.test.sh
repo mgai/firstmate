@@ -73,7 +73,7 @@ cat > "$LAB/payload.json" <<'JSON'
 JSON
 
 run_board() {
-  FM_HOME="$LAB" FM_STATE_OVERRIDE="$LAB/state" FM_DATA_OVERRIDE="$LAB/data" \
+  MY_FM_HOME="$LAB" FM_STATE_OVERRIDE="$LAB/state" FM_DATA_OVERRIDE="$LAB/data" \
     FM_PROCEVENT_CLAIM_ROOT="$LAB/procevent-claims" \
     "$ROOT/bin/fm-bearings-board.sh" "$@"
 }

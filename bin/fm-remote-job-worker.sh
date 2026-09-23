@@ -8,7 +8,7 @@
 # tracked non-symlink fm-*.sh under this worker's configured FM_ROOT/bin.
 #
 # Each child runs under env -i with the shared filesystem-composed PATH, HOME,
-# FM_HOME, FM_ROOT_OVERRIDE, and FM_REMOTE_JOB_ACTIVE=1. Commands receive their
+# MY_FM_HOME, FM_ROOT_OVERRIDE, and FM_REMOTE_JOB_ACTIVE=1. Commands receive their
 # captured stdin and have a 360-second default timeout. Their stdout and stderr
 # are independently constrained to the job library's 1048576-byte bound. A
 # record is marked done only after its bounded outputs and numeric exit status
@@ -747,7 +747,7 @@ worker_run_job() { # <account-home> <job-dir>
     /usr/bin/env -i
     "PATH=$FM_REMOTE_JOB_CHILD_PATH"
     "HOME=$account_home"
-    "FM_HOME=$home"
+    "MY_FM_HOME=$home"
     "FM_ROOT_OVERRIDE=$root"
     FM_REMOTE_JOB_ACTIVE=1
   )

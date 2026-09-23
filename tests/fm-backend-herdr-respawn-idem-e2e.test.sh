@@ -70,7 +70,7 @@ fm_backend_herdr_version_check || fail "version_check failed against the real in
 # fm_backend_herdr_create_task is the ONE function both bin/fm-spawn.sh's
 # ordinary crewmate/scout path and its --secondmate path call, so exercising
 # it directly here covers both paths identically - already proven distinct
-# only in FM_HOME-shadowing (tests/fm-backend-herdr-workspace-per-home-e2e.test.sh),
+# only in MY_FM_HOME-shadowing (tests/fm-backend-herdr-workspace-per-home-e2e.test.sh),
 # never in this duplicate-guard logic, which has no home-specific branching.
 
 PROJ_CWD="$SCRATCH/proj"

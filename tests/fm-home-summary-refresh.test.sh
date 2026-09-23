@@ -99,14 +99,14 @@ run_writer() {  # <now> <epoch> [writer args...]
   local now=$1 epoch=$2
   shift 2
   PATH="$FAKEBIN:$PATH" \
-    FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$HOME_DIR" \
+    FM_ROOT_OVERRIDE="$ROOT" MY_FM_HOME="$HOME_DIR" \
     FM_SNAPSHOT_NOW="$now" FM_SNAPSHOT_NOW_EPOCH="$epoch" \
     "$WRITER" "$@"
 }
 
 run_producer() {  # <now> <epoch>
   PATH="$FAKEBIN:$PATH" \
-    FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$HOME_DIR" \
+    FM_ROOT_OVERRIDE="$ROOT" MY_FM_HOME="$HOME_DIR" \
     FM_SNAPSHOT_NOW="$1" FM_SNAPSHOT_NOW_EPOCH="$2" \
     "$SNAPSHOT" --secondmate-home-summary
 }
@@ -132,7 +132,7 @@ jq -e --arg home "$HOME_DIR" --arg now "$NOW_ONE" --argjson epoch "$EPOCH_ONE" '
   || fail "initial ledger did not expose the extended producer schema"
 
 PATH="$FAKEBIN:$PATH" \
-  FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$HOME_DIR" \
+  FM_ROOT_OVERRIDE="$ROOT" MY_FM_HOME="$HOME_DIR" \
   FM_SNAPSHOT_NOW="$NOW_TWO" FM_SNAPSHOT_NOW_EPOCH="$EPOCH_TWO" \
   FM_POLL=1 FM_SIGNAL_GRACE=0 FM_CHECK_INTERVAL=9999999 FM_HEARTBEAT=9999999 \
   "$WATCH" > "$TMP_ROOT/watch.out" 2> "$TMP_ROOT/watch.err" &
@@ -180,7 +180,7 @@ large_id_suffix=$(printf 'i%.0s' $(seq 1 110))
 } > "$LARGE_HOME/data/backlog.md"
 [ "$(wc -c < "$LARGE_HOME/data/backlog.md")" -gt 131072 ] \
   || fail "large in-flight fixture did not exceed the per-argument limit"
-PATH="$FAKEBIN:$PATH" FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$LARGE_HOME" \
+PATH="$FAKEBIN:$PATH" FM_ROOT_OVERRIDE="$ROOT" MY_FM_HOME="$LARGE_HOME" \
   FM_SNAPSHOT_NOW="$NOW_ONE" FM_SNAPSHOT_NOW_EPOCH="$EPOCH_ONE" \
   "$SNAPSHOT" --json > "$TMP_ROOT/large-snapshot.json" \
   || fail "fleet snapshot json mode failed for a large backlog"
@@ -189,13 +189,13 @@ jq -e '.schema == "fm-fleet-snapshot.v1"
   and (.main_inventory.orphan_in_flight | length) == 1200' \
   "$TMP_ROOT/large-snapshot.json" >/dev/null \
   || fail "large fleet snapshot did not preserve the orphan inventory"
-PATH="$FAKEBIN:$PATH" FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$LARGE_HOME" \
+PATH="$FAKEBIN:$PATH" FM_ROOT_OVERRIDE="$ROOT" MY_FM_HOME="$LARGE_HOME" \
   FM_SNAPSHOT_NOW="$NOW_ONE" FM_SNAPSHOT_NOW_EPOCH="$EPOCH_ONE" \
   "$SNAPSHOT" --secondmate-home-summary > "$TMP_ROOT/large-summary.json" \
   || fail "secondmate home-summary mode failed for a large backlog"
 jq -e '.schema == "fm-secondmate-home-summary.v1"' "$TMP_ROOT/large-summary.json" \
   >/dev/null || fail "large secondmate home-summary output was not valid"
-PATH="$FAKEBIN:$PATH" FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$LARGE_HOME" \
+PATH="$FAKEBIN:$PATH" FM_ROOT_OVERRIDE="$ROOT" MY_FM_HOME="$LARGE_HOME" \
   FM_SNAPSHOT_NOW="$NOW_ONE" FM_SNAPSHOT_NOW_EPOCH="$EPOCH_ONE" \
   "$WRITER" || fail "home-summary writer failed for a large backlog"
 jq -e '.schema == "fm-secondmate-home-summary.v1"' \
@@ -207,7 +207,7 @@ mkdir -p "$STATELESS_HOME/data" "$STATELESS_HOME/config" \
   "$STATELESS_HOME/projects"
 printf '%s\n' '## In flight' '' '## Queued' '' '## Done' \
   > "$STATELESS_HOME/data/backlog.md"
-PATH="$FAKEBIN:$PATH" FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$STATELESS_HOME" \
+PATH="$FAKEBIN:$PATH" FM_ROOT_OVERRIDE="$ROOT" MY_FM_HOME="$STATELESS_HOME" \
   FM_SNAPSHOT_NOW="$NOW_ONE" FM_SNAPSHOT_NOW_EPOCH="$EPOCH_ONE" \
   "$SNAPSHOT" --json > "$TMP_ROOT/stateless-snapshot.json" \
   || fail "fleet snapshot json mode failed without a state directory"
@@ -231,7 +231,7 @@ printf 'large-child\n' > "$LARGE_CHILD_HOME/.fm-secondmate-home"
   done
   printf '%s\n' '' '## Queued' '' '## Done'
 } > "$LARGE_CHILD_HOME/data/backlog.md"
-PATH="$FAKEBIN:$PATH" FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$LARGE_CHILD_HOME" \
+PATH="$FAKEBIN:$PATH" FM_ROOT_OVERRIDE="$ROOT" MY_FM_HOME="$LARGE_CHILD_HOME" \
   FM_SNAPSHOT_NOW="$NOW_ONE" FM_SNAPSHOT_NOW_EPOCH="$EPOCH_ONE" \
   "$WRITER" || fail "large child home-summary publication failed"
 large_child_bytes=$(wc -c < "$LARGE_CHILD_HOME/state/home-summary.json")
@@ -245,7 +245,7 @@ printf '%s\n' '## In flight' '' '## Queued' '' '## Done' \
   > "$LARGE_PARENT_HOME/data/backlog.md"
 fm_write_secondmate_meta "$LARGE_PARENT_HOME/state/large-child.meta" \
   "$LARGE_CHILD_HOME" "fmtest:fm-large-child" firstmate claude
-PATH="$FAKEBIN:$PATH" FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$LARGE_PARENT_HOME" \
+PATH="$FAKEBIN:$PATH" FM_ROOT_OVERRIDE="$ROOT" MY_FM_HOME="$LARGE_PARENT_HOME" \
   FM_SNAPSHOT_NOW="$NOW_ONE" FM_SNAPSHOT_NOW_EPOCH="$EPOCH_ONE" \
   "$SNAPSHOT" --json > "$TMP_ROOT/large-parent-snapshot.json" \
   || fail "parent fleet snapshot failed for a large child ledger"
@@ -268,12 +268,12 @@ cat > "$CADENCE_HOME/data/backlog.md" <<'EOF'
 
 ## Done
 EOF
-PATH="$FAKEBIN:$PATH" FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$CADENCE_HOME" \
+PATH="$FAKEBIN:$PATH" FM_ROOT_OVERRIDE="$ROOT" MY_FM_HOME="$CADENCE_HOME" \
   FM_SNAPSHOT_NOW="$NOW_TWO" FM_SNAPSHOT_NOW_EPOCH="$EPOCH_TWO" \
   "$WRITER" || fail "could not seed the cadence ledger"
 touch -t 203801010000 "$CADENCE_HOME/state/home-summary.json"
 PATH="$FAKEBIN:$PATH" \
-  FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$CADENCE_HOME" \
+  FM_ROOT_OVERRIDE="$ROOT" MY_FM_HOME="$CADENCE_HOME" \
   FM_SNAPSHOT_NOW="$NOW_THREE" FM_SNAPSHOT_NOW_EPOCH="$EPOCH_THREE" \
   FM_POLL=1 FM_HOME_SUMMARY_INTERVAL=1 FM_SIGNAL_GRACE=0 \
   FM_CHECK_INTERVAL=9999999 FM_HEARTBEAT=9999999 \
@@ -331,7 +331,7 @@ EOF
 fm_write_secondmate_meta "$PARENT_HOME/state/mate.meta" "$HOME_DIR" \
   "fmtest:fm-mate" firstmate claude
 PATH="$FAKEBIN:$PATH" \
-  FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$PARENT_HOME" \
+  FM_ROOT_OVERRIDE="$ROOT" MY_FM_HOME="$PARENT_HOME" \
   FM_SNAPSHOT_NOW="$NOW_TWO" FM_SNAPSHOT_NOW_EPOCH="$EPOCH_TWO" \
   "$SNAPSHOT" --json > "$TMP_ROOT/parent-snapshot.json" \
   || fail "parent fleet snapshot failed"
@@ -354,7 +354,7 @@ printf 'working: replacement summary is being computed\n' \
 cp "$HOME_DIR/state/home-summary.json" "$TMP_ROOT/prior-ledger.json"
 SLOW_MARKER="$TMP_ROOT/slow-no-mistakes.pid"
 PATH="$FAKEBIN:$PATH" \
-  FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$HOME_DIR" \
+  FM_ROOT_OVERRIDE="$ROOT" MY_FM_HOME="$HOME_DIR" \
   FM_SNAPSHOT_NOW="$NOW_THREE" FM_SNAPSHOT_NOW_EPOCH="$EPOCH_THREE" \
   FM_TEST_NM_MARKER="$SLOW_MARKER" FM_TEST_NM_SLEEP=30 \
   "$WRITER" > "$TMP_ROOT/killed-writer.out" 2> "$TMP_ROOT/killed-writer.err" &
@@ -407,7 +407,7 @@ cmp -s "$TMP_ROOT/prior-ledger.json" "$HOME_DIR/state/home-summary.json" \
 READER_FAILURE="$TMP_ROOT/reader-failure"
 SUCCESS_MARKER="$TMP_ROOT/success-no-mistakes.pid"
 PATH="$FAKEBIN:$PATH" \
-  FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$HOME_DIR" \
+  FM_ROOT_OVERRIDE="$ROOT" MY_FM_HOME="$HOME_DIR" \
   FM_SNAPSHOT_NOW="$NOW_THREE" FM_SNAPSHOT_NOW_EPOCH="$EPOCH_THREE" \
   FM_TEST_NM_MARKER="$SUCCESS_MARKER" FM_TEST_NM_SLEEP=1 \
   "$WRITER" > "$TMP_ROOT/success-writer.out" 2> "$TMP_ROOT/success-writer.err" &
@@ -441,7 +441,7 @@ SH
 chmod +x "$FAILBIN/jq"
 cp "$HOME_DIR/state/home-summary.json" "$TMP_ROOT/before-best-effort.json"
 PATH="$FAILBIN:$FAKEBIN:$PATH" \
-  FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$HOME_DIR" \
+  FM_ROOT_OVERRIDE="$ROOT" MY_FM_HOME="$HOME_DIR" \
   "$WRITER" --best-effort \
   || fail "best-effort refresh propagated its producer failure"
 cmp -s "$TMP_ROOT/before-best-effort.json" "$HOME_DIR/state/home-summary.json" \
@@ -452,7 +452,7 @@ pass "best-effort publication logs and continues"
 
 LOCK_MARKER="$TMP_ROOT/lock-held"
 rm -f "$HOME_DIR/state/.home-summary-refresh.log"
-FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$HOME_DIR" bash -c '
+FM_ROOT_OVERRIDE="$ROOT" MY_FM_HOME="$HOME_DIR" bash -c '
   . "$1/bin/fm-wake-lib.sh"
   fm_lock_acquire_wait "$2/state/.home-summary-refresh.lock"
   : > "$3"
@@ -467,12 +467,12 @@ while [ ! -e "$LOCK_MARKER" ] && [ "$i" -lt 100 ]; do
 done
 [ -e "$LOCK_MARKER" ] || fail "could not hold the publication lock for timeout coverage"
 started=$(date +%s)
-PATH="$FAKEBIN:$PATH" FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$HOME_DIR" \
+PATH="$FAKEBIN:$PATH" FM_ROOT_OVERRIDE="$ROOT" MY_FM_HOME="$HOME_DIR" \
   FM_HOME_SUMMARY_TIMEOUT=1 "$WRITER" --best-effort \
   || fail "lock timeout changed the best-effort caller result"
 elapsed=$(( $(date +%s) - started ))
 [ "$elapsed" -lt 4 ] || fail "best-effort refresh waited $elapsed seconds on its lock"
-PATH="$FAKEBIN:$PATH" FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$HOME_DIR" \
+PATH="$FAKEBIN:$PATH" FM_ROOT_OVERRIDE="$ROOT" MY_FM_HOME="$HOME_DIR" \
   FM_HOME_SUMMARY_TIMEOUT=1 "$WRITER" --best-effort \
   || fail "repeated lock timeout changed the best-effort caller result"
 [ "$(grep -c 'refresh exceeded its 1-second deadline' "$HOME_DIR/state/.home-summary-refresh.log" 2>/dev/null || true)" -ge 2 ] \
@@ -497,7 +497,7 @@ SH
 chmod +x "$HANGBIN/jq"
 started=$(date +%s)
 PATH="$HANGBIN:$FAKEBIN:$PATH" FM_TEST_REAL_JQ="$REAL_JQ" \
-  FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$HOME_DIR" FM_HOME_SUMMARY_TIMEOUT=1 \
+  FM_ROOT_OVERRIDE="$ROOT" MY_FM_HOME="$HOME_DIR" FM_HOME_SUMMARY_TIMEOUT=1 \
   "$WRITER" --best-effort \
   || fail "validation timeout changed the best-effort caller result"
 elapsed=$(( $(date +%s) - started ))
@@ -523,7 +523,7 @@ chmod +x "$MKBIN/mkdir"
 started=$(date +%s)
 PATH="$MKBIN:$FAKEBIN:$PATH" FM_TEST_REAL_MKDIR="$REAL_MKDIR" \
   FM_TEST_STALLED_STATE="$HOME_DIR/state" FM_ROOT_OVERRIDE="$ROOT" \
-  FM_HOME="$HOME_DIR" FM_HOME_SUMMARY_TIMEOUT=1 \
+  MY_FM_HOME="$HOME_DIR" FM_HOME_SUMMARY_TIMEOUT=1 \
   "$WRITER" --best-effort >/dev/null 2>"$TMP_ROOT/stalled-state.err" \
   || fail "state initialization timeout changed the best-effort caller result"
 elapsed=$(( $(date +%s) - started ))
@@ -547,7 +547,7 @@ chmod +x "$SIGNALBIN/env"
 rm -f "$HOME_DIR/state/.home-summary-refresh.log"
 PATH="$SIGNALBIN:$FAKEBIN:$PATH" FM_TEST_REAL_ENV="$REAL_ENV" \
   FM_TEST_SIGNAL_MARKER="$SIGNAL_MARKER" FM_TIMEOUT_MECHANISM_OVERRIDE=bash \
-  FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$HOME_DIR" "$WRITER" --best-effort \
+  FM_ROOT_OVERRIDE="$ROOT" MY_FM_HOME="$HOME_DIR" "$WRITER" --best-effort \
   || fail "worker termination changed the best-effort caller result"
 grep -F 'refresh worker failed with exit 143' \
   "$HOME_DIR/state/.home-summary-refresh.log" >/dev/null \
@@ -558,7 +558,7 @@ rm -f "$SIGNAL_MARKER" "$HOME_DIR/state/.home-summary-refresh.log"
 mkdir "$HOME_DIR/state/.home-summary-refresh.log"
 if ! PATH="$SIGNALBIN:$FAKEBIN:$PATH" FM_TEST_REAL_ENV="$REAL_ENV" \
   FM_TEST_SIGNAL_MARKER="$SIGNAL_MARKER" FM_TIMEOUT_MECHANISM_OVERRIDE=bash \
-  FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$HOME_DIR" WRITER="$WRITER" python3 - <<'PY'
+  FM_ROOT_OVERRIDE="$ROOT" MY_FM_HOME="$HOME_DIR" WRITER="$WRITER" python3 - <<'PY'
 import os
 import subprocess
 import time
@@ -595,7 +595,7 @@ then
 fi
 pass "best-effort refresh bounds failure reporting fallback"
 
-PATH="$FAKEBIN:$PATH" FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$HOME_DIR" \
+PATH="$FAKEBIN:$PATH" FM_ROOT_OVERRIDE="$ROOT" MY_FM_HOME="$HOME_DIR" \
   FM_SNAPSHOT_NOW="$NOW_ONE" FM_SNAPSHOT_NOW_EPOCH="$EPOCH_ONE" \
   "$WRITER" || fail "an unavailable failure record blocked valid publication"
 jq -e --arg now "$NOW_ONE" '.generated == $now' \
@@ -652,7 +652,7 @@ with open(sys.argv[1], "w") as handle:
         handle.write(f"working: {note}({i})\n")
     handle.write("needs-decision [key=cost-gate]: which base to rebuild from\n")
 PY
-PATH="$FAKEBIN:$PATH" FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$COST_HOME" \
+PATH="$FAKEBIN:$PATH" FM_ROOT_OVERRIDE="$ROOT" MY_FM_HOME="$COST_HOME" \
   FM_SNAPSHOT_NOW="$NOW_ONE" FM_SNAPSHOT_NOW_EPOCH="$EPOCH_ONE" \
   FM_HOME_SUMMARY_TIMEOUT=30 "$WRITER" --best-effort \
   || fail "accumulated-home publication changed the best-effort caller result"
@@ -709,7 +709,7 @@ sleep 60
 SH
 chmod +x "$TMP_ROOT/sshbin/stalled-ssh"
 started=$(date +%s)
-PATH="$FAKEBIN:$PATH" FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$REMOTE_HOME" \
+PATH="$FAKEBIN:$PATH" FM_ROOT_OVERRIDE="$ROOT" MY_FM_HOME="$REMOTE_HOME" \
   FM_SSH_BIN="$TMP_ROOT/sshbin/stalled-ssh" FM_TEST_SSH_CALLED="$TMP_ROOT/stalled-ssh.called" \
   FM_SNAPSHOT_NOW="$NOW_TWO" FM_SNAPSHOT_NOW_EPOCH="$EPOCH_TWO" \
   FM_SNAPSHOT_CREW_STATE_TIMEOUT=2 \
@@ -748,7 +748,7 @@ cat > "$BEAT_HOME/data/backlog.md" <<'EOF'
 ## Done
 EOF
 BEAT_LOCK_MARKER="$TMP_ROOT/beat-lock-held"
-FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$BEAT_HOME" bash -c '
+FM_ROOT_OVERRIDE="$ROOT" MY_FM_HOME="$BEAT_HOME" bash -c '
   . "$1/bin/fm-wake-lib.sh"
   fm_lock_acquire_wait "$2/state/.home-summary-refresh.lock"
   : > "$3"
@@ -763,7 +763,7 @@ while [ ! -e "$BEAT_LOCK_MARKER" ] && [ "$i" -lt 100 ]; do
 done
 [ -e "$BEAT_LOCK_MARKER" ] || fail "could not stall publication for beacon coverage"
 PATH="$FAKEBIN:$PATH" \
-  FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$BEAT_HOME" \
+  FM_ROOT_OVERRIDE="$ROOT" MY_FM_HOME="$BEAT_HOME" \
   FM_SNAPSHOT_NOW="$NOW_THREE" FM_SNAPSHOT_NOW_EPOCH="$EPOCH_THREE" \
   FM_POLL=1 FM_HOME_SUMMARY_INTERVAL=1 FM_HOME_SUMMARY_TIMEOUT=90 \
   FM_SIGNAL_GRACE=0 FM_CHECK_INTERVAL=9999999 FM_HEARTBEAT=9999999 \
@@ -825,7 +825,7 @@ fm_write_meta "$RESTART_HOME/state/restart-task.meta" \
   "mode=no-mistakes" \
   "spawn_gen=fm.restart123456"
 RESTART_LOCK_MARKER="$TMP_ROOT/restart-lock-held"
-FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$RESTART_HOME" bash -c '
+FM_ROOT_OVERRIDE="$ROOT" MY_FM_HOME="$RESTART_HOME" bash -c '
   . "$1/bin/fm-wake-lib.sh"
   fm_lock_acquire_wait "$2/state/.home-summary-refresh.lock"
   : > "$3"
@@ -839,7 +839,7 @@ while [ ! -e "$RESTART_LOCK_MARKER" ] && [ "$i" -lt 100 ]; do
   i=$((i + 1))
 done
 [ -e "$RESTART_LOCK_MARKER" ] || fail "could not hold the publication lock for restart coverage"
-PATH="$FAKEBIN:$PATH" FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$RESTART_HOME" \
+PATH="$FAKEBIN:$PATH" FM_ROOT_OVERRIDE="$ROOT" MY_FM_HOME="$RESTART_HOME" \
   FM_POLL=1 FM_HOME_SUMMARY_INTERVAL=999999 FM_HOME_SUMMARY_TIMEOUT=2 \
   FM_SIGNAL_GRACE=0 FM_CHECK_INTERVAL=9999999 FM_HEARTBEAT=9999999 \
   "$WATCH" > "$TMP_ROOT/restart-watch-one.out" 2> "$TMP_ROOT/restart-watch-one.err" &
@@ -864,7 +864,7 @@ kill -0 "$WATCH_PID" 2>/dev/null \
 wait "$WATCH_PID" >/dev/null 2>&1 || true
 WATCH_PID=
 rm -f "$RESTART_HOME/state/.last-watcher-beat"
-PATH="$FAKEBIN:$PATH" FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$RESTART_HOME" \
+PATH="$FAKEBIN:$PATH" FM_ROOT_OVERRIDE="$ROOT" MY_FM_HOME="$RESTART_HOME" \
   FM_POLL=1 FM_HOME_SUMMARY_INTERVAL=999999 FM_HOME_SUMMARY_TIMEOUT=2 \
   FM_SIGNAL_GRACE=0 FM_CHECK_INTERVAL=9999999 FM_HEARTBEAT=9999999 \
   "$WATCH" > "$TMP_ROOT/restart-watch-two.out" 2> "$TMP_ROOT/restart-watch-two.err" &
@@ -883,7 +883,7 @@ sleep 4
 if ! kill -0 "$WATCH_PID" 2>/dev/null; then
   wait "$WATCH_PID" >/dev/null 2>&1 || true
   rm -f "$RESTART_HOME/state/.last-watcher-beat"
-  PATH="$FAKEBIN:$PATH" FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$RESTART_HOME" \
+  PATH="$FAKEBIN:$PATH" FM_ROOT_OVERRIDE="$ROOT" MY_FM_HOME="$RESTART_HOME" \
     FM_POLL=1 FM_HOME_SUMMARY_INTERVAL=999999 FM_HOME_SUMMARY_TIMEOUT=2 \
     FM_SIGNAL_GRACE=0 FM_CHECK_INTERVAL=9999999 FM_HEARTBEAT=9999999 \
     "$WATCH" > "$TMP_ROOT/restart-watch-three.out" 2> "$TMP_ROOT/restart-watch-three.err" &
@@ -900,7 +900,7 @@ fi
 kill -KILL "$LOCK_HOLDER_PID" >/dev/null 2>&1 || true
 wait "$LOCK_HOLDER_PID" >/dev/null 2>&1 || true
 LOCK_HOLDER_PID=
-PATH="$FAKEBIN:$PATH" FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$RESTART_HOME" \
+PATH="$FAKEBIN:$PATH" FM_ROOT_OVERRIDE="$ROOT" MY_FM_HOME="$RESTART_HOME" \
   FM_HOME_SUMMARY_IF_IDLE=1 "$WRITER" --best-effort \
   || fail "stale-lock recovery changed the best-effort caller result"
 i=0
@@ -938,7 +938,7 @@ cat > "$REPORT_HOME/state/.home-summary-refresh.log" <<'EOF'
 EOF
 run_bootstrap_detect() {
   local threshold=${2:-2}
-  PATH="$FAKEBIN:$PATH" FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$1" \
+  PATH="$FAKEBIN:$PATH" FM_ROOT_OVERRIDE="$ROOT" MY_FM_HOME="$1" \
     FM_HOME_SUMMARY_FAILURE_REPORT="$threshold" \
     FM_BOOTSTRAP_DETECT_ONLY=1 FM_BOOTSTRAP_NETWORK=skip \
     "$ROOT/bin/fm-bootstrap.sh" 2>/dev/null
@@ -956,7 +956,7 @@ cat > "$COMPAT_HOME/data/backlog.md" <<'EOF'
 
 ## Done
 EOF
-PATH="$FAKEBIN:$PATH" FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$COMPAT_HOME" \
+PATH="$FAKEBIN:$PATH" FM_ROOT_OVERRIDE="$ROOT" MY_FM_HOME="$COMPAT_HOME" \
   FM_SNAPSHOT_NOW="$NOW_ONE" FM_SNAPSHOT_NOW_EPOCH="$EPOCH_ONE" \
   "$WRITER" || fail "could not seed the compatibility ledger"
 cat > "$COMPAT_HOME/state/.home-summary-refresh.log" <<'EOF'
@@ -975,7 +975,7 @@ printf '[2026-08-28T10:02:00Z] second failure after publication\n' \
 compat_out=$(run_bootstrap_detect "$COMPAT_HOME")
 printf '%s\n' "$compat_out" | grep -F '2 failed attempt(s)' >/dev/null \
   || fail "current publication failures did not satisfy the report threshold: $compat_out"
-PATH="$FAKEBIN:$PATH" FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$COMPAT_HOME" \
+PATH="$FAKEBIN:$PATH" FM_ROOT_OVERRIDE="$ROOT" MY_FM_HOME="$COMPAT_HOME" \
   FM_SNAPSHOT_NOW="$NOW_THREE" FM_SNAPSHOT_NOW_EPOCH="$EPOCH_THREE" \
   "$WRITER" || fail "could not republish the compatibility ledger"
 compat_out=$(run_bootstrap_detect "$COMPAT_HOME")
@@ -1019,7 +1019,7 @@ exec "$FM_TEST_REAL_DATE" "$@"
 SH
 chmod +x "$ORDER_DATE_BIN/date"
 ORDER_LOCK_MARKER="$TMP_ROOT/order-lock-held"
-FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$ORDER_HOME" bash -c '
+FM_ROOT_OVERRIDE="$ROOT" MY_FM_HOME="$ORDER_HOME" bash -c '
   . "$1/bin/fm-wake-lib.sh"
   fm_lock_acquire_wait "$2/state/.home-summary-refresh.lock"
   : > "$3"
@@ -1037,13 +1037,13 @@ order_started=$(python3 -c 'import time; print(time.time())')
 PATH="$ORDER_DATE_BIN:$FAKEBIN:$PATH" FM_TEST_REAL_DATE="$REAL_DATE" \
   FM_TEST_ORDER_START="$order_started" FM_TEST_ORDER_EARLY="$NOW_ONE" \
   FM_TEST_ORDER_LATE="$NOW_THREE" FM_ROOT_OVERRIDE="$ROOT" \
-  FM_HOME="$ORDER_HOME" FM_HOME_SUMMARY_TIMEOUT=2 \
+  MY_FM_HOME="$ORDER_HOME" FM_HOME_SUMMARY_TIMEOUT=2 \
   "$WRITER" --best-effort \
   || fail "ordered timeout changed the best-effort caller result"
 kill "$LOCK_HOLDER_PID" >/dev/null 2>&1 || true
 wait "$LOCK_HOLDER_PID" >/dev/null 2>&1 || true
 LOCK_HOLDER_PID=
-PATH="$FAKEBIN:$PATH" FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$ORDER_HOME" \
+PATH="$FAKEBIN:$PATH" FM_ROOT_OVERRIDE="$ROOT" MY_FM_HOME="$ORDER_HOME" \
   FM_SNAPSHOT_NOW="$NOW_TWO" FM_SNAPSHOT_NOW_EPOCH="$EPOCH_TWO" \
   "$WRITER" || fail "could not publish after the ordered timeout"
 order_out=$(run_bootstrap_detect "$ORDER_HOME" 1)
@@ -1066,7 +1066,7 @@ printf '%s\n' "$report_out" \
   | grep -F 'refresh exceeded its 60-second deadline' >/dev/null \
   || fail "the publication report omitted the recorded reason: $report_out"
 
-PATH="$FAKEBIN:$PATH" FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$REPORT_HOME" \
+PATH="$FAKEBIN:$PATH" FM_ROOT_OVERRIDE="$ROOT" MY_FM_HOME="$REPORT_HOME" \
   FM_SNAPSHOT_NOW="$NOW_THREE" FM_SNAPSHOT_NOW_EPOCH="$EPOCH_THREE" \
   "$WRITER" || fail "could not publish the ledger that clears the report"
 report_out=$(run_bootstrap_detect "$REPORT_HOME")

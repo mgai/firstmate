@@ -28,7 +28,7 @@
 #       Idempotent: an already-absent event is a success, so a repeated or
 #       replayed retirement is safe.
 #
-# FM_HOME selects the home to read, exactly as every other command the remote
+# MY_FM_HOME selects the home to read, exactly as every other command the remote
 # entrypoint runs. Events are matched on their own obligation_id field, never on
 # a filename, so a hand-placed file cannot be collected under another loop's id.
 #
@@ -43,8 +43,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=bin/fm-public-followup-lib.sh
 . "$SCRIPT_DIR/fm-public-followup-lib.sh"
 
-FM_HOME="${FM_HOME:-$(cd "$SCRIPT_DIR/.." && pwd)}"
-STATE="${FM_STATE_OVERRIDE:-$FM_HOME/state}"
+MY_FM_HOME="${MY_FM_HOME:-$(cd "$SCRIPT_DIR/.." && pwd)}"
+STATE="${FM_STATE_OVERRIDE:-$MY_FM_HOME/state}"
 
 usage() {
   cat >&2 <<'EOF'

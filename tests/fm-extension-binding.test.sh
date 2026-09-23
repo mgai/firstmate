@@ -272,7 +272,7 @@ PY
 bind_package() {  # <home> <package> <adapter> [extra args...]
   local home=$1 package=$2 adapter=$3
   shift 3
-  FM_HOME="$home" "$HOST" bind "$package" --adapter "$adapter" \
+  MY_FM_HOME="$home" "$HOST" bind "$package" --adapter "$adapter" \
     --trust-same-user-code "$@"
 }
 
@@ -305,13 +305,13 @@ run_owner_check() {
     chown "$(id -u)" "$package/helper.txt"
     pass "foreign-owned package code is rejected"
     transfer="$TMP_ROOT/owner-transfer.json"
-    FM_HOME="$home" "$HOST" pack-transfer "$package" > "$transfer"
+    MY_FM_HOME="$home" "$HOST" pack-transfer "$package" > "$transfer"
     mkdir -p "$home/data/extensions/staging"
     chmod 0700 "$home/data" "$home/data/extensions" "$home/data/extensions/staging"
     chown "$foreign_uid" "$home/data/extensions/staging"
     # shellcheck disable=SC2016 # Positional parameters expand in the child shell.
     expect_failure "not owned by the active user" sh -c \
-      'FM_HOME="$1" "$2" receive-transfer-bind --adapter ext-owner --trust-same-user-code < "$3"' \
+      'MY_FM_HOME="$1" "$2" receive-transfer-bind --adapter ext-owner --trust-same-user-code < "$3"' \
       sh "$home" "$HOST" "$transfer"
     chown "$(id -u)" "$home/data/extensions/staging"
     assert_absent "$home/config/extensions.d/org.example.owner.json" "foreign-owned transfer staging activated a binding"
@@ -640,9 +640,9 @@ if section_enabled early-bind; then
 H_ABSENT="$HOMES/absent"
 new_home "$H_ABSENT"
 before=$(find "$H_ABSENT" -mindepth 1 -print | LC_ALL=C sort)
-out=$(FM_HOME="$H_ABSENT" FIRSTMATE_EXTENSION_BINDING="$PACKAGES/ignored.json" "$HOST" list)
+out=$(MY_FM_HOME="$H_ABSENT" FIRSTMATE_EXTENSION_BINDING="$PACKAGES/ignored.json" "$HOST" list)
 assert_contains "$out" "no extension bindings" "an absent registry does not discover an environment binding"
-out=$(cd "$ROOT" && FM_HOME="$H_ABSENT" "$HOST" verify)
+out=$(cd "$ROOT" && MY_FM_HOME="$H_ABSENT" "$HOST" verify)
 assert_contains "$out" "no extension bindings" "the current project and its Pi packages are not extension discovery roots"
 after=$(find "$H_ABSENT" -mindepth 1 -print | LC_ALL=C sort)
 [ "$before" = "$after" ] || fail "absent-registry inspection created home state: $after"
@@ -655,10 +655,10 @@ H_GOOD="$HOMES/good"
 new_home "$H_GOOD"
 out=$(bind_package "$H_GOOD" "$P_GOOD" ext-good --timeout-ms 1000)
 assert_contains "$out" "verified: process-event-adapter/1" "bind does not finish before the live handshake"
-assert_contains "$(FM_HOME="$H_GOOD" "$HOST" list)" "org.example.good" "the explicit binding is discoverable"
-assert_contains "$(FM_HOME="$H_GOOD" "$HOST" inspect org.example.good)" '"host_protocol": 1' "highest-common host protocol negotiation is inspectable"
-assert_contains "$(FM_HOME="$H_GOOD" "$HOST" inspect org.example.good)" '"version": 1' "highest-common capability negotiation is inspectable"
-assert_contains "$(FM_HOME="$H_GOOD" "$HOST" verify org.example.good)" "verified: org.example.good@1.2.3" "verify re-runs integrity and handshake checks"
+assert_contains "$(MY_FM_HOME="$H_GOOD" "$HOST" list)" "org.example.good" "the explicit binding is discoverable"
+assert_contains "$(MY_FM_HOME="$H_GOOD" "$HOST" inspect org.example.good)" '"host_protocol": 1' "highest-common host protocol negotiation is inspectable"
+assert_contains "$(MY_FM_HOME="$H_GOOD" "$HOST" inspect org.example.good)" '"version": 1' "highest-common capability negotiation is inspectable"
+assert_contains "$(MY_FM_HOME="$H_GOOD" "$HOST" verify org.example.good)" "verified: org.example.good@1.2.3" "verify re-runs integrity and handshake checks"
 package_root=$(binding_value "$H_GOOD" org.example.good package_root)
 case "$package_root" in "$H_GOOD"/data/extensions/packages/*) ;; *) fail "binding did not use the home-local managed package store: $package_root" ;; esac
 [ "$(stat -c '%a' "$package_root" 2>/dev/null || stat -f '%Lp' "$package_root")" = 555 ] \
@@ -696,9 +696,9 @@ concurrent_release=
 [ "$second_bind_rc" -ne 0 ] || fail "both concurrent adapter binds unexpectedly succeeded"
 assert_contains "$(cat "$TMP_ROOT/concurrent-second.out")" "adapter is already enabled by another binding" \
   "losing concurrent bind did not report the adapter conflict"
-assert_contains "$(FM_HOME="$H_CONCURRENT" "$HOST" verify org.example.concurrent-one)" "verified: org.example.concurrent-one@1.2.3" \
+assert_contains "$(MY_FM_HOME="$H_CONCURRENT" "$HOST" verify org.example.concurrent-one)" "verified: org.example.concurrent-one@1.2.3" \
   "serialized bind did not preserve the winning package"
-expect_failure "no binding exists for extension: org.example.concurrent-two" env FM_HOME="$H_CONCURRENT" "$HOST" verify org.example.concurrent-two
+expect_failure "no binding exists for extension: org.example.concurrent-two" env MY_FM_HOME="$H_CONCURRENT" "$HOST" verify org.example.concurrent-two
 pass "concurrent binds serialize adapter ownership through publication"
 
 P_CONSENT="$PACKAGES/consent"
@@ -707,7 +707,7 @@ H_CONSENT="$HOMES/consent"
 new_home "$H_CONSENT"
 expect_failure "requires explicit --consent network" bind_package "$H_CONSENT" "$P_CONSENT" ext-consent
 bind_package "$H_CONSENT" "$P_CONSENT" ext-consent --consent network >/dev/null
-assert_contains "$(FM_HOME="$H_CONSENT" "$HOST" inspect org.example.consent)" '"network": true' "required consent is not recorded explicitly"
+assert_contains "$(MY_FM_HOME="$H_CONSENT" "$HOST" inspect org.example.consent)" '"network": true' "required consent is not recorded explicitly"
 pass "package trust and manifest-required capability consent are separate explicit facts"
 fi
 
@@ -833,15 +833,15 @@ new_home "$H_GOOD"
 bind_package "$H_GOOD" "$P_GOOD" ext-good >/dev/null
 package_root=$(binding_value "$H_GOOD" org.example.good package_root)
 chmod 0644 "$H_GOOD/config/extensions.d/org.example.good.json"
-expect_failure "mode 0600" env FM_HOME="$H_GOOD" "$HOST" verify org.example.good
+expect_failure "mode 0600" env MY_FM_HOME="$H_GOOD" "$HOST" verify org.example.good
 chmod 0600 "$H_GOOD/config/extensions.d/org.example.good.json"
 binding_good="$H_GOOD/config/extensions.d/org.example.good.json"
 ln "$binding_good" "$TMP_ROOT/binding-hardlink"
-expect_failure "single regular file" env FM_HOME="$H_GOOD" "$HOST" verify org.example.good
+expect_failure "single regular file" env MY_FM_HOME="$H_GOOD" "$HOST" verify org.example.good
 rm -f "$TMP_ROOT/binding-hardlink"
 mv "$binding_good" "$TMP_ROOT/binding-target.json"
 ln -s "$TMP_ROOT/binding-target.json" "$binding_good"
-expect_failure "single regular file" env FM_HOME="$H_GOOD" "$HOST" verify org.example.good
+expect_failure "single regular file" env MY_FM_HOME="$H_GOOD" "$HOST" verify org.example.good
 rm -f "$binding_good"
 mv "$TMP_ROOT/binding-target.json" "$binding_good"
 chmod 0755 "$package_root"
@@ -849,7 +849,7 @@ chmod 0644 "$package_root/helper.txt"
 printf 'mutated helper\n' > "$package_root/helper.txt"
 chmod 0444 "$package_root/helper.txt"
 chmod 0555 "$package_root"
-expect_failure "tree digest" env FM_HOME="$H_GOOD" "$HOST" verify org.example.good
+expect_failure "tree digest" env MY_FM_HOME="$H_GOOD" "$HOST" verify org.example.good
 pass "binding mode and complete installed code-tree digest are revalidated"
 
 P_IDENTITY="$PACKAGES/identity"
@@ -861,7 +861,7 @@ chmod 0755 "$identity_root"
 chmod 0755 "$identity_root/entrypoint.py"
 printf '\n# changed identity\n' >> "$identity_root/entrypoint.py"
 chmod 0555 "$identity_root/entrypoint.py" "$identity_root"
-expect_failure "tree digest" env FM_HOME="$H_IDENTITY" "$HOST" verify org.example.identity
+expect_failure "tree digest" env MY_FM_HOME="$H_IDENTITY" "$HOST" verify org.example.identity
 pass "the exact executable identity cannot change underneath a binding"
 fi
 
@@ -871,7 +871,7 @@ P_MATRIX="$PACKAGES/matrix"
 make_package "$P_MATRIX" org.example.matrix ext-matrix
 H_MATRIX="$HOMES/matrix"; new_home "$H_MATRIX"
 bind_package "$H_MATRIX" "$P_MATRIX" ext-matrix --timeout-ms 5000 >/dev/null
-resolution=$(FM_HOME="$H_MATRIX" "$HOST" resolve-process-event ext-matrix)
+resolution=$(MY_FM_HOME="$H_MATRIX" "$HOST" resolve-process-event ext-matrix)
 IFS=$'\t' read -r resolution_schema resolution_id resolution_version resolution_cap resolution_package resolution_binding resolution_extra <<< "$resolution"
 [ "$resolution_schema" = fm-extension-process-event-resolution.v1 ] && [ -z "$resolution_extra" ] \
   || fail "resolution record is malformed: $resolution"
@@ -879,7 +879,7 @@ IFS=$'\t' read -r resolution_schema resolution_id resolution_version resolution_
 invoke_matrix() {  # <config-ref> [request-id]
   local config_ref=$1 request_id=${2:-} args=()
   [ -z "$request_id" ] || args+=(--request-id "$request_id")
-  FM_HOME="$H_MATRIX" "$HOST" process-event ext-matrix source.poll \
+  MY_FM_HOME="$H_MATRIX" "$HOST" process-event ext-matrix source.poll \
     --source-id matrix-source --config-ref "$config_ref" \
     --expect-extension "$resolution_id" --expect-version "$resolution_version" \
     --expect-capability-version "$resolution_cap" \
@@ -965,29 +965,29 @@ pass "an exact request id is matched and supports idempotent replay"
 
 H_CORE_REPLAY="$HOMES/core-replay"; new_home "$H_CORE_REPLAY"
 bind_package "$H_CORE_REPLAY" "$P_MATRIX" ext-matrix >/dev/null
-core_registration=$(FM_HOME="$H_CORE_REPLAY" "$PROCEVENT" register-extension ext-matrix replay-source --config-ref replay-no-result)
+core_registration=$(MY_FM_HOME="$H_CORE_REPLAY" "$PROCEVENT" register-extension ext-matrix replay-source --config-ref replay-no-result)
 core_token=$(printf '%s\n' "$core_registration" | sed -n 's/^owner-token: //p')
-FM_HOME="$H_CORE_REPLAY" "$PROCEVENT" start replay-source >/dev/null
-FM_HOME="$H_CORE_REPLAY" "$PROCEVENT" start replay-source >/dev/null
+MY_FM_HOME="$H_CORE_REPLAY" "$PROCEVENT" start replay-source >/dev/null
+MY_FM_HOME="$H_CORE_REPLAY" "$PROCEVENT" start replay-source >/dev/null
 core_request_ids="$H_CORE_REPLAY/state/extensions/org.example.matrix/request-ids"
 [ "$(wc -l < "$core_request_ids" | tr -d ' ')" = 2 ] || fail "core replay fixture did not receive two requests"
 [ "$(sort -u "$core_request_ids" | wc -l | tr -d ' ')" = 1 ] \
   || fail "retry before durable capture changed the request identity"
 [ "$(cat "$H_CORE_REPLAY/state/extensions/org.example.matrix/side-effect-count")" = 1 ] \
   || fail "stable core retry identity applied the fixture effect twice"
-FM_HOME="$H_CORE_REPLAY" "$PROCEVENT" retire replay-source --if-owner "$core_token" >/dev/null
+MY_FM_HOME="$H_CORE_REPLAY" "$PROCEVENT" retire replay-source --if-owner "$core_token" >/dev/null
 pass "the generic runner reuses one request id until that source sequence is durably captured"
 
 P_TIMEOUT="$PACKAGES/timeout"
 make_package "$P_TIMEOUT" org.example.timeout ext-timeout
 H_TIMEOUT="$HOMES/timeout"; new_home "$H_TIMEOUT"
 bind_package "$H_TIMEOUT" "$P_TIMEOUT" ext-timeout --timeout-ms 500 >/dev/null
-timeout_resolution=$(FM_HOME="$H_TIMEOUT" "$HOST" resolve-process-event ext-timeout)
+timeout_resolution=$(MY_FM_HOME="$H_TIMEOUT" "$HOST" resolve-process-event ext-timeout)
 IFS=$'\t' read -r timeout_schema timeout_id timeout_version timeout_cap timeout_package timeout_binding timeout_extra <<< "$timeout_resolution"
 [ "$timeout_schema" = fm-extension-process-event-resolution.v1 ] && [ -z "$timeout_extra" ] \
   || fail "timeout resolution record is malformed: $timeout_resolution"
 rc=0
-out=$(FM_HOME="$H_TIMEOUT" "$HOST" process-event ext-timeout source.poll \
+out=$(MY_FM_HOME="$H_TIMEOUT" "$HOST" process-event ext-timeout source.poll \
   --source-id timeout-source --config-ref timeout \
   --expect-extension "$timeout_id" --expect-version "$timeout_version" \
   --expect-capability-version "$timeout_cap" \
@@ -1014,7 +1014,7 @@ missing_root=$(binding_value "$H_MISSING" org.example.missing package_root)
 chmod 0755 "$missing_root"
 rm -f "$missing_root/entrypoint.py"
 chmod 0555 "$missing_root"
-resolution_missing=$(FM_HOME="$H_MISSING" "$HOST" inspect org.example.missing 2>&1 || true)
+resolution_missing=$(MY_FM_HOME="$H_MISSING" "$HOST" inspect org.example.missing 2>&1 || true)
 assert_contains "$resolution_missing" "manifest entrypoint is missing" "missing executable was not diagnosed"
 pass "a missing package executable refuses instead of falling back"
 fi
@@ -1028,19 +1028,19 @@ H_FLOW="$HOMES/flow"; new_home "$H_FLOW"
 flow_bind=$(bind_package "$H_FLOW" "$P_FLOW" ext-flow)
 flow_binding_digest=$(printf '%s\n' "$flow_bind" | sed -n 's/^binding-digest: //p')
 case "$flow_binding_digest" in sha256:*) ;; *) fail "local bind returned no binding retirement identity" ;; esac
-registration=$(FM_HOME="$H_FLOW" "$PROCEVENT" register-extension ext-flow flow-source --config-ref good)
+registration=$(MY_FM_HOME="$H_FLOW" "$PROCEVENT" register-extension ext-flow flow-source --config-ref good)
 assert_contains "$registration" "org.example.flow@1.2.3" "extension registration omits its exact owner identity"
 owner_one=$(printf '%s\n' "$registration" | sed -n 's/^owner-token: //p')
 case "$owner_one" in
   sha256:*) [ "${#owner_one}" -eq 71 ] || fail "registration emitted a malformed owner token" ;;
   *) fail "registration emitted no bounded owner token" ;;
 esac
-expect_failure "still owns process-event registration" env FM_HOME="$H_FLOW" "$HOST" retire-binding org.example.flow --if-binding-digest "$flow_binding_digest"
+expect_failure "still owns process-event registration" env MY_FM_HOME="$H_FLOW" "$HOST" retire-binding org.example.flow --if-binding-digest "$flow_binding_digest"
 assert_grep 'extension_id=org.example.flow' "$H_FLOW/state/procevent/flow-source.source" "registration did not retain extension identity"
 assert_grep 'capability_version=1' "$H_FLOW/state/procevent/flow-source.source" "registration did not retain capability version"
 assert_grep 'package_digest=sha256:' "$H_FLOW/state/procevent/flow-source.source" "registration did not retain package digest"
 
-FM_HOME="$H_FLOW" "$PROCEVENT" start flow-source > "$TMP_ROOT/flow-start.out"
+MY_FM_HOME="$H_FLOW" "$PROCEVENT" start flow-source > "$TMP_ROOT/flow-start.out"
 result=$(first_result "$H_FLOW" flow-source) || fail "external source produced no captured result"
 assert_contains "$(wake_payloads "$H_FLOW")" "procevent ext-flow flow-source 1" "external source did not publish the existing bounded event"
 assert_absent "${result%.result}.handled" "external evidence was silently treated as handled"
@@ -1052,14 +1052,14 @@ printf 'wrong-built-in-owner\n'
 exit 0
 SH
 chmod +x "$COLLISION_ROOT/bin/fm-procevent-ext-flow.sh"
-classification=$(FM_ROOT_OVERRIDE="$COLLISION_ROOT" FM_HOME="$H_FLOW" "$PROCEVENT" classify "$result")
+classification=$(FM_ROOT_OVERRIDE="$COLLISION_ROOT" MY_FM_HOME="$H_FLOW" "$PROCEVENT" classify "$result")
 assert_contains "$classification" "external-ready" "captured evidence could not be classified through its immutable owner"
 assert_not_contains "$classification" "wrong-built-in-owner" "a later same-name built-in reinterpreted extension evidence"
 assert_absent "$H_FLOW/state/procevent/flow-source.source" "terminal external source stayed registered"
-FM_HOME="$H_FLOW" "$PROCEVENT" retire flow-source --if-owner "$owner_one" >/dev/null
+MY_FM_HOME="$H_FLOW" "$PROCEVENT" retire flow-source --if-owner "$owner_one" >/dev/null
 pass "one external adapter registers, invokes, captures unhandled evidence, classifies, and terminally retires end to end"
-FM_HOME="$H_FLOW" "$PROCEVENT" register-extension ext-flow crash-silent-source --config-ref crash-silent >/dev/null
-FM_HOME="$H_FLOW" "$PROCEVENT" start crash-silent-source > "$TMP_ROOT/crash-silent-start.out" 2>&1 &
+MY_FM_HOME="$H_FLOW" "$PROCEVENT" register-extension ext-flow crash-silent-source --config-ref crash-silent >/dev/null
+MY_FM_HOME="$H_FLOW" "$PROCEVENT" start crash-silent-source > "$TMP_ROOT/crash-silent-start.out" 2>&1 &
 crash_silent_start_pid=$!
 for _ in $(seq 1 400); do
   if [ -f "$TMP_ROOT/claims/crash-silent-source.claim" ]; then
@@ -1084,17 +1084,17 @@ crash_silent_runner_pid=
 assert_present "$H_FLOW/state/procevent-inbox/crash-silent-source.1.result" "crashed silent invocation discarded captured evidence"
 assert_absent "$H_FLOW/state/procevent/crash-silent-source.source" "terminal retry did not retire the crashed silent source"
 assert_absent "$H_FLOW/state/procevent/.extension-binding-lifecycle.lock" "inner host crash left a lifecycle lock behind"
-FM_HOME="$H_FLOW" "$PROCEVENT" handled crash-silent-source 1 >/dev/null
+MY_FM_HOME="$H_FLOW" "$PROCEVENT" handled crash-silent-source 1 >/dev/null
 pass "inner result.silent host crash releases the parent lifecycle lock before terminal retry"
 wrong_binding_digest="sha256:$(printf '0%.0s' {1..64})"
-expect_failure "expected binding identity" env FM_HOME="$H_FLOW" "$HOST" retire-binding org.example.flow --if-binding-digest "$wrong_binding_digest"
+expect_failure "expected binding identity" env MY_FM_HOME="$H_FLOW" "$HOST" retire-binding org.example.flow --if-binding-digest "$wrong_binding_digest"
 assert_present "$H_FLOW/config/extensions.d/org.example.flow.json" "stale identity retired the local binding"
-expect_failure "unhandled process-event result" env FM_HOME="$H_FLOW" "$HOST" retire-binding org.example.flow --if-binding-digest "$flow_binding_digest"
-FM_HOME="$H_FLOW" "$PROCEVENT" handled flow-source 1 >/dev/null
-FM_HOME="$H_FLOW" "$HOST" retire-binding org.example.flow --if-binding-digest "$flow_binding_digest" >/dev/null
+expect_failure "unhandled process-event result" env MY_FM_HOME="$H_FLOW" "$HOST" retire-binding org.example.flow --if-binding-digest "$flow_binding_digest"
+MY_FM_HOME="$H_FLOW" "$PROCEVENT" handled flow-source 1 >/dev/null
+MY_FM_HOME="$H_FLOW" "$HOST" retire-binding org.example.flow --if-binding-digest "$flow_binding_digest" >/dev/null
 assert_absent "$H_FLOW/config/extensions.d/org.example.flow.json" "exact local binding retirement left discovery enabled"
 assert_present "$H_FLOW/data/extensions/retired-bindings/org.example.flow/${flow_binding_digest#sha256:}.json" "local binding retirement was not reversible"
-expect_failure "no home-local extension binding" env FM_HOME="$H_FLOW" "$HOST" resolve-process-event ext-flow
+expect_failure "no home-local extension binding" env MY_FM_HOME="$H_FLOW" "$HOST" resolve-process-event ext-flow
 pass "local binding retirement requires its exact identity and disables invocation"
 fi
 
@@ -1110,10 +1110,10 @@ touch "$race_release"
 race_bind=$(bind_package "$H_RETIRE_RACE" "$P_RETIRE_RACE" ext-retire-race)
 race_binding_digest=$(printf '%s\n' "$race_bind" | sed -n 's/^binding-digest: //p')
 rm -f "$race_marker" "$race_release"
-FM_HOME="$H_RETIRE_RACE" "$PROCEVENT" register-extension ext-retire-race race-source --config-ref good > "$TMP_ROOT/retire-race-register.out" 2>&1 &
+MY_FM_HOME="$H_RETIRE_RACE" "$PROCEVENT" register-extension ext-retire-race race-source --config-ref good > "$TMP_ROOT/retire-race-register.out" 2>&1 &
 race_register_pid=$!
 wait_for_file "$race_marker" || fail "registration race fixture never entered binding resolution"
-FM_HOME="$H_RETIRE_RACE" "$HOST" retire-binding org.example.retire-race --if-binding-digest "$race_binding_digest" > "$TMP_ROOT/retire-race-retire.out" 2>&1 &
+MY_FM_HOME="$H_RETIRE_RACE" "$HOST" retire-binding org.example.retire-race --if-binding-digest "$race_binding_digest" > "$TMP_ROOT/retire-race-retire.out" 2>&1 &
 race_retire_pid=$!
 sleep 0.2
 kill -0 "$race_retire_pid" 2>/dev/null || fail "binding retirement bypassed an in-flight registration"
@@ -1129,8 +1129,8 @@ race_retire_pid=
 assert_contains "$(cat "$TMP_ROOT/retire-race-retire.out")" "still owns process-event registration" "serialized retirement did not observe the published registration"
 assert_present "$H_RETIRE_RACE/config/extensions.d/org.example.retire-race.json" "registration race left a dangling owner record"
 race_owner=$(sed -n 's/^owner-token: //p' "$TMP_ROOT/retire-race-register.out")
-FM_HOME="$H_RETIRE_RACE" "$PROCEVENT" retire race-source --if-owner "$race_owner" >/dev/null
-FM_HOME="$H_RETIRE_RACE" "$HOST" retire-binding org.example.retire-race --if-binding-digest "$race_binding_digest" >/dev/null
+MY_FM_HOME="$H_RETIRE_RACE" "$PROCEVENT" retire race-source --if-owner "$race_owner" >/dev/null
+MY_FM_HOME="$H_RETIRE_RACE" "$HOST" retire-binding org.example.retire-race --if-binding-digest "$race_binding_digest" >/dev/null
 race_release=
 pass "registration publication and binding retirement share one lifecycle boundary"
 
@@ -1142,12 +1142,12 @@ H_PROCESS_RETIRE_RACE="$HOMES/process-retire-race"; new_home "$H_PROCESS_RETIRE_
 touch "$process_race_release"
 process_race_bind=$(bind_package "$H_PROCESS_RETIRE_RACE" "$P_PROCESS_RETIRE_RACE" ext-process-retire-race)
 process_race_binding=$(printf '%s\n' "$process_race_bind" | sed -n 's/^binding-digest: //p')
-FM_HOME="$H_PROCESS_RETIRE_RACE" "$PROCEVENT" register-extension ext-process-retire-race process-race-source --config-ref good >/dev/null
+MY_FM_HOME="$H_PROCESS_RETIRE_RACE" "$PROCEVENT" register-extension ext-process-retire-race process-race-source --config-ref good >/dev/null
 rm -f "$process_race_marker" "$process_race_release"
-FM_HOME="$H_PROCESS_RETIRE_RACE" "$PROCEVENT" start process-race-source > "$TMP_ROOT/process-retire-race-start.out" 2>&1 &
+MY_FM_HOME="$H_PROCESS_RETIRE_RACE" "$PROCEVENT" start process-race-source > "$TMP_ROOT/process-retire-race-start.out" 2>&1 &
 process_race_start_pid=$!
 wait_for_file "$process_race_marker" || fail "process-event race fixture never reached binding resolution"
-FM_HOME="$H_PROCESS_RETIRE_RACE" "$HOST" retire-binding org.example.process-retire-race --if-binding-digest "$process_race_binding" > "$TMP_ROOT/process-retire-race-retire.out" 2>&1 &
+MY_FM_HOME="$H_PROCESS_RETIRE_RACE" "$HOST" retire-binding org.example.process-retire-race --if-binding-digest "$process_race_binding" > "$TMP_ROOT/process-retire-race-retire.out" 2>&1 &
 process_race_retire_pid=$!
 sleep 0.2
 kill -0 "$process_race_retire_pid" 2>/dev/null || fail "binding retirement bypassed an in-flight process-event resolution"
@@ -1164,16 +1164,16 @@ pass "process-event resolution reserves the lifecycle before invocation"
 process_race_release=
 
 process_race_result="$H_PROCESS_RETIRE_RACE/state/procevent-inbox/process-race-source.1.result"
-process_race_resolution=$(FM_HOME="$H_PROCESS_RETIRE_RACE" "$HOST" resolve-process-event ext-process-retire-race)
+process_race_resolution=$(MY_FM_HOME="$H_PROCESS_RETIRE_RACE" "$HOST" resolve-process-event ext-process-retire-race)
 IFS=$'\t' read -r process_race_schema process_race_id process_race_version process_race_cap process_race_package process_race_resolution_binding process_race_extra <<< "$process_race_resolution"
 [ "$process_race_schema" = fm-extension-process-event-resolution.v1 ] && [ -z "$process_race_extra" ] \
   || fail "process-event retirement race resolution was malformed"
 for process_race_operation in result.classify result.terminal result.silent; do
   process_race_guard="process-race-${process_race_operation#result.}"
-  process_race_registration=$(FM_HOME="$H_PROCESS_RETIRE_RACE" "$PROCEVENT" register-extension ext-process-retire-race "$process_race_guard" --config-ref good)
+  process_race_registration=$(MY_FM_HOME="$H_PROCESS_RETIRE_RACE" "$PROCEVENT" register-extension ext-process-retire-race "$process_race_guard" --config-ref good)
   process_race_owner=$(printf '%s\n' "$process_race_registration" | sed -n 's/^owner-token: //p')
   rm -f "$process_race_marker" "$process_race_release"
-  FM_HOME="$H_PROCESS_RETIRE_RACE" "$HOST" process-event ext-process-retire-race "$process_race_operation" \
+  MY_FM_HOME="$H_PROCESS_RETIRE_RACE" "$HOST" process-event ext-process-retire-race "$process_race_operation" \
     --result-file "$process_race_result" \
     --expect-extension "$process_race_id" --expect-version "$process_race_version" \
     --expect-capability-version "$process_race_cap" \
@@ -1182,7 +1182,7 @@ for process_race_operation in result.classify result.terminal result.silent; do
     > "$TMP_ROOT/process-retire-race-${process_race_operation#result.}.out" 2>&1 &
   process_race_start_pid=$!
   wait_for_file "$process_race_marker" || fail "$process_race_operation race fixture never reached binding resolution"
-  FM_HOME="$H_PROCESS_RETIRE_RACE" "$HOST" retire-binding org.example.process-retire-race --if-binding-digest "$process_race_binding" \
+  MY_FM_HOME="$H_PROCESS_RETIRE_RACE" "$HOST" retire-binding org.example.process-retire-race --if-binding-digest "$process_race_binding" \
     > "$TMP_ROOT/process-retire-race-${process_race_operation#result.}-retire.out" 2>&1 &
   process_race_retire_pid=$!
   sleep 0.2
@@ -1196,13 +1196,13 @@ for process_race_operation in result.classify result.terminal result.silent; do
   [ "$process_race_retire_rc" -ne 0 ] || fail "retirement crossed a reserved $process_race_operation invocation"
   assert_contains "$(cat "$TMP_ROOT/process-retire-race-${process_race_operation#result.}-retire.out")" "still owns process-event registration" \
     "retirement did not observe the $process_race_operation registration"
-  FM_HOME="$H_PROCESS_RETIRE_RACE" "$PROCEVENT" retire "$process_race_guard" --if-owner "$process_race_owner" >/dev/null
+  MY_FM_HOME="$H_PROCESS_RETIRE_RACE" "$PROCEVENT" retire "$process_race_guard" --if-owner "$process_race_owner" >/dev/null
 done
 process_race_release=
 pass "every external result operation reserves the lifecycle before invocation"
 
-expect_failure "unknown command" env FM_HOME="$H_RETIRE_RACE" "$HOST" retire-binding-locked org.example.retire-race --if-binding-digest "$race_binding_digest"
-expect_failure "unknown command" env FM_HOME="$H_RETIRE_RACE" "$HOST" retire-transfer-locked org.example.retire-race --if-transfer-digest "$wrong_binding_digest" --if-binding-digest "$race_binding_digest"
+expect_failure "unknown command" env MY_FM_HOME="$H_RETIRE_RACE" "$HOST" retire-binding-locked org.example.retire-race --if-binding-digest "$race_binding_digest"
+expect_failure "unknown command" env MY_FM_HOME="$H_RETIRE_RACE" "$HOST" retire-transfer-locked org.example.retire-race --if-transfer-digest "$wrong_binding_digest" --if-binding-digest "$race_binding_digest"
 pass "public extension dispatch exposes no unlocked retirement entry"
 
 P_LOCK_OWNER="$PACKAGES/lock-owner"
@@ -1211,7 +1211,7 @@ H_LOCK_OWNER="$HOMES/lock-owner"; new_home "$H_LOCK_OWNER"
 owner_bind=$(bind_package "$H_LOCK_OWNER" "$P_LOCK_OWNER" ext-lock-owner)
 owner_binding_digest=$(printf '%s\n' "$owner_bind" | sed -n 's/^binding-digest: //p')
 owner_lock="$H_LOCK_OWNER/state/procevent/.extension-binding-lifecycle.lock"
-FM_HOME="$H_LOCK_OWNER" "$HOST" retire-binding org.example.lock-owner --if-binding-digest "$owner_binding_digest" > "$TMP_ROOT/lock-owner-retire.out" 2>&1 &
+MY_FM_HOME="$H_LOCK_OWNER" "$HOST" retire-binding org.example.lock-owner --if-binding-digest "$owner_binding_digest" > "$TMP_ROOT/lock-owner-retire.out" 2>&1 &
 owner_retire_pid=$!
 owner_worker_pid=
 for _ in $(seq 1 400); do
@@ -1229,7 +1229,7 @@ done
 kill -TERM "$owner_retire_pid" 2>/dev/null || true
 wait "$owner_retire_pid" 2>/dev/null || true
 owner_retire_pid=
-FM_HOME="$H_LOCK_OWNER" "$PROCEVENT" register-extension ext-lock-owner owner-source --config-ref good > "$TMP_ROOT/lock-owner-register.out" 2>&1 &
+MY_FM_HOME="$H_LOCK_OWNER" "$PROCEVENT" register-extension ext-lock-owner owner-source --config-ref good > "$TMP_ROOT/lock-owner-register.out" 2>&1 &
 owner_register_pid=$!
 sleep 0.2
 kill -0 "$owner_register_pid" 2>/dev/null || fail "wrapper death released a live retirement worker's lifecycle lock"
@@ -1242,8 +1242,8 @@ owner_register_pid=
 [ "$owner_register_rc" -eq 0 ] || fail "registration did not recover the dead retirement worker's lifecycle lock"
 assert_present "$H_LOCK_OWNER/config/extensions.d/org.example.lock-owner.json" "dead retirement worker continued mutating after lock recovery"
 owner_token=$(sed -n 's/^owner-token: //p' "$TMP_ROOT/lock-owner-register.out")
-FM_HOME="$H_LOCK_OWNER" "$PROCEVENT" retire owner-source --if-owner "$owner_token" >/dev/null
-FM_HOME="$H_LOCK_OWNER" "$HOST" retire-binding org.example.lock-owner --if-binding-digest "$owner_binding_digest" >/dev/null
+MY_FM_HOME="$H_LOCK_OWNER" "$PROCEVENT" retire owner-source --if-owner "$owner_token" >/dev/null
+MY_FM_HOME="$H_LOCK_OWNER" "$HOST" retire-binding org.example.lock-owner --if-binding-digest "$owner_binding_digest" >/dev/null
 pass "retirement worker ownership survives wrapper death and recovers exactly"
 
 P_SIGNAL_LOCK="$PACKAGES/signal-lock"
@@ -1252,7 +1252,7 @@ H_SIGNAL_LOCK="$HOMES/signal-lock"; new_home "$H_SIGNAL_LOCK"
 signal_bind=$(bind_package "$H_SIGNAL_LOCK" "$P_SIGNAL_LOCK" ext-signal-lock)
 signal_binding_digest=$(printf '%s\n' "$signal_bind" | sed -n 's/^binding-digest: //p')
 signal_lock="$H_SIGNAL_LOCK/state/procevent/.extension-binding-lifecycle.lock"
-FM_HOME="$H_SIGNAL_LOCK" "$HOST" retire-binding org.example.signal-lock --if-binding-digest "$signal_binding_digest" > "$TMP_ROOT/signal-lock-retire.out" 2>&1 &
+MY_FM_HOME="$H_SIGNAL_LOCK" "$HOST" retire-binding org.example.signal-lock --if-binding-digest "$signal_binding_digest" > "$TMP_ROOT/signal-lock-retire.out" 2>&1 &
 signal_retire_pid=$!
 signal_worker_pid=
 for _ in $(seq 1 400); do
@@ -1277,11 +1277,11 @@ signal_worker_pid=
 wait "$signal_retire_pid" 2>/dev/null || true
 signal_retire_pid=
 [ -L "$signal_lock" ] || fail "signalled retirement worker released its lifecycle lock before exit recovery"
-signal_registration=$(FM_HOME="$H_SIGNAL_LOCK" "$PROCEVENT" register-extension ext-signal-lock signal-source --config-ref good)
+signal_registration=$(MY_FM_HOME="$H_SIGNAL_LOCK" "$PROCEVENT" register-extension ext-signal-lock signal-source --config-ref good)
 signal_owner=$(printf '%s\n' "$signal_registration" | sed -n 's/^owner-token: //p')
 assert_absent "$signal_lock" "registration left a recovered lifecycle lock behind"
-FM_HOME="$H_SIGNAL_LOCK" "$PROCEVENT" retire signal-source --if-owner "$signal_owner" >/dev/null
-FM_HOME="$H_SIGNAL_LOCK" "$HOST" retire-binding org.example.signal-lock --if-binding-digest "$signal_binding_digest" >/dev/null
+MY_FM_HOME="$H_SIGNAL_LOCK" "$PROCEVENT" retire signal-source --if-owner "$signal_owner" >/dev/null
+MY_FM_HOME="$H_SIGNAL_LOCK" "$HOST" retire-binding org.example.signal-lock --if-binding-digest "$signal_binding_digest" >/dev/null
 pass "signal interruption leaves lifecycle lock recovery to the next owner"
 fi
 
@@ -1293,22 +1293,22 @@ bind_package "$H_ACTIVE_RUNNER" "$P_FLOW" ext-flow >/dev/null
 active_runner_marker="$TMP_ROOT/active-runner.marker"
 active_runner_release="$TMP_ROOT/active-runner.release"
 active_config="active-block|$active_runner_marker|$active_runner_release"
-FM_HOME="$H_ACTIVE_RUNNER" "$PROCEVENT" register-extension ext-flow active-source --config-ref "$active_config" >/dev/null
-FM_HOME="$H_ACTIVE_RUNNER" "$PROCEVENT" start active-source > "$TMP_ROOT/active-runner.out" 2>&1 &
+MY_FM_HOME="$H_ACTIVE_RUNNER" "$PROCEVENT" register-extension ext-flow active-source --config-ref "$active_config" >/dev/null
+MY_FM_HOME="$H_ACTIVE_RUNNER" "$PROCEVENT" start active-source > "$TMP_ROOT/active-runner.out" 2>&1 &
 active_runner_pid=$!
 wait_for_file "$active_runner_marker" || fail "active extension runner never entered its poll"
-expect_failure "prior runner remains active" env FM_HOME="$H_ACTIVE_RUNNER" "$PROCEVENT" register-extension ext-flow active-source --config-ref replacement
-expect_failure "prior runner remains active" env FM_HOME="$H_ACTIVE_RUNNER" "$PROCEVENT" register lavish active-source -- /bin/echo built-in
+expect_failure "prior runner remains active" env MY_FM_HOME="$H_ACTIVE_RUNNER" "$PROCEVENT" register-extension ext-flow active-source --config-ref replacement
+expect_failure "prior runner remains active" env MY_FM_HOME="$H_ACTIVE_RUNNER" "$PROCEVENT" register lavish active-source -- /bin/echo built-in
 touch "$active_runner_release"
 active_runner_release=
 wait "$active_runner_pid" || fail "active extension runner did not complete"
 active_runner_pid=
 assert_absent "$H_ACTIVE_RUNNER/state/procevent/active-source.source" "terminal extension runner retained its registration"
-FM_HOME="$H_ACTIVE_RUNNER" "$PROCEVENT" register lavish active-source -- /bin/echo built-in >/dev/null
-FM_HOME="$H_ACTIVE_RUNNER" "$PROCEVENT" retire active-source --if-matches lavish -- /bin/echo built-in >/dev/null
-active_replacement=$(FM_HOME="$H_ACTIVE_RUNNER" "$PROCEVENT" register-extension ext-flow active-source --config-ref replacement)
+MY_FM_HOME="$H_ACTIVE_RUNNER" "$PROCEVENT" register lavish active-source -- /bin/echo built-in >/dev/null
+MY_FM_HOME="$H_ACTIVE_RUNNER" "$PROCEVENT" retire active-source --if-matches lavish -- /bin/echo built-in >/dev/null
+active_replacement=$(MY_FM_HOME="$H_ACTIVE_RUNNER" "$PROCEVENT" register-extension ext-flow active-source --config-ref replacement)
 active_replacement_owner=$(printf '%s\n' "$active_replacement" | sed -n 's/^owner-token: //p')
-FM_HOME="$H_ACTIVE_RUNNER" "$PROCEVENT" retire active-source --if-owner "$active_replacement_owner" >/dev/null
+MY_FM_HOME="$H_ACTIVE_RUNNER" "$PROCEVENT" retire active-source --if-owner "$active_replacement_owner" >/dev/null
 pass "all registration owner transitions wait for the prior extension runner"
 fi
 
@@ -1318,15 +1318,15 @@ P_FLOW="$PACKAGES/flow"
 make_package "$P_FLOW" org.example.flow ext-flow
 H_OWNER_SAFE="$HOMES/owner-safe"; new_home "$H_OWNER_SAFE"
 bind_package "$H_OWNER_SAFE" "$P_FLOW" ext-flow >/dev/null
-first=$(FM_HOME="$H_OWNER_SAFE" "$PROCEVENT" register-extension ext-flow replace-source --config-ref first)
+first=$(MY_FM_HOME="$H_OWNER_SAFE" "$PROCEVENT" register-extension ext-flow replace-source --config-ref first)
 first_token=$(printf '%s\n' "$first" | sed -n 's/^owner-token: //p')
-second=$(FM_HOME="$H_OWNER_SAFE" "$PROCEVENT" register-extension ext-flow replace-source --config-ref second)
+second=$(MY_FM_HOME="$H_OWNER_SAFE" "$PROCEVENT" register-extension ext-flow replace-source --config-ref second)
 second_token=$(printf '%s\n' "$second" | sed -n 's/^owner-token: //p')
 [ "$first_token" != "$second_token" ] || fail "replacement registration reused its owner generation"
-expect_failure "requires its exact --if-owner token" env FM_HOME="$H_OWNER_SAFE" "$PROCEVENT" retire replace-source
-expect_failure "does not match the expected owner" env FM_HOME="$H_OWNER_SAFE" "$PROCEVENT" retire replace-source --if-owner "$first_token"
+expect_failure "requires its exact --if-owner token" env MY_FM_HOME="$H_OWNER_SAFE" "$PROCEVENT" retire replace-source
+expect_failure "does not match the expected owner" env MY_FM_HOME="$H_OWNER_SAFE" "$PROCEVENT" retire replace-source --if-owner "$first_token"
 assert_present "$H_OWNER_SAFE/state/procevent/replace-source.source" "stale owner retired the replacement"
-FM_HOME="$H_OWNER_SAFE" "$PROCEVENT" retire replace-source --if-owner "$second_token" >/dev/null
+MY_FM_HOME="$H_OWNER_SAFE" "$PROCEVENT" retire replace-source --if-owner "$second_token" >/dev/null
 assert_absent "$H_OWNER_SAFE/state/procevent/replace-source.source" "current owner could not retire its own registration"
 pass "owner-matched retirement refuses a stale generation and accepts the current one"
 
@@ -1334,20 +1334,20 @@ H_STATE_OVERRIDE="$HOMES/state-override"; new_home "$H_STATE_OVERRIDE"
 STATE_OVERRIDE="$TMP_ROOT/overridden-state"
 override_bind=$(bind_package "$H_STATE_OVERRIDE" "$P_FLOW" ext-flow)
 override_bind_digest=$(printf '%s\n' "$override_bind" | sed -n 's/^binding-digest: //p')
-override_registration=$(FM_HOME="$H_STATE_OVERRIDE" FM_STATE_OVERRIDE="$STATE_OVERRIDE" "$PROCEVENT" register-extension ext-flow override-source --config-ref silent-result)
+override_registration=$(MY_FM_HOME="$H_STATE_OVERRIDE" FM_STATE_OVERRIDE="$STATE_OVERRIDE" "$PROCEVENT" register-extension ext-flow override-source --config-ref silent-result)
 override_owner=$(printf '%s\n' "$override_registration" | sed -n 's/^owner-token: //p')
-override_resolution=$(FM_HOME="$H_STATE_OVERRIDE" FM_STATE_OVERRIDE="$STATE_OVERRIDE" "$HOST" resolve-process-event ext-flow)
+override_resolution=$(MY_FM_HOME="$H_STATE_OVERRIDE" FM_STATE_OVERRIDE="$STATE_OVERRIDE" "$HOST" resolve-process-event ext-flow)
 IFS=$'\t' read -r override_schema override_id override_version override_cap override_package override_binding override_extra <<< "$override_resolution"
 [ "$override_schema" = fm-extension-process-event-resolution.v1 ] && [ -z "$override_extra" ] \
   || fail "overridden-state resolution record is malformed"
-expect_failure "still owns process-event registration" env FM_HOME="$H_STATE_OVERRIDE" FM_STATE_OVERRIDE="$STATE_OVERRIDE" "$HOST" retire-binding org.example.flow --if-binding-digest "$override_bind_digest"
+expect_failure "still owns process-event registration" env MY_FM_HOME="$H_STATE_OVERRIDE" FM_STATE_OVERRIDE="$STATE_OVERRIDE" "$HOST" retire-binding org.example.flow --if-binding-digest "$override_bind_digest"
 assert_present "$H_STATE_OVERRIDE/config/extensions.d/org.example.flow.json" "overridden-state dependency did not preserve its binding"
-FM_HOME="$H_STATE_OVERRIDE" FM_STATE_OVERRIDE="$STATE_OVERRIDE" "$PROCEVENT" start override-source >/dev/null
+MY_FM_HOME="$H_STATE_OVERRIDE" FM_STATE_OVERRIDE="$STATE_OVERRIDE" "$PROCEVENT" start override-source >/dev/null
 override_result="$STATE_OVERRIDE/procevent-inbox/override-source.1.result"
 assert_present "$override_result" "overridden-state runner did not capture its result"
 assert_present "$STATE_OVERRIDE/procevent-inbox/override-source.1.handled" "overridden-state silent verdict was not recorded"
 assert_absent "$STATE_OVERRIDE/procevent/override-source.source" "overridden-state terminal verdict did not retire its registration"
-assert_contains "$(FM_HOME="$H_STATE_OVERRIDE" FM_STATE_OVERRIDE="$STATE_OVERRIDE" "$PROCEVENT" classify "$override_result")" "external-ready" \
+assert_contains "$(MY_FM_HOME="$H_STATE_OVERRIDE" FM_STATE_OVERRIDE="$STATE_OVERRIDE" "$PROCEVENT" classify "$override_result")" "external-ready" \
   "overridden-state result could not be classified"
 mkdir "$TMP_ROOT/override-outside"
 cp "$override_result" "$TMP_ROOT/override-outside/override-source.1.result"
@@ -1355,13 +1355,13 @@ cp "$STATE_OVERRIDE/procevent-inbox/override-source.1.adapter" "$TMP_ROOT/overri
 cp "$STATE_OVERRIDE/procevent-inbox/override-source.1.extension" "$TMP_ROOT/override-outside/override-source.1.extension"
 chmod 0600 "$TMP_ROOT/override-outside/override-source.1.result"
 chmod 0600 "$TMP_ROOT/override-outside/override-source.1.adapter" "$TMP_ROOT/override-outside/override-source.1.extension"
-expect_failure "directly inside" env FM_HOME="$H_STATE_OVERRIDE" FM_STATE_OVERRIDE="$STATE_OVERRIDE" \
+expect_failure "directly inside" env MY_FM_HOME="$H_STATE_OVERRIDE" FM_STATE_OVERRIDE="$STATE_OVERRIDE" \
   "$PROCEVENT" classify "$TMP_ROOT/override-outside/override-source.1.result"
 mkdir "$TMP_ROOT/forged-pinned-result"
 printf 'forged extension evidence\n' > "$TMP_ROOT/forged-pinned-result/forged-source.1.result"
 chmod 0600 "$TMP_ROOT/forged-pinned-result/forged-source.1.result"
 # shellcheck disable=SC2016 # Child shell intentionally expands its positional parameters.
-expect_failure "directly inside" env FM_HOME="$H_STATE_OVERRIDE" FM_STATE_OVERRIDE="$STATE_OVERRIDE" \
+expect_failure "directly inside" env MY_FM_HOME="$H_STATE_OVERRIDE" FM_STATE_OVERRIDE="$STATE_OVERRIDE" \
   FM_PROCEVENT_CAPTURE_PINNED_RESULT=1 sh -c '
     cd "$1" || exit 1
     exec "$2" process-event "$3" result.classify --result-file ./forged-source.1.result \
@@ -1370,7 +1370,7 @@ expect_failure "directly inside" env FM_HOME="$H_STATE_OVERRIDE" FM_STATE_OVERRI
   ' sh "$TMP_ROOT/forged-pinned-result" "$HOST" ext-flow "$override_id" "$override_version" \
   "$override_cap" "$override_package" "$override_binding"
 # shellcheck disable=SC2016 # Child shell intentionally expands its positional parameters.
-expect_failure "directly inside" env FM_HOME="$H_STATE_OVERRIDE" FM_STATE_OVERRIDE="$STATE_OVERRIDE" \
+expect_failure "directly inside" env MY_FM_HOME="$H_STATE_OVERRIDE" FM_STATE_OVERRIDE="$STATE_OVERRIDE" \
   sh -c '
     cd "$1" || exit 1
     authority=$(mktemp .forged-authority.XXXXXXXX) || exit 1
@@ -1385,7 +1385,7 @@ expect_failure "directly inside" env FM_HOME="$H_STATE_OVERRIDE" FM_STATE_OVERRI
   ' sh "$TMP_ROOT/forged-pinned-result" "$PROCEVENT" ext-flow "$override_id" "$override_version" \
   "$override_cap" "$override_package" "$override_binding"
 # shellcheck disable=SC2016 # Child shell intentionally expands its positional parameters.
-expect_failure "directly inside" env FM_HOME="$H_STATE_OVERRIDE" FM_STATE_OVERRIDE="$STATE_OVERRIDE" \
+expect_failure "directly inside" env MY_FM_HOME="$H_STATE_OVERRIDE" FM_STATE_OVERRIDE="$STATE_OVERRIDE" \
   FM_PROCEVENT_INTERNAL_CAPTURE_RESERVATION="$(printf 'd%.0s' {1..64})" \
   FM_PROCEVENT_INTERNAL_CAPTURE_CLAIM_PID="$$" \
   FM_PROCEVENT_INTERNAL_CAPTURE_CLAIM_IDENTITY=forged-identity \
@@ -1405,13 +1405,13 @@ expect_failure "directly inside" env FM_HOME="$H_STATE_OVERRIDE" FM_STATE_OVERRI
 forged_reservation_root="$TMP_ROOT/forged-capture-reservations"
 mkdir "$forged_reservation_root"
 forged_reservation_token=$(printf 'c%.0s' {1..64})
-forged_claim_identity=$(FM_HOME="$TMP_ROOT/forged-identity-home" FM_STATE_OVERRIDE="$TMP_ROOT/forged-identity-state" \
+forged_claim_identity=$(MY_FM_HOME="$TMP_ROOT/forged-identity-home" FM_STATE_OVERRIDE="$TMP_ROOT/forged-identity-state" \
   bash -c '. "$1"; fm_pid_identity "$2"' sh "$ROOT/bin/fm-wake-lib.sh" "$$")
 printf '%s\n' '{"schema":"fm-procevent-capture-reservation.v1","token":"'"$forged_reservation_token"'","operation":"result.silent","source_id":"forged-source","sequence":1,"inbox_device":"1","inbox_inode":"1","result_device":"1","result_inode":"1","claim_pid":"'"$$"'","claim_identity":"'"$forged_claim_identity"'","claim_token":"forged-claim","binding_digest":"'"$override_binding"'"}' \
   > "$forged_reservation_root/.extension-capture-forged-claim.$forged_reservation_token.json"
 chmod 0600 "$forged_reservation_root/.extension-capture-forged-claim.$forged_reservation_token.json"
 # shellcheck disable=SC2016 # Child shell intentionally expands its positional parameters.
-expect_failure "reservation" env FM_HOME="$H_STATE_OVERRIDE" FM_STATE_OVERRIDE="$STATE_OVERRIDE" \
+expect_failure "reservation" env MY_FM_HOME="$H_STATE_OVERRIDE" FM_STATE_OVERRIDE="$STATE_OVERRIDE" \
   FM_PROCEVENT_CLAIM_ROOT="$forged_reservation_root" sh -c '
     cd "$1" || exit 1
     exec "$2" extension-process-event "$3" result.silent --result-file ./forged-source.1.result \
@@ -1423,7 +1423,7 @@ expect_failure "reservation" env FM_HOME="$H_STATE_OVERRIDE" FM_STATE_OVERRIDE="
 printf 'forged adapter\n' > "$TMP_ROOT/forged-pinned-result/forged-source.1.adapter"
 chmod 0600 "$TMP_ROOT/forged-pinned-result/forged-source.1.adapter"
 # shellcheck disable=SC2016 # Child shell intentionally expands its positional parameters.
-expect_failure "cannot durably" env FM_HOME="$H_STATE_OVERRIDE" FM_STATE_OVERRIDE="$STATE_OVERRIDE" \
+expect_failure "cannot durably" env MY_FM_HOME="$H_STATE_OVERRIDE" FM_STATE_OVERRIDE="$STATE_OVERRIDE" \
   FM_PROCEVENT_CAPTURE_PINNED_INBOX=1 sh -c '
     cd "$1" || exit 1
     exec "$2" handled forged-source 1
@@ -1447,9 +1447,9 @@ for control_kind in tab newline; do
   control_source="control-${control_kind}-state-source"
   mkdir -p "$control_state"
   chmod 0700 "$control_state"
-  FM_HOME="$H_STATE_OVERRIDE" FM_STATE_OVERRIDE="$control_state" \
+  MY_FM_HOME="$H_STATE_OVERRIDE" FM_STATE_OVERRIDE="$control_state" \
     "$PROCEVENT" register lavish "$control_source" -- /bin/echo control >/dev/null
-  expect_failure "cannot acquire source ownership" env FM_HOME="$H_STATE_OVERRIDE" FM_STATE_OVERRIDE="$control_state" \
+  expect_failure "cannot acquire source ownership" env MY_FM_HOME="$H_STATE_OVERRIDE" FM_STATE_OVERRIDE="$control_state" \
     "$PROCEVENT" start "$control_source"
   assert_absent "$TMP_ROOT/claims/$control_source.claim" "control-byte state root created a malformed claim"
   assert_absent "$control_state/procevent-capture-reservations" "control-byte state root created reservation state"
@@ -1458,10 +1458,10 @@ done
 pass "control-byte state roots cannot serialize claims or reservations"
 override_crash_marker="$TMP_ROOT/override-crash.marker"
 override_crash_release="$TMP_ROOT/override-crash.release"
-FM_HOME="$H_STATE_OVERRIDE" FM_STATE_OVERRIDE="$STATE_OVERRIDE" \
+MY_FM_HOME="$H_STATE_OVERRIDE" FM_STATE_OVERRIDE="$STATE_OVERRIDE" \
   "$PROCEVENT" register-extension ext-flow override-crash-source \
   --config-ref "silent-block|$override_crash_marker|$override_crash_release" >/dev/null
-FM_HOME="$H_STATE_OVERRIDE" FM_STATE_OVERRIDE="$STATE_OVERRIDE" \
+MY_FM_HOME="$H_STATE_OVERRIDE" FM_STATE_OVERRIDE="$STATE_OVERRIDE" \
   "$PROCEVENT" start override-crash-source > "$TMP_ROOT/override-crash-start.out" 2>&1 &
 override_crash_start_pid=$!
 wait_for_file "$override_crash_marker" || fail "overridden-state crash fixture never reached its reservation handoff"
@@ -1481,33 +1481,33 @@ kill -KILL -"$override_crash_runner_pid" 2>/dev/null || fail "could not terminat
 wait "$override_crash_start_pid" 2>/dev/null || true
 override_crash_start_pid=
 override_crash_runner_pid=
-FM_HOME="$H_STATE_OVERRIDE" "$PROCEVENT" reconcile >/dev/null
+MY_FM_HOME="$H_STATE_OVERRIDE" "$PROCEVENT" reconcile >/dev/null
 assert_absent "$override_crash_claim" "reconcile retained a dead overridden-state claim"
 override_crash_records=$(find "$STATE_OVERRIDE/procevent-capture-reservations" -type f \
   -name ".extension-capture-$override_crash_token.*" -print -quit)
 [ -z "$override_crash_records" ] || fail "reconcile left reservations in the recorded overridden state root"
 assert_present "$override_crash_decoy" "reconcile removed reservations from the current default state root"
 pass "crash recovery revalidates and cleans only the recorded state root"
-FM_HOME="$H_STATE_OVERRIDE" FM_STATE_OVERRIDE="$STATE_OVERRIDE" \
+MY_FM_HOME="$H_STATE_OVERRIDE" FM_STATE_OVERRIDE="$STATE_OVERRIDE" \
   "$PROCEVENT" register-extension ext-flow inbox-swap-source --config-ref good >/dev/null
 mkdir "$TMP_ROOT/inbox-link-target"
 mv "$STATE_OVERRIDE/procevent-inbox" "$TMP_ROOT/override-real-inbox"
 ln -s "$TMP_ROOT/inbox-link-target" "$STATE_OVERRIDE/procevent-inbox"
-expect_failure "cannot durably capture the extension result" env FM_HOME="$H_STATE_OVERRIDE" FM_STATE_OVERRIDE="$STATE_OVERRIDE" \
+expect_failure "cannot durably capture the extension result" env MY_FM_HOME="$H_STATE_OVERRIDE" FM_STATE_OVERRIDE="$STATE_OVERRIDE" \
   "$PROCEVENT" start inbox-swap-source
 [ -z "$(find "$TMP_ROOT/inbox-link-target" -mindepth 1 -print -quit)" ] \
   || fail "a post-registration inbox symlink received extension evidence"
 rm "$STATE_OVERRIDE/procevent-inbox"
 mv "$TMP_ROOT/override-real-inbox" "$STATE_OVERRIDE/procevent-inbox"
 pass "post-registration inbox symlink substitution cannot redirect extension evidence"
-FM_HOME="$H_STATE_OVERRIDE" FM_STATE_OVERRIDE="$STATE_OVERRIDE" \
+MY_FM_HOME="$H_STATE_OVERRIDE" FM_STATE_OVERRIDE="$STATE_OVERRIDE" \
   "$PROCEVENT" register-extension ext-flow registry-swap-source --config-ref good >/dev/null
 mkdir "$TMP_ROOT/registry-link-target"
 mv "$STATE_OVERRIDE/procevent" "$TMP_ROOT/registry-link-target"
 REGISTRY_LINK_TARGET="$TMP_ROOT/registry-link-target/procevent"
 registry_entries_before=$(find "$REGISTRY_LINK_TARGET" -mindepth 1 -maxdepth 1 -print | LC_ALL=C sort)
 ln -s "$REGISTRY_LINK_TARGET" "$STATE_OVERRIDE/procevent"
-expect_failure "cannot safely prepare the external registry staging boundary" env FM_HOME="$H_STATE_OVERRIDE" FM_STATE_OVERRIDE="$STATE_OVERRIDE" \
+expect_failure "cannot safely prepare the external registry staging boundary" env MY_FM_HOME="$H_STATE_OVERRIDE" FM_STATE_OVERRIDE="$STATE_OVERRIDE" \
   "$PROCEVENT" start registry-swap-source
 registry_entries_after=$(find "$REGISTRY_LINK_TARGET" -mindepth 1 -maxdepth 1 -print | LC_ALL=C sort)
 [ "$registry_entries_before" = "$registry_entries_after" ] \
@@ -1517,10 +1517,10 @@ mv "$REGISTRY_LINK_TARGET" "$STATE_OVERRIDE/procevent"
 pass "post-registration registry symlink substitution cannot redirect external evidence"
 registry_race_marker="$TMP_ROOT/registry-race.marker"
 registry_race_release="$TMP_ROOT/registry-race.release"
-FM_HOME="$H_STATE_OVERRIDE" FM_STATE_OVERRIDE="$STATE_OVERRIDE" \
+MY_FM_HOME="$H_STATE_OVERRIDE" FM_STATE_OVERRIDE="$STATE_OVERRIDE" \
   "$PROCEVENT" register-extension ext-flow registry-race-source \
   --config-ref "active-block|$registry_race_marker|$registry_race_release" >/dev/null
-FM_HOME="$H_STATE_OVERRIDE" FM_STATE_OVERRIDE="$STATE_OVERRIDE" \
+MY_FM_HOME="$H_STATE_OVERRIDE" FM_STATE_OVERRIDE="$STATE_OVERRIDE" \
   "$PROCEVENT" start registry-race-source > "$TMP_ROOT/registry-race.out" 2>&1 &
 registry_race_pid=$!
 wait_for_file "$registry_race_marker" || fail "registry race fixture never reached its pinned staging boundary"
@@ -1540,10 +1540,10 @@ pass "external staging remains descriptor-bound across a registry directory swap
 registry_race_release=
 leaf_race_marker="$TMP_ROOT/leaf-race.marker"
 leaf_race_release="$TMP_ROOT/leaf-race.release"
-FM_HOME="$H_STATE_OVERRIDE" FM_STATE_OVERRIDE="$STATE_OVERRIDE" \
+MY_FM_HOME="$H_STATE_OVERRIDE" FM_STATE_OVERRIDE="$STATE_OVERRIDE" \
   "$PROCEVENT" register-extension ext-flow leaf-race-source \
   --config-ref "active-block|$leaf_race_marker|$leaf_race_release" >/dev/null
-FM_HOME="$H_STATE_OVERRIDE" FM_STATE_OVERRIDE="$STATE_OVERRIDE" \
+MY_FM_HOME="$H_STATE_OVERRIDE" FM_STATE_OVERRIDE="$STATE_OVERRIDE" \
   "$PROCEVENT" start leaf-race-source > "$TMP_ROOT/leaf-race.out" 2>&1 &
 leaf_race_pid=$!
 wait_for_file "$leaf_race_marker" || fail "leaf race fixture never entered its staged invocation"
@@ -1567,10 +1567,10 @@ pass "external staging leaves remain no-follow descriptor-bound through capture"
 leaf_race_release=
 publication_race_marker="$TMP_ROOT/publication-race.marker"
 publication_race_release="$TMP_ROOT/publication-race.release"
-FM_HOME="$H_STATE_OVERRIDE" FM_STATE_OVERRIDE="$STATE_OVERRIDE" \
+MY_FM_HOME="$H_STATE_OVERRIDE" FM_STATE_OVERRIDE="$STATE_OVERRIDE" \
   "$PROCEVENT" register-extension ext-flow publication-race-source \
   --config-ref "silent-block|$publication_race_marker|$publication_race_release" >/dev/null
-FM_HOME="$H_STATE_OVERRIDE" FM_STATE_OVERRIDE="$STATE_OVERRIDE" \
+MY_FM_HOME="$H_STATE_OVERRIDE" FM_STATE_OVERRIDE="$STATE_OVERRIDE" \
   "$PROCEVENT" start publication-race-source > "$TMP_ROOT/publication-race.out" 2>&1 &
 publication_race_pid=$!
 wait_for_file "$publication_race_marker" || fail "publication race fixture never reached result handoff"
@@ -1653,36 +1653,36 @@ LEGACY_REAL_STATE="$TMP_ROOT/legacy-real-state"
 LEGACY_LINK_STATE="$TMP_ROOT/legacy-state-link"
 mkdir "$LEGACY_REAL_STATE"
 ln -s "$LEGACY_REAL_STATE" "$LEGACY_LINK_STATE"
-FM_HOME="$H_LEGACY_LINK" FM_STATE_OVERRIDE="$LEGACY_LINK_STATE" \
+MY_FM_HOME="$H_LEGACY_LINK" FM_STATE_OVERRIDE="$LEGACY_LINK_STATE" \
   "$PROCEVENT" register lavish legacy-link-source -- /bin/echo legacy-link >/dev/null
-FM_HOME="$H_LEGACY_LINK" FM_STATE_OVERRIDE="$LEGACY_LINK_STATE" \
+MY_FM_HOME="$H_LEGACY_LINK" FM_STATE_OVERRIDE="$LEGACY_LINK_STATE" \
   "$PROCEVENT" start legacy-link-source >/dev/null
 assert_present "$LEGACY_REAL_STATE/procevent-inbox/legacy-link-source.1.result" \
   "an absent-registry built-in capture no longer accepts its legacy state path"
 pass "absent-registry built-in capture retains its legacy state-path behavior"
 mv "$STATE_OVERRIDE/procevent-inbox" "$TMP_ROOT/override-real-inbox"
 ln -s "$TMP_ROOT/override-real-inbox" "$STATE_OVERRIDE/procevent-inbox"
-expect_failure "traverses a symbolic link" env FM_HOME="$H_STATE_OVERRIDE" FM_STATE_OVERRIDE="$STATE_OVERRIDE" \
+expect_failure "traverses a symbolic link" env MY_FM_HOME="$H_STATE_OVERRIDE" FM_STATE_OVERRIDE="$STATE_OVERRIDE" \
   "$PROCEVENT" classify "$STATE_OVERRIDE/procevent-inbox/override-source.1.result"
 rm "$STATE_OVERRIDE/procevent-inbox"
 mv "$TMP_ROOT/override-real-inbox" "$STATE_OVERRIDE/procevent-inbox"
-FM_HOME="$H_STATE_OVERRIDE" FM_STATE_OVERRIDE="$STATE_OVERRIDE" "$PROCEVENT" retire override-source --if-owner "$override_owner" >/dev/null
-FM_HOME="$H_STATE_OVERRIDE" FM_STATE_OVERRIDE="$STATE_OVERRIDE" "$HOST" retire-binding org.example.flow --if-binding-digest "$override_bind_digest" >/dev/null
+MY_FM_HOME="$H_STATE_OVERRIDE" FM_STATE_OVERRIDE="$STATE_OVERRIDE" "$PROCEVENT" retire override-source --if-owner "$override_owner" >/dev/null
+MY_FM_HOME="$H_STATE_OVERRIDE" FM_STATE_OVERRIDE="$STATE_OVERRIDE" "$HOST" retire-binding org.example.flow --if-binding-digest "$override_bind_digest" >/dev/null
 pass "overridden state confines extension work and captured-result operations"
 
 H_SWEEP="$HOMES/sweep"; new_home "$H_SWEEP"
 bind_package "$H_SWEEP" "$P_FLOW" ext-flow >/dev/null
-FM_HOME="$H_SWEEP" "$PROCEVENT" register-extension ext-flow sweep-source --config-ref good >/dev/null
-assert_contains "$(FM_HOME="$H_SWEEP" "$PROCEVENT" sweep-home)" "swept: attempted=1" \
+MY_FM_HOME="$H_SWEEP" "$PROCEVENT" register-extension ext-flow sweep-source --config-ref good >/dev/null
+assert_contains "$(MY_FM_HOME="$H_SWEEP" "$PROCEVENT" sweep-home)" "swept: attempted=1" \
   "home sweep did not use the extension registration's owner identity"
 assert_absent "$H_SWEEP/state/procevent/sweep-source.source" "home sweep retained an extension registration"
 pass "bounded home sweep retires an extension source through its exact owner token"
 
 H_LEGACY="$HOMES/legacy"; mkdir -p "$H_LEGACY/state"
-FM_HOME="$H_LEGACY" "$PROCEVENT" register lavish legacy-source -- /bin/echo legacy >/dev/null
-expect_failure "does not match the expected owner" env FM_HOME="$H_LEGACY" "$PROCEVENT" retire legacy-source --if-matches lavish -- /bin/echo replacement
+MY_FM_HOME="$H_LEGACY" "$PROCEVENT" register lavish legacy-source -- /bin/echo legacy >/dev/null
+expect_failure "does not match the expected owner" env MY_FM_HOME="$H_LEGACY" "$PROCEVENT" retire legacy-source --if-matches lavish -- /bin/echo replacement
 assert_present "$H_LEGACY/state/procevent/legacy-source.source" "legacy conditional mismatch retired the registration"
-FM_HOME="$H_LEGACY" "$PROCEVENT" retire legacy-source --if-matches lavish -- /bin/echo legacy >/dev/null
+MY_FM_HOME="$H_LEGACY" "$PROCEVENT" retire legacy-source --if-matches lavish -- /bin/echo legacy >/dev/null
 pass "legacy built-in registrations retain behavior and gain exact conditional retirement"
 fi
 
@@ -1693,7 +1693,7 @@ make_package "$P_INVOCATION_CLEANUP" org.example.invocation-cleanup ext-invocati
 H_INVOCATION_CLEANUP="$HOMES/invocation-cleanup"; new_home "$H_INVOCATION_CLEANUP"
 cleanup_bind=$(bind_package "$H_INVOCATION_CLEANUP" "$P_INVOCATION_CLEANUP" ext-invocation-cleanup)
 cleanup_binding_digest=$(printf '%s\n' "$cleanup_bind" | sed -n 's/^binding-digest: //p')
-cleanup_resolution=$(FM_HOME="$H_INVOCATION_CLEANUP" "$HOST" resolve-process-event ext-invocation-cleanup)
+cleanup_resolution=$(MY_FM_HOME="$H_INVOCATION_CLEANUP" "$HOST" resolve-process-event ext-invocation-cleanup)
 IFS=$'\t' read -r cleanup_schema cleanup_id cleanup_version cleanup_cap cleanup_package cleanup_binding cleanup_extra <<< "$cleanup_resolution"
 [ "$cleanup_schema" = fm-extension-process-event-resolution.v1 ] && [ -z "$cleanup_extra" ] \
   || fail "cleanup resolution record is malformed: $cleanup_resolution"
@@ -1701,7 +1701,7 @@ IFS=$'\t' read -r cleanup_schema cleanup_id cleanup_version cleanup_cap cleanup_
 invoke_cleanup() {  # <config-ref> [host command...]
   local config_ref=$1
   shift
-  FM_HOME="$H_INVOCATION_CLEANUP" "$@" process-event ext-invocation-cleanup source.poll \
+  MY_FM_HOME="$H_INVOCATION_CLEANUP" "$@" process-event ext-invocation-cleanup source.poll \
     --source-id invocation-cleanup-source --config-ref "$config_ref" \
     --expect-extension "$cleanup_id" --expect-version "$cleanup_version" \
     --expect-capability-version "$cleanup_cap" \
@@ -1739,7 +1739,7 @@ pass "extension launch uses a tracked static core barrier without dynamic code e
 
 signal_state="$H_INVOCATION_CLEANUP/state/extensions/org.example.invocation-cleanup"
 rm -f "$signal_state/descendant.pid"
-FM_HOME="$H_INVOCATION_CLEANUP" "$HOST" process-event ext-invocation-cleanup source.poll \
+MY_FM_HOME="$H_INVOCATION_CLEANUP" "$HOST" process-event ext-invocation-cleanup source.poll \
   --source-id invocation-cleanup-source --config-ref timeout \
   --expect-extension "$cleanup_id" --expect-version "$cleanup_version" \
   --expect-capability-version "$cleanup_cap" \
@@ -1770,7 +1770,7 @@ pass "signal interruption proves exact invocation-group extinction before host e
 crash_marker="$TMP_ROOT/invocation-crash.marker"
 crash_cleanup_release="$TMP_ROOT/invocation-crash.release"
 crash_config="active-block|$crash_marker|$crash_cleanup_release"
-FM_HOME="$H_INVOCATION_CLEANUP" "$HOST" process-event ext-invocation-cleanup source.poll \
+MY_FM_HOME="$H_INVOCATION_CLEANUP" "$HOST" process-event ext-invocation-cleanup source.poll \
   --source-id invocation-cleanup-source --config-ref "$crash_config" \
   --expect-extension "$cleanup_id" --expect-version "$cleanup_version" \
   --expect-capability-version "$cleanup_cap" \
@@ -1788,7 +1788,7 @@ wait "$crash_cleanup_host_pid" 2>/dev/null || true
 crash_cleanup_host_pid=
 kill -0 -"$crash_cleanup_group_pid" 2>/dev/null \
   || fail "host crash did not leave the tracked invocation group for recovery"
-FM_HOME="$H_INVOCATION_CLEANUP" "$HOST" retire-binding org.example.invocation-cleanup \
+MY_FM_HOME="$H_INVOCATION_CLEANUP" "$HOST" retire-binding org.example.invocation-cleanup \
   --if-binding-digest "$cleanup_binding_digest" >/dev/null
 if kill -0 -"$crash_cleanup_group_pid" 2>/dev/null; then
   fail "binding retirement completed while its tracked invocation group survived"
@@ -1848,7 +1848,7 @@ exec "$FM_FAKE_REMOTE_ENTRYPOINT" "$@"
 SH
 chmod +x "$REMOTE_FAKEBIN/fake-ssh"
 remote_on() {
-  FM_HOME="$H_REMOTE_CONTROL" \
+  MY_FM_HOME="$H_REMOTE_CONTROL" \
   FM_ROOT_OVERRIDE="$REMOTE_ROOT" \
   FM_SSH_BIN="$REMOTE_FAKEBIN/fake-ssh" \
   FM_FAKE_SSH_COUNT="$REMOTE_SSH_COUNT" \
@@ -1858,7 +1858,7 @@ remote_on() {
   "$ROOT/bin/fm-on.sh" --stdin ios "$@"
 }
 remote_controller() {
-  FM_HOME="$H_REMOTE_CONTROL" \
+  MY_FM_HOME="$H_REMOTE_CONTROL" \
   FM_ROOT_OVERRIDE="$REMOTE_ROOT" \
   FM_SSH_BIN="$REMOTE_FAKEBIN/fake-ssh" \
   FM_FAKE_SSH_COUNT="$REMOTE_SSH_COUNT" \
@@ -1875,7 +1875,7 @@ remote_receive_file() {
 remote_direct() {
   local command=$1
   shift
-  FM_HOME="$H_REMOTE" \
+  MY_FM_HOME="$H_REMOTE" \
   FM_ROOT_OVERRIDE="$REMOTE_ROOT" \
   FM_REMOTE_JOB_PLATFORM_OVERRIDE=Linux \
   FM_REMOTE_JOB_STATE_ROOT="$TMP_ROOT/remote-jobs" \
@@ -1889,7 +1889,7 @@ remote_receive_file_direct() {
 
 if section_enabled remote-envelope; then
 REMOTE_TRANSFER="$TMP_ROOT/remote-transfer.json"
-FM_HOME="$H_REMOTE_CONTROL" "$HOST" pack-transfer "$P_REMOTE" > "$REMOTE_TRANSFER"
+MY_FM_HOME="$H_REMOTE_CONTROL" "$HOST" pack-transfer "$P_REMOTE" > "$REMOTE_TRANSFER"
 mutate_transfer() {
   node - "$REMOTE_TRANSFER" "$1" "$2" <<'JS'
 const fs = require("fs");
@@ -1942,7 +1942,7 @@ pass "remote receiver rejects malformed, truncated, traversal, link, hash, size,
 
 P_REMOTE_PARTIAL="$PACKAGES/remote-partial"
 make_package "$P_REMOTE_PARTIAL" org.example.remote-partial ext-remote-partial handshake-malformed
-FM_HOME="$H_REMOTE_CONTROL" "$HOST" pack-transfer "$P_REMOTE_PARTIAL" > "$TMP_ROOT/remote-partial.json"
+MY_FM_HOME="$H_REMOTE_CONTROL" "$HOST" pack-transfer "$P_REMOTE_PARTIAL" > "$TMP_ROOT/remote-partial.json"
 expect_failure "error[" remote_receive_file_direct "$TMP_ROOT/remote-partial.json" ext-remote-partial
 assert_absent "$H_REMOTE/config/extensions.d/org.example.remote-partial.json" "failed remote activation published a binding"
 if find "$H_REMOTE/data/extensions/staging/org.example.remote-partial" -mindepth 2 -maxdepth 2 -type d -print 2>/dev/null | grep -q .; then
@@ -2038,7 +2038,7 @@ fi
 
 if section_enabled remote-retirement; then
 REMOTE_TRANSFER="$TMP_ROOT/remote-retirement-transfer.json"
-FM_HOME="$H_REMOTE_CONTROL" "$HOST" pack-transfer "$P_REMOTE" > "$REMOTE_TRANSFER"
+MY_FM_HOME="$H_REMOTE_CONTROL" "$HOST" pack-transfer "$P_REMOTE" > "$REMOTE_TRANSFER"
 remote_bind=$(remote_receive_file_direct "$REMOTE_TRANSFER" ext-remote)
 remote_transfer_digest=$(printf '%s\n' "$remote_bind" | sed -n 's/^transfer-digest: //p')
 remote_binding_digest=$(printf '%s\n' "$remote_bind" | sed -n 's/^binding-digest: //p')
@@ -2098,7 +2098,7 @@ mv "$remote_wrong_version" "$remote_version_root"
 P_REMOTE_OTHER="$PACKAGES/remote-other"
 make_package "$P_REMOTE_OTHER" org.example.remote-other ext-remote-other
 REMOTE_OTHER_TRANSFER="$TMP_ROOT/remote-other-transfer.json"
-FM_HOME="$H_REMOTE_CONTROL" "$HOST" pack-transfer "$P_REMOTE_OTHER" > "$REMOTE_OTHER_TRANSFER"
+MY_FM_HOME="$H_REMOTE_CONTROL" "$HOST" pack-transfer "$P_REMOTE_OTHER" > "$REMOTE_OTHER_TRANSFER"
 remote_other_bind=$(remote_receive_file_direct "$REMOTE_OTHER_TRANSFER" ext-remote-other)
 remote_other_transfer=$(printf '%s\n' "$remote_other_bind" | sed -n 's/^transfer-digest: //p')
 remote_other_binding=$(printf '%s\n' "$remote_other_bind" | sed -n 's/^binding-digest: //p')
@@ -2141,9 +2141,9 @@ chmod 0644 "$P_EXAMPLE/firstmate-extension.json"
 H_EXAMPLE="$HOMES/example"; new_home "$H_EXAMPLE"
 bind_package "$H_EXAMPLE" "$P_EXAMPLE" file-signal --consent artifact-references >/dev/null
 SIGNAL_FILE="$TMP_ROOT/example-result.txt"
-example_registration=$(FM_HOME="$H_EXAMPLE" "$PROCEVENT" register-extension file-signal example-file --config-ref "file:$SIGNAL_FILE")
+example_registration=$(MY_FM_HOME="$H_EXAMPLE" "$PROCEVENT" register-extension file-signal example-file --config-ref "file:$SIGNAL_FILE")
 example_token=$(printf '%s\n' "$example_registration" | sed -n 's/^owner-token: //p')
-FM_HOME="$H_EXAMPLE" "$PROCEVENT" start example-file > "$TMP_ROOT/example-start.out" &
+MY_FM_HOME="$H_EXAMPLE" "$PROCEVENT" start example-file > "$TMP_ROOT/example-start.out" &
 example_start=$!
 for _ in $(seq 1 100); do
   [ -f "$FM_PROCEVENT_CLAIM_ROOT/example-file.claim" ] && break
@@ -2154,9 +2154,9 @@ printf 'build 42 completed successfully\n' > "$SIGNAL_FILE"
 wait "$example_start" || fail "example source failed after its file appeared"
 example_result=$(first_result "$H_EXAMPLE" example-file) || fail "example captured no file result"
 assert_grep 'build 42 completed successfully' "$example_result" "example did not preserve external evidence"
-assert_contains "$(FM_HOME="$H_EXAMPLE" "$PROCEVENT" classify "$example_result")" "file-signal" "example result did not classify through the package"
+assert_contains "$(MY_FM_HOME="$H_EXAMPLE" "$PROCEVENT" classify "$example_result")" "file-signal" "example result did not classify through the package"
 assert_absent "$H_EXAMPLE/state/procevent/example-file.source" "example terminal result did not retire its source"
-FM_HOME="$H_EXAMPLE" "$PROCEVENT" retire example-file --if-owner "$example_token" >/dev/null
+MY_FM_HOME="$H_EXAMPLE" "$PROCEVENT" retire example-file --if-owner "$example_token" >/dev/null
 pass "the shipped file-signal package is a runnable end-to-end external adapter"
 
 # The same home spelled through a symlinked ancestor must capture external
@@ -2165,10 +2165,10 @@ pass "the shipped file-signal package is a runnable end-to-end external adapter"
 ln -s "$HOMES" "$TMP_ROOT/homes-through-symlink"
 H_EXAMPLE_SYMLINKED="$TMP_ROOT/homes-through-symlink/example"
 SIGNAL_FILE_SYMLINKED="$TMP_ROOT/example-symlinked-result.txt"
-symlinked_registration=$(FM_HOME="$H_EXAMPLE_SYMLINKED" "$PROCEVENT" register-extension file-signal example-symlinked \
+symlinked_registration=$(MY_FM_HOME="$H_EXAMPLE_SYMLINKED" "$PROCEVENT" register-extension file-signal example-symlinked \
   --config-ref "file:$SIGNAL_FILE_SYMLINKED")
 symlinked_token=$(printf '%s\n' "$symlinked_registration" | sed -n 's/^owner-token: //p')
-FM_HOME="$H_EXAMPLE_SYMLINKED" "$PROCEVENT" start example-symlinked > "$TMP_ROOT/example-symlinked-start.out" &
+MY_FM_HOME="$H_EXAMPLE_SYMLINKED" "$PROCEVENT" start example-symlinked > "$TMP_ROOT/example-symlinked-start.out" &
 symlinked_start=$!
 for _ in $(seq 1 100); do
   [ -f "$FM_PROCEVENT_CLAIM_ROOT/example-symlinked.claim" ] && break
@@ -2183,7 +2183,7 @@ symlinked_result=$(first_result "$H_EXAMPLE" example-symlinked) \
   || fail "a home reached through a symlinked ancestor captured no external result"
 assert_grep 'build 43 completed successfully' "$symlinked_result" \
   "the symlinked-ancestor home did not preserve external evidence"
-FM_HOME="$H_EXAMPLE_SYMLINKED" "$PROCEVENT" retire example-symlinked --if-owner "$symlinked_token" >/dev/null
+MY_FM_HOME="$H_EXAMPLE_SYMLINKED" "$PROCEVENT" retire example-symlinked --if-owner "$symlinked_token" >/dev/null
 pass "a home reached through a symlinked ancestor captures external evidence normally"
 
 P_HANDSHAKE_ORPHAN="$PACKAGES/handshake-orphan"
@@ -2206,7 +2206,7 @@ for _ in $(seq 1 50); do
 done
 handshake_orphan_pid=
 bind_package "$H_HANDSHAKE_ORPHAN" "$P_HANDSHAKE_RECOVER" ext-handshake-orphan >/dev/null
-assert_contains "$(FM_HOME="$H_HANDSHAKE_ORPHAN" "$HOST" verify org.example.handshake-orphan)" "verified: org.example.handshake-orphan@1.2.3" \
+assert_contains "$(MY_FM_HOME="$H_HANDSHAKE_ORPHAN" "$HOST" verify org.example.handshake-orphan)" "verified: org.example.handshake-orphan@1.2.3" \
   "cleaned handshake state did not permit safe binding"
 pass "handshake execution rejects and reaps foreground descendants"
 fi

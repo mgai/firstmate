@@ -93,9 +93,9 @@ set -u
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FM_ROOT="${FM_ROOT_OVERRIDE:-$(cd "$SCRIPT_DIR/.." && pwd)}"
-FM_HOME="${FM_HOME:-${FM_ROOT_OVERRIDE:-$FM_ROOT}}"
-STATE="${FM_STATE_OVERRIDE:-$FM_HOME/state}"
-CONFIG="${FM_CONFIG_OVERRIDE:-$FM_HOME/config}"
+MY_FM_HOME="${MY_FM_HOME:-${FM_ROOT_OVERRIDE:-$FM_ROOT}}"
+STATE="${FM_STATE_OVERRIDE:-$MY_FM_HOME/state}"
+CONFIG="${FM_CONFIG_OVERRIDE:-$MY_FM_HOME/config}"
 GRACE=${FM_GUARD_GRACE:-300}
 WATCH="$SCRIPT_DIR/fm-watch.sh"
 CLAUDE_MODE=0
@@ -202,7 +202,7 @@ allow_supervised_stop() {
   exit 2
 }
 
-if fm_watcher_healthy "$STATE" "$WATCH" "$GRACE" "$FM_HOME"; then
+if fm_watcher_healthy "$STATE" "$WATCH" "$GRACE" "$MY_FM_HOME"; then
   allow_supervised_stop
 fi
 
@@ -350,7 +350,7 @@ budget_account_current_epoch() {  # [observe|block]
 
 autoarm_owns_recovery() {
   local pid role outcome age
-  fm_watcher_healthy "$STATE" "$WATCH" "$GRACE" "$FM_HOME" && return 0
+  fm_watcher_healthy "$STATE" "$WATCH" "$GRACE" "$MY_FM_HOME" && return 0
   # A live OPEN generation claim owns recovery: the ledger names a live,
   # identity-matched owner still arming that is not stuck (fm_autoarm_claim_open
   # in bin/fm-wake-lib.sh owns that predicate). A finished, dead,
@@ -446,7 +446,7 @@ terminal_fail_open() {
     fm_lock_release "$OWNER_LOCK"
     return 1
   fi
-  if fm_watcher_healthy "$STATE" "$WATCH" "$GRACE" "$FM_HOME"; then
+  if fm_watcher_healthy "$STATE" "$WATCH" "$GRACE" "$MY_FM_HOME"; then
     if ! fm_failure_episode_reset "$STATE" held; then
       fm_lock_release "$BUDGET_LOCK"
       fm_lock_release "$OWNER_LOCK"
@@ -489,7 +489,7 @@ failure_episode_verified() {
 i=0
 while [ "$i" -lt $((SYNC_WAIT_MS / 100)) ]; do
   if autoarm_owns_recovery; then
-    if fm_watcher_healthy "$STATE" "$WATCH" "$GRACE" "$FM_HOME"; then
+    if fm_watcher_healthy "$STATE" "$WATCH" "$GRACE" "$MY_FM_HOME"; then
       fm_failure_episode_reset "$STATE" || exit 2
     fi
     exit 0
@@ -498,7 +498,7 @@ while [ "$i" -lt $((SYNC_WAIT_MS / 100)) ]; do
   i=$((i + 1))
 done
 if autoarm_owns_recovery; then
-  if fm_watcher_healthy "$STATE" "$WATCH" "$GRACE" "$FM_HOME"; then
+  if fm_watcher_healthy "$STATE" "$WATCH" "$GRACE" "$MY_FM_HOME"; then
     fm_failure_episode_reset "$STATE" || exit 2
   fi
   exit 0

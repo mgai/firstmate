@@ -137,7 +137,7 @@ run_update() {
   local w=$1
   PATH="$w/fakebin:$PATH" FM_FAKE_DIR="$w/fake" \
     FM_SSH_BIN="${FM_TEST_SSH_BIN:-ssh}" \
-    FM_ROOT_OVERRIDE="$w/main" FM_HOME="$w/home" "$UPDATE" 2>/dev/null
+    FM_ROOT_OVERRIDE="$w/main" MY_FM_HOME="$w/home" "$UPDATE" 2>/dev/null
 }
 
 # --- T1: main + secondmate behind, instruction change; FF, not a merge ------
@@ -535,7 +535,7 @@ test_primary_update_rebinds_local_watch() {
   git -C "$w/seed" push -q origin main
   git -C "$w/main" pull -q origin main
 
-  FM_ROOT_OVERRIDE="$w/main" FM_HOME="$w/home" "$ROOT/bin/fm-procevent-when.sh" \
+  FM_ROOT_OVERRIDE="$w/main" MY_FM_HOME="$w/home" "$ROOT/bin/fm-procevent-when.sh" \
     arm rebind-primary --interval 60 --stable 1 \
     --condition true --action "$w/main/bin/watched-action.sh" "$w/rebind.log" >/dev/null
   spec="$w/home/state/when/when-rebind-primary.spec"

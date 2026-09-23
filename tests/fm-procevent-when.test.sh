@@ -20,8 +20,8 @@ export FM_PROCEVENT_CLAIM_ROOT="$TMP_ROOT/claims"
 # shellcheck source=bin/fm-pr-lib.sh
 . "$ROOT/bin/fm-pr-lib.sh"
 
-pe()   { FM_HOME="$1" "$ROOT/bin/fm-procevent.sh" "${@:2}"; }
-when() { FM_HOME="$1" "$ROOT/bin/fm-procevent-when.sh" "${@:2}"; }
+pe()   { MY_FM_HOME="$1" "$ROOT/bin/fm-procevent.sh" "${@:2}"; }
+when() { MY_FM_HOME="$1" "$ROOT/bin/fm-procevent-when.sh" "${@:2}"; }
 
 # Every home this suite arms is registered with tests/lib.sh, which sweeps it
 # from every cleanup path so a runner still blocked on a condition that never
@@ -416,7 +416,7 @@ log=$1
 echo v1 >> "$log"
 SH
 chmod +x "$OUT_OF_REPO_ACT"
-when_ro() { FM_HOME="$1" FM_ROOT_OVERRIDE="$REPO_ROOT" "$ROOT/bin/fm-procevent-when.sh" "${@:2}"; }
+when_ro() { MY_FM_HOME="$1" FM_ROOT_OVERRIDE="$REPO_ROOT" "$ROOT/bin/fm-procevent-when.sh" "${@:2}"; }
 
 when_ro "$H" arm rebind-in-repo --interval 0.1 --stable 1 \
   --condition true --action "$IN_REPO_ACT" "$TMP_ROOT/rebind-in-repo.log" >/dev/null
@@ -482,7 +482,7 @@ log=$1
 echo v1 >> "$log"
 SH
 chmod +x "$REPO_REAL/bin/act.sh"
-when_symlink_ro() { FM_HOME="$1" FM_ROOT_OVERRIDE="$REPO_LINK" "$ROOT/bin/fm-procevent-when.sh" "${@:2}"; }
+when_symlink_ro() { MY_FM_HOME="$1" FM_ROOT_OVERRIDE="$REPO_LINK" "$ROOT/bin/fm-procevent-when.sh" "${@:2}"; }
 
 when_symlink_ro "$H" arm rebind-symlink --interval 0.1 --stable 1 \
   --condition true --action "$SYMLINK_ACT" "$TMP_ROOT/rebind-symlink.log" >/dev/null
@@ -520,7 +520,7 @@ chmod +x "$LIVE_ACT"
 LIVE_TRIGGER="$TMP_ROOT/live-rebind-trigger"
 LIVE_COUNTER="$TMP_ROOT/live-rebind-count"
 LIVE_LOG="$TMP_ROOT/live-rebind.log"
-when_live_ro() { FM_HOME="$1" FM_ROOT_OVERRIDE="$REPO_ROOT" "$ROOT/bin/fm-procevent-when.sh" "${@:2}"; }
+when_live_ro() { MY_FM_HOME="$1" FM_ROOT_OVERRIDE="$REPO_ROOT" "$ROOT/bin/fm-procevent-when.sh" "${@:2}"; }
 
 when_live_ro "$H" arm live-rebind --interval 0.1 --stable 1 \
   --condition "$COND" "$LIVE_TRIGGER" "$LIVE_COUNTER" \
@@ -607,7 +607,7 @@ TORN_READY="$TMP_ROOT/torn-ready"
 TORN_RELEASE="$TMP_ROOT/torn-release"
 rm -f "$TORN_READY" "$TORN_RELEASE"
 parent=$$
-FM_HOME="$TMP_ROOT/torn-race-lock-helper-home" bash -c '
+MY_FM_HOME="$TMP_ROOT/torn-race-lock-helper-home" bash -c '
   . "$1/bin/fm-pr-lib.sh"
   . "$1/bin/fm-wake-lib.sh"
   . "$1/bin/fm-procevent-lib.sh"

@@ -117,7 +117,7 @@ Pi and pi-signed load the same tracked extension bytes; pi-signed was not instal
 ### Post-start instruction refresh
 
 The isolated real-Pi instruction-refresh regression ran on 2026-08-11 with Pi 0.84.0.
-It used a scratch `FM_HOME`, a private tmux socket, and a disposable Firstmate checkout.
+It used a scratch `MY_FM_HOME`, a private tmux socket, and a disposable Firstmate checkout.
 The historical `origin/main` implementation first reproduced the stale original marker after a real compaction.
 The current implementation then recorded `source=startup`, changed and committed the lab's `AGENTS.md`, compacted the same real Pi session, and answered with the replacement marker.
 The fixed run also proved that the true-start baseline remained different from the updated file after compaction.

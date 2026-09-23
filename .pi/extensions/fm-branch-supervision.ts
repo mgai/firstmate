@@ -133,7 +133,7 @@ import {
 const extensionFile = fileURLToPath(import.meta.url);
 const extensionDir = dirname(extensionFile);
 const root = resolve(extensionDir, "../..");
-const fmHome = process.env.FM_HOME || process.env.FM_ROOT_OVERRIDE || root;
+const fmHome = process.env.MY_FM_HOME || process.env.FM_ROOT_OVERRIDE || root;
 const fmRoot = process.env.FM_ROOT_OVERRIDE || root;
 const state = process.env.FM_STATE_OVERRIDE || `${fmHome}/state`;
 const config = process.env.FM_CONFIG_OVERRIDE || `${fmHome}/config`;
@@ -221,7 +221,7 @@ type ProviderRecovery = {
 
 const scriptEnv = {
   ...process.env,
-  FM_HOME: fmHome,
+  MY_FM_HOME: fmHome,
   FM_ROOT_OVERRIDE: fmRoot,
   FM_STATE_OVERRIDE: state,
   FM_CONFIG_OVERRIDE: config,

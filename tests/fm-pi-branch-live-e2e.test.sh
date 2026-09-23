@@ -87,14 +87,14 @@ ln -s "$PI_PACKAGE_DIR/node_modules/typebox" "$repo/node_modules/typebox"
 # heredoc nested inside command substitution, so capture through a file.
 BRANCH_PLUGIN="$repo/.pi/extensions/fm-branch-supervision.ts" \
   WATCH_PLUGIN="$repo/.pi/extensions/fm-primary-pi-watch.ts" \
-  FM_HOME="$home" FM_REAL_ROOT="$ROOT" FM_WATCH_ROOT="$repo" \
+  MY_FM_HOME="$home" FM_REAL_ROOT="$ROOT" FM_WATCH_ROOT="$repo" \
   FM_LIVE_WATCH_LOG="$TMP_ROOT/live-watch.log" FM_LIVE_WATCH_TRIGGER="$TMP_ROOT/live-watch.trigger" \
   PI_CODING_AGENT_DIR="$agentdir" PI_PACKAGE_DIR="$PI_PACKAGE_DIR" node --input-type=module > "$TMP_ROOT/node-output" 2>&1 <<'EOF'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
-const home = resolve(process.env.FM_HOME);
+const home = resolve(process.env.MY_FM_HOME);
 // Supervision is default-on: the live guard exercises the branch with no
 // captain grant file present at all.
 const approvedProject = `${home}/projects/live-probe`;
@@ -284,7 +284,7 @@ cat > "$erroragentdir/models.json" <<'JSON'
 JSON
 BRANCH_PLUGIN="$repo/.pi/extensions/fm-branch-supervision.ts" \
   WATCH_PLUGIN="$repo/.pi/extensions/fm-primary-pi-watch.ts" \
-  FM_HOME="$errorhome" FM_REAL_ROOT="$ROOT" FM_WATCH_ROOT="$repo" \
+  MY_FM_HOME="$errorhome" FM_REAL_ROOT="$ROOT" FM_WATCH_ROOT="$repo" \
   FM_LIVE_WATCH_LOG="$TMP_ROOT/error-watch.log" FM_LIVE_WATCH_TRIGGER="$TMP_ROOT/error-watch.trigger" \
   PI_CODING_AGENT_DIR="$erroragentdir" PI_PACKAGE_DIR="$PI_PACKAGE_DIR" \
   node --input-type=module > "$TMP_ROOT/error-output" 2>&1 <<'EOF'
@@ -292,7 +292,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
-const home = resolve(process.env.FM_HOME);
+const home = resolve(process.env.MY_FM_HOME);
 const approvedProject = `${home}/projects/live-error-probe`;
 mkdirSync(approvedProject, { recursive: true });
 writeFileSync(`${home}/state/live-error-probe.meta`, `project=${approvedProject}\nwindow=fm-live-error-probe\n`);
@@ -819,7 +819,7 @@ cat > "$streamdir/models.json" <<'JSON'
 }
 JSON
 WATCH_PLUGIN="$repo/.pi/extensions/fm-primary-pi-watch.ts" \
-  FM_HOME="$streamhome" FM_ROOT_OVERRIDE="$repo" \
+  MY_FM_HOME="$streamhome" FM_ROOT_OVERRIDE="$repo" \
   FM_LIVE_WATCH_LOG="$TMP_ROOT/stream-watch.log" FM_LIVE_WATCH_TRIGGER="$TMP_ROOT/stream-watch.trigger" \
   FM_LIVE_SESSIONS="$TMP_ROOT/stream-sessions" \
   PI_CODING_AGENT_DIR="$streamdir" PI_PACKAGE_DIR="$PI_PACKAGE_DIR" \
@@ -828,7 +828,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
-const home = resolve(process.env.FM_HOME);
+const home = resolve(process.env.MY_FM_HOME);
 writeFileSync(`${home}/state/.lock`, `${process.pid}\n`);
 const pkg = resolve(process.env.PI_PACKAGE_DIR);
 const { DefaultResourceLoader, ModelRegistry, ModelRuntime, SessionManager, SettingsManager, createAgentSession } =

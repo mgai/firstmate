@@ -92,7 +92,7 @@ SH
   chmod 600 "$home/state/.watcher-down"
   printf '%s\t1\tcheck\tseed\tcheck: seed recovery\n' "$(date +%s)" > "$home/state/.wake-queue"
   out=$(
-    PLUGIN="$plugin" FM_HOME="$home" FM_ROOT_OVERRIDE="$repo" \
+    PLUGIN="$plugin" MY_FM_HOME="$home" FM_ROOT_OVERRIDE="$repo" \
       FM_STATE_OVERRIDE="$home/state" PATH="$fakebin:$PATH" \
       FM_POLL=1 FM_SIGNAL_GRACE=0 FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 \
       node --input-type=module 2>&1 <<'EOF'
@@ -111,7 +111,7 @@ const pi = {
     prompts.push(String(message));
   },
 };
-writeFileSync(`${process.env.FM_HOME}/state/.lock`, `${process.pid}\n`);
+writeFileSync(`${process.env.MY_FM_HOME}/state/.lock`, `${process.pid}\n`);
 const mod = await import(pathToFileURL(process.env.PLUGIN).href);
 mod.default(pi);
 if (!tool) throw new Error("Pi watch tool was not registered");
@@ -131,8 +131,8 @@ const rearm = prompts.filter((message) => message.includes("check: rearm-resurfa
 if (rearm.length !== 1) {
   throw new Error(`expected exactly one recovery follow-up, got ${rearm.length}: ${prompts.join(" || ")}`);
 }
-const lockPid = existsSync(`${process.env.FM_HOME}/state/.watch.lock/pid`)
-  ? readFileSync(`${process.env.FM_HOME}/state/.watch.lock/pid`, "utf8").trim()
+const lockPid = existsSync(`${process.env.MY_FM_HOME}/state/.watch.lock/pid`)
+  ? readFileSync(`${process.env.MY_FM_HOME}/state/.watch.lock/pid`, "utf8").trim()
   : "";
 if (!/^[0-9]+$/.test(lockPid)) throw new Error("successor watcher lock pid missing");
 try {
@@ -140,7 +140,7 @@ try {
 } catch {
   throw new Error(`successor watcher ${lockPid} is not alive`);
 }
-const marker = readFileSync(`${process.env.FM_HOME}/state/.watcher-down`, "utf8").trim();
+const marker = readFileSync(`${process.env.MY_FM_HOME}/state/.watcher-down`, "utf8").trim();
 if (!marker.startsWith("announced:") && !marker.startsWith("pending:")) {
   throw new Error(`successor did not keep a live recovery episode: ${marker}`);
 }
@@ -179,7 +179,7 @@ test_handling_successor_does_not_go_blind() {
   printf 'pending:downtime:gap.1.aaa\n' > "$state/.watcher-down"
   chmod 600 "$state/.watcher-down"
   out="$dir/watch.out"
-  PATH="$fakebin:$PATH" FM_HOME="$home" FM_STATE_OVERRIDE="$state" \
+  PATH="$fakebin:$PATH" MY_FM_HOME="$home" FM_STATE_OVERRIDE="$state" \
     FM_POLL=1 FM_SIGNAL_GRACE=0 FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=600 \
     FM_WATCH_HANDLING_SUCCESSOR=1 "$WATCH" > "$out" 2>&1 &
   child=$!

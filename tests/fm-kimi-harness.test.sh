@@ -245,7 +245,7 @@ EOF
 run_spawn() {
   local case_dir=$1 home=$2 proj=$3 wt=$4 fakebin=$5 id=$6
   shift 6
-  HOME="$home" FM_ROOT_OVERRIDE='' FM_HOME="$home" \
+  HOME="$home" FM_ROOT_OVERRIDE='' MY_FM_HOME="$home" \
     FM_STATE_OVERRIDE="$home/state" FM_DATA_OVERRIDE="$home/data" \
     FM_PROJECTS_OVERRIDE="$home/projects" FM_CONFIG_OVERRIDE="$home/config" \
     FM_SPAWN_NO_GUARD=1 FM_FAKE_PANE_PATH="$wt" TMUX="fake,1,0" \
@@ -640,7 +640,7 @@ test_kimi_teardown_removes_pointer_and_registry_token() {
   mkdir -p "$foreign_dir"
   printf 'other home\n' > "$foreign_dir/launch.sh"
 
-  HOME="$HOME_DIR" FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$HOME_DIR" \
+  HOME="$HOME_DIR" FM_ROOT_OVERRIDE="$ROOT" MY_FM_HOME="$HOME_DIR" \
     FM_STATE_OVERRIDE="$HOME_DIR/state" FM_DATA_OVERRIDE="$HOME_DIR/data" \
     FM_PROJECTS_OVERRIDE="$HOME_DIR/projects" FM_CONFIG_OVERRIDE="$HOME_DIR/config" \
     FM_SPAWN_NO_GUARD=1 PATH="$FAKEBIN_DIR:$BASE_PATH" \
@@ -1011,13 +1011,13 @@ exit 1
 SH
   chmod +x "$fakebin/ps"
 
-  FM_HOME="$home" PATH="$fakebin:$BASE_PATH" "$ROOT/bin/fm-lock.sh" \
+  MY_FM_HOME="$home" PATH="$fakebin:$BASE_PATH" "$ROOT/bin/fm-lock.sh" \
     || fail "fm-lock did not acquire from Kimi ancestry"
   case "$(cat "$home/state/.lock")" in
     ''|*[!0-9]*) fail "fm-lock did not record the Kimi harness ancestor" ;;
   esac
   printf '%s\n' "$$" > "$home/state/.lock"
-  out=$(FM_HOME="$home" PATH="$fakebin:$BASE_PATH" "$ROOT/bin/fm-lock.sh" status)
+  out=$(MY_FM_HOME="$home" PATH="$fakebin:$BASE_PATH" "$ROOT/bin/fm-lock.sh" status)
   assert_contains "$out" "lock: held by live harness pid" \
     "fm-lock did not recognize Kimi as a live holder"
   pass "fm-lock recognizes Kimi ancestry and live lock holders"
@@ -1075,9 +1075,9 @@ test_watcher_never_classifies_kimi_from_its_spinner() (
   mkdir -p "$state"
   printf 'window=fake\nharness=kimi\n' > "$state/kimi-watch.meta"
   unset FM_BUSY_REGEX
-  FM_HOME="$TMP_ROOT/watch-home"
+  MY_FM_HOME="$TMP_ROOT/watch-home"
   FM_STATE_OVERRIDE="$state"
-  export FM_HOME FM_STATE_OVERRIDE
+  export MY_FM_HOME FM_STATE_OVERRIDE
   # shellcheck source=/dev/null
   . "$ROOT/bin/fm-watch.sh"
   # shellcheck disable=SC2329 # Runtime override called by the sourced watcher.

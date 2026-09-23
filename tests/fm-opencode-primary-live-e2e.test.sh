@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Opt-in credentialed OpenCode continuity regression on an isolated project and
-# FM_HOME. Existing OpenCode credentials stay in their managed store.
+# MY_FM_HOME. Existing OpenCode credentials stay in their managed store.
 set -u
 
 # shellcheck source=tests/lib.sh
@@ -165,7 +165,7 @@ run_ahoy_transcript_regressions() {
   printf '%s\n' \
     '#!/usr/bin/env bash' \
     'set -u' \
-    'file="${FM_HOME:?}/state/session-start-count"' \
+    'file="${MY_FM_HOME:?}/state/session-start-count"' \
     'count=0' \
     '[ ! -f "$file" ] || count=$(sed -n "1p" "$file")' \
     'count=$((count + 1))' \
@@ -226,7 +226,7 @@ run_native_ahoy_regressions() {
   status=0
   (
     cd "$AHOY_PROJECT" &&
-      OPENCODE_DB="$first_db" FM_HOME="$first_home" \
+      OPENCODE_DB="$first_db" MY_FM_HOME="$first_home" \
         OPENCODE_DISABLE_AUTOUPDATE=1 OPENCODE_DISABLE_LSP_DOWNLOAD=1 \
         OPENCODE_CONFIG_CONTENT='{"permission":{"*":"allow"}}' \
         opencode run --format json --auto "/ahoy"
@@ -249,7 +249,7 @@ run_native_ahoy_regressions() {
   [ "$session_count" = 1 ] || fail "OpenCode native first-message Ahoy left the original session"
 
   "$TMUX" -L "$SOCKET" new-session -d -s "$native_session" -c "$AHOY_PROJECT" \
-    "env OPENCODE_DB='$later_db' FM_HOME='$later_home' OPENCODE_DISABLE_AUTOUPDATE=1 OPENCODE_DISABLE_LSP_DOWNLOAD=1 OPENCODE_CONFIG_CONTENT='{\"permission\":{\"*\":\"allow\"}}' opencode --auto"
+    "env OPENCODE_DB='$later_db' MY_FM_HOME='$later_home' OPENCODE_DISABLE_AUTOUPDATE=1 OPENCODE_DISABLE_LSP_DOWNLOAD=1 OPENCODE_CONFIG_CONTENT='{\"permission\":{\"*\":\"allow\"}}' opencode --auto"
   i=0
   while [ "$i" -lt 120 ]; do
     "$TMUX" -L "$SOCKET" capture-pane -p -t "$native_session" 2>/dev/null | grep -Fq "$OPENCODE_VERSION" && break
@@ -270,7 +270,7 @@ run_native_ahoy_regressions() {
   status=0
   (
     cd "$AHOY_PROJECT" &&
-      OPENCODE_DB="$later_db" FM_HOME="$later_home" \
+      OPENCODE_DB="$later_db" MY_FM_HOME="$later_home" \
         OPENCODE_DISABLE_AUTOUPDATE=1 OPENCODE_DISABLE_LSP_DOWNLOAD=1 \
         OPENCODE_CONFIG_CONTENT='{"permission":{"*":"allow"}}' \
         opencode run --format json --auto --session "$session_id" "/ahoy"
@@ -300,10 +300,10 @@ chmod +x "$PROJECT/bin/fm-operational-input.sh"
 mkdir -p "$HOME_DIR/state" "$HOME_DIR/config"
 printf 'project=fixture\n' > "$HOME_DIR/state/opencode-e2e.meta"
 
-# shellcheck disable=SC2016 # The model, not this test shell, expands FM_HOME.
-PROMPT='Use the terminal to run `printf ready > "$FM_HOME/state/opencode-model-initial"`, then respond briefly. If a later watcher wake arrives, run bin/fm-wake-drain.sh, then run `printf handled > "$FM_HOME/state/opencode-model-handled"`. Never run or request any watcher arm command.'
+# shellcheck disable=SC2016 # The model, not this test shell, expands MY_FM_HOME.
+PROMPT='Use the terminal to run `printf ready > "$MY_FM_HOME/state/opencode-model-initial"`, then respond briefly. If a later watcher wake arrives, run bin/fm-wake-drain.sh, then run `printf handled > "$MY_FM_HOME/state/opencode-model-handled"`. Never run or request any watcher arm command.'
 "$TMUX" -L "$SOCKET" new-session -d -s "$SESSION" -c "$PROJECT" \
-  "env OPENCODE_CONFIG_CONTENT='{\"permission\":{\"*\":\"allow\"}}' FM_HOME='$HOME_DIR' FM_ROOT_OVERRIDE='$PROJECT' FM_POLL=1 FM_SIGNAL_GRACE=0 FM_HEARTBEAT=600 bash -lc 'printf \"%s\\n\" \"\$\$\" > \"\$FM_HOME/state/.lock\"; opencode --auto; rc=\$?; printf \"OPENCODE_EXIT=%s\\n\" \"\$rc\"; sleep 300'"
+  "env OPENCODE_CONFIG_CONTENT='{\"permission\":{\"*\":\"allow\"}}' MY_FM_HOME='$HOME_DIR' FM_ROOT_OVERRIDE='$PROJECT' FM_POLL=1 FM_SIGNAL_GRACE=0 FM_HEARTBEAT=600 bash -lc 'printf \"%s\\n\" \"\$\$\" > \"\$MY_FM_HOME/state/.lock\"; opencode --auto; rc=\$?; printf \"OPENCODE_EXIT=%s\\n\" \"\$rc\"; sleep 300'"
 
 # Send the initial prompt through the ready composer so this exercises the same
 # persistent TUI path as a primary session.

@@ -71,10 +71,10 @@
 set -eu
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FM_ROOT="${FM_ROOT_OVERRIDE:-$(cd "$SCRIPT_DIR/.." && pwd)}"
-FM_HOME="${FM_HOME:-$FM_ROOT}"
-STATE="${FM_STATE_OVERRIDE:-$FM_HOME/state}"
-DATA="${FM_DATA_OVERRIDE:-$FM_HOME/data}"
-export FM_HOME FM_STATE_OVERRIDE="$STATE"
+MY_FM_HOME="${MY_FM_HOME:-$FM_ROOT}"
+STATE="${FM_STATE_OVERRIDE:-$MY_FM_HOME/state}"
+DATA="${FM_DATA_OVERRIDE:-$MY_FM_HOME/data}"
+export MY_FM_HOME FM_STATE_OVERRIDE="$STATE"
 # shellcheck source=bin/fm-pr-lib.sh
 . "$SCRIPT_DIR/fm-pr-lib.sh"
 # shellcheck source=bin/fm-timeout-lib.sh
@@ -403,7 +403,7 @@ arm() {
   fm_pr_regular_destination_on_device_or_absent "$STATE/contributions.check.sh" "$device" || fail 'unsafe check destination'
   staged=$(umask 077; mktemp "$STATE/.contributions-check.XXXXXX")
   printf '%s\n' '#!/usr/bin/env bash' \
-    "export FM_HOME=$(printf '%q' "$FM_HOME")" \
+    "export MY_FM_HOME=$(printf '%q' "$MY_FM_HOME")" \
     "export FM_STATE_OVERRIDE=$(printf '%q' "$STATE")" \
     "export FM_DATA_OVERRIDE=$(printf '%q' "$DATA")" \
     "exec $(printf '%q' "$SCRIPT_DIR/fm-contributions.sh") poll" > "$staged"

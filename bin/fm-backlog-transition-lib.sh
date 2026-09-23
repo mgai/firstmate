@@ -33,7 +33,7 @@
 # change lands in the home that owns the task regardless of the caller's working
 # directory. A configured non-markdown adapter is addressed by that root alone,
 # because `--file` would override the adapter's own workspace path. The parent of
-# the data directory is the addressing root rather than FM_HOME, so a home whose
+# the data directory is the addressing root rather than MY_FM_HOME, so a home whose
 # data directory is relocated keeps its backlog and its archive together. A root
 # with no `.tasks.toml` gets tasks-axi's built-in defaults.
 # bin/fm-tasks-axi-lib.sh owns backend precedence and configuration failures.
@@ -189,8 +189,8 @@ fm_backlog_data_relative() {  # <data-dir>
 
 
 # The parent an authorized data directory was named from, kept in the caller's
-# own path shape. fm_backlog_record_parent_authorized only applies its FM_HOME
-# containment guard to a root that still spells out `$FM_HOME`, so a root
+# own path shape. fm_backlog_record_parent_authorized only applies its MY_FM_HOME
+# containment guard to a root that still spells out `$MY_FM_HOME`, so a root
 # already resolved through `pwd -P` would skip that guard whenever the data
 # directory is a symlink.
 fm_backlog_authorized_root() {  # <authorized-data-dir>
@@ -692,11 +692,11 @@ fm_backlog_record_parent_authorized() {  # <path> <label> <root> [parent-only]
     FM_BACKLOG_TRANSITION_ERROR="$label authorized directory is not a directory at $root"
     return 1
   }
-  if [ -n "${FM_HOME:-}" ]; then
+  if [ -n "${MY_FM_HOME:-}" ]; then
     case "$root" in
-      "$FM_HOME"|"$FM_HOME"/*)
-        home_resolved=$(fm_backlog_canonical_existing "$FM_HOME") || {
-          FM_BACKLOG_TRANSITION_ERROR="$label home directory cannot be resolved at $FM_HOME"
+      "$MY_FM_HOME"|"$MY_FM_HOME"/*)
+        home_resolved=$(fm_backlog_canonical_existing "$MY_FM_HOME") || {
+          FM_BACKLOG_TRANSITION_ERROR="$label home directory cannot be resolved at $MY_FM_HOME"
           return 1
         }
         case "$root_resolved" in

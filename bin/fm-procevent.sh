@@ -220,8 +220,8 @@ set -u
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FM_ROOT="${FM_ROOT_OVERRIDE:-$(cd "$SCRIPT_DIR/.." && pwd)}"
-FM_HOME="${FM_HOME:-${FM_ROOT_OVERRIDE:-$FM_ROOT}}"
-STATE="${FM_STATE_OVERRIDE:-$FM_HOME/state}"
+MY_FM_HOME="${MY_FM_HOME:-${FM_ROOT_OVERRIDE:-$FM_ROOT}}"
+STATE="${FM_STATE_OVERRIDE:-$MY_FM_HOME/state}"
 
 # shellcheck source=bin/fm-pr-lib.sh
 . "$SCRIPT_DIR/fm-pr-lib.sh"
@@ -276,10 +276,10 @@ extension_lifecycle_lock_release() {
 run_extension_invocation_cleanup() {  # [cleanup selector...]
   [ -x "$EXTENSION_HOST" ] && [ ! -L "$EXTENSION_HOST" ] || return 1
   if [ -n "${FM_STATE_OVERRIDE:-}" ]; then
-    FM_HOME="$FM_HOME" FM_STATE_OVERRIDE="$STATE" \
+    MY_FM_HOME="$MY_FM_HOME" FM_STATE_OVERRIDE="$STATE" \
       "$EXTENSION_HOST" cleanup-invocations "$@" >/dev/null 2>&1
   else
-    FM_HOME="$FM_HOME" "$EXTENSION_HOST" cleanup-invocations "$@" >/dev/null 2>&1
+    MY_FM_HOME="$MY_FM_HOME" "$EXTENSION_HOST" cleanup-invocations "$@" >/dev/null 2>&1
   fi
 }
 
@@ -1003,7 +1003,7 @@ cmd_start() {
     fm_procevent_source_lock_release "$id"
     die "cannot retain registration identity: $id"
   }
-  fm_procevent_claim_acquire_locked "$id" "$FM_HOME" "$$" "$(source_file "$id")" "$STATE"
+  fm_procevent_claim_acquire_locked "$id" "$MY_FM_HOME" "$$" "$(source_file "$id")" "$STATE"
   claimed=$?
   fm_procevent_source_lock_release "$id"
   case "$claimed" in
@@ -1012,7 +1012,7 @@ cmd_start() {
     *) die "cannot claim source: $id" ;;
   esac
   CLAIM_ID=$id
-  CLAIM_HOME=$FM_HOME
+  CLAIM_HOME=$MY_FM_HOME
   CLAIM_PID=$$
   CLAIM_TOKEN=$FM_PROCEVENT_CLAIM_TOKEN
   CLAIM_REG_IDENTITY=$FM_PROCEVENT_CLAIM_REG_IDENTITY
@@ -1578,7 +1578,7 @@ cmd_reconcile() {
     pid=$FM_PROCEVENT_CLAIM_PID
     token=$FM_PROCEVENT_CLAIM_TOKEN
     identity=$FM_PROCEVENT_CLAIM_IDENTITY
-    if ! fm_procevent_claim_owned_by_state "$STATE" "$FM_HOME"; then
+    if ! fm_procevent_claim_owned_by_state "$STATE" "$MY_FM_HOME"; then
       fm_procevent_source_lock_release "$id"
       continue
     fi
@@ -1653,7 +1653,7 @@ cmd_reconcile() {
           owner=$FM_PROCEVENT_CLAIM_HOME
           pid=$FM_PROCEVENT_CLAIM_PID
           token=$FM_PROCEVENT_CLAIM_TOKEN
-          if fm_procevent_claim_owned_by_state "$STATE" "$FM_HOME" \
+          if fm_procevent_claim_owned_by_state "$STATE" "$MY_FM_HOME" \
             && rm -f -- "$(source_file "$id")" \
             && [ ! -e "$(source_file "$id")" ] \
             && [ ! -L "$(source_file "$id")" ] \
@@ -1994,7 +1994,7 @@ cmd_retire() {
       fm_procevent_source_lock_release "$id"
       die "cannot safely read source ownership: $id"
     fi
-    if fm_procevent_claim_owned_by_state "$STATE" "$FM_HOME"; then
+    if fm_procevent_claim_owned_by_state "$STATE" "$MY_FM_HOME"; then
       owner=$FM_PROCEVENT_CLAIM_HOME
       pid=$FM_PROCEVENT_CLAIM_PID
       token=$FM_PROCEVENT_CLAIM_TOKEN
@@ -2061,7 +2061,7 @@ sweep_relevant_state() {
       fm_procevent_source_lock_release "$owner"
       return 0
     fi
-    if fm_procevent_claim_owned_by_state "$STATE" "$FM_HOME"; then
+    if fm_procevent_claim_owned_by_state "$STATE" "$MY_FM_HOME"; then
       fm_procevent_source_lock_release "$owner"
       return 0
     fi
@@ -2078,7 +2078,7 @@ sweep_source_preflight() {
       fm_procevent_source_lock_release "$id"
       return 1
     fi
-    if fm_procevent_claim_owned_by_state "$STATE" "$FM_HOME"; then
+    if fm_procevent_claim_owned_by_state "$STATE" "$MY_FM_HOME"; then
       fm_procevent_pid_state "$FM_PROCEVENT_CLAIM_PID" "$FM_PROCEVENT_CLAIM_IDENTITY"
       state=$?
       if [ "$state" -eq 2 ]; then
@@ -2104,10 +2104,10 @@ sweep_retire_source() {  # <source-id>
     fm_procevent_source_lock_release "$id"
   fi
   if [ -n "$expected_owner" ]; then
-    FM_HOME="$FM_HOME" FM_STATE_OVERRIDE="$STATE" \
+    MY_FM_HOME="$MY_FM_HOME" FM_STATE_OVERRIDE="$STATE" \
       "$SCRIPT_DIR/fm-procevent.sh" retire "$id" --if-owner "$expected_owner"
   else
-    FM_HOME="$FM_HOME" FM_STATE_OVERRIDE="$STATE" \
+    MY_FM_HOME="$MY_FM_HOME" FM_STATE_OVERRIDE="$STATE" \
       "$SCRIPT_DIR/fm-procevent.sh" retire "$id"
   fi
 }
@@ -2142,7 +2142,7 @@ cmd_sweep_home() {
       fm_procevent_source_lock_release "$id"
       continue
     fi
-    if fm_procevent_claim_owned_by_state "$STATE" "$FM_HOME"; then
+    if fm_procevent_claim_owned_by_state "$STATE" "$MY_FM_HOME"; then
       sweep_add_id "$id"
     fi
     fm_procevent_source_lock_release "$id"

@@ -51,7 +51,7 @@
 # state/.watch-triage.log remains exclusively the watcher's absorbed-wake debug
 # log and is never written here.
 #
-# --restart: stop ONLY this FM_HOME's watcher (the pid recorded in THIS home's
+# --restart: stop ONLY this MY_FM_HOME's watcher (the pid recorded in THIS home's
 # state/.watch.lock) and own a fresh cycle, or attach if a verified live peer
 # wins the singleton while the duplicate child stands down. It
 # resolves and signals exactly that pid, so it can never touch another home's
@@ -227,7 +227,7 @@ clear_stale_recorded_watcher_lock() {
   lock_home=$(cat "$WATCH_LOCK/fm-home" 2>/dev/null || true)
   lock_path=$(cat "$WATCH_LOCK/watcher-path" 2>/dev/null || true)
   lock_identity=$(cat "$WATCH_LOCK/pid-identity" 2>/dev/null || true)
-  [ "$lock_home" = "$FM_HOME" ] || return 0
+  [ "$lock_home" = "$MY_FM_HOME" ] || return 0
   [ "$lock_path" = "$WATCH" ] || return 0
   [ -n "$lock_identity" ] || return 0
   fm_recovery_transition "$STATE/.watcher-down" clear-stale-lock "$WATCH_LOCK" downtime
@@ -243,7 +243,7 @@ HEALTHY_IDENTITY=
 healthy_watcher() {
   HEALTHY_PID=
   HEALTHY_IDENTITY=
-  fm_watcher_healthy "$STATE" "$WATCH" "$GRACE" "$FM_HOME" || return 1
+  fm_watcher_healthy "$STATE" "$WATCH" "$GRACE" "$MY_FM_HOME" || return 1
   HEALTHY_PID=$FM_WATCHER_HEALTHY_PID
   HEALTHY_IDENTITY=$FM_WATCHER_HEALTHY_IDENTITY
 }
@@ -402,7 +402,7 @@ esac
 
 if [ "$mode" = handling-delivered ]; then
   fm_pid_alive "$handling_watcher_pid" \
-    && fm_watcher_lock_matches_pid "$STATE" "$WATCH" "$handling_watcher_pid" "$FM_HOME" \
+    && fm_watcher_lock_matches_pid "$STATE" "$WATCH" "$handling_watcher_pid" "$MY_FM_HOME" \
     && fm_recovery_marker_begin_handling "$STATE/.watcher-down" "$handling_generation"
   exit $?
 fi
@@ -411,7 +411,7 @@ if [ "$mode" = restart ]; then
   # Home-scoped stop: only the watcher pid recorded in THIS home's lock.
   lock_pid=$(cat "$WATCH_LOCK/pid" 2>/dev/null || true)
   if fm_pid_alive "$lock_pid"; then
-    if fm_watcher_lock_matches_pid "$STATE" "$WATCH" "$lock_pid" "$FM_HOME"; then
+    if fm_watcher_lock_matches_pid "$STATE" "$WATCH" "$lock_pid" "$MY_FM_HOME"; then
       kill -TERM "$lock_pid" 2>/dev/null || true
       # Wait for it to actually exit before relaunching, so the fresh watcher
       # either takes a released lock or reclaims a now-dead-pid stale lock instead

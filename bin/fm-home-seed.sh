@@ -34,10 +34,10 @@ set -eu
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FM_ROOT="${FM_ROOT_OVERRIDE:-$(cd "$SCRIPT_DIR/.." && pwd)}"
-FM_HOME="${FM_HOME:-${FM_ROOT_OVERRIDE:-$FM_ROOT}}"
-DATA="${FM_DATA_OVERRIDE:-$FM_HOME/data}"
-PROJECTS="${FM_PROJECTS_OVERRIDE:-$FM_HOME/projects}"
-STATE="${FM_STATE_OVERRIDE:-$FM_HOME/state}"
+MY_FM_HOME="${MY_FM_HOME:-${FM_ROOT_OVERRIDE:-$FM_ROOT}}"
+DATA="${FM_DATA_OVERRIDE:-$MY_FM_HOME/data}"
+PROJECTS="${FM_PROJECTS_OVERRIDE:-$MY_FM_HOME/projects}"
+STATE="${FM_STATE_OVERRIDE:-$MY_FM_HOME/state}"
 REG="$DATA/secondmates.md"
 SUB_HOME_MARKER=".fm-secondmate-home"
 SUB_HOME_PARENT_MARKER=".fm-secondmate-parent"
@@ -220,7 +220,7 @@ resolved_path() {
 refuse_active_home_path() {
   local home=$1 abs_home abs_active_home abs_root
   abs_home=$(resolved_path "$home")
-  abs_active_home=$(resolved_path "$FM_HOME")
+  abs_active_home=$(resolved_path "$MY_FM_HOME")
   abs_root=$(resolved_path "$FM_ROOT")
   if [ "$abs_home" = "/" ]; then
     echo "error: secondmate home cannot be the filesystem root: $home" >&2
@@ -261,7 +261,7 @@ validate_operational_dir() {
   fi
   abs_home=$(resolved_path "$home")
   abs_dir=$(resolved_path "$dir")
-  abs_active_home=$(resolved_path "$FM_HOME")
+  abs_active_home=$(resolved_path "$MY_FM_HOME")
   abs_root=$(resolved_path "$FM_ROOT")
   if ! path_is_ancestor_of "$abs_home" "$abs_dir"; then
     echo "error: secondmate $name directory must resolve inside the secondmate home: $dir" >&2
@@ -317,7 +317,7 @@ validate_existing_parent_binding() {
   [ "$FM_SECONDMATE_PARENT_ROUTE" = local ] || return 0
 
   recorded_parent=$(resolved_path "$FM_SECONDMATE_PARENT_HOME")
-  requested_parent=$(resolved_path "$FM_HOME")
+  requested_parent=$(resolved_path "$MY_FM_HOME")
   [ "$recorded_parent" = "$requested_parent" ] && return 0
   printf 'error: secondmate home is bound to parent %s, not requested parent %s\n' \
     "$recorded_parent" "$requested_parent" >&2
@@ -331,7 +331,7 @@ validate_project_destination() {
   abs_home=$(resolved_path "$home")
   abs_projects=$(resolved_path "$projects_dir")
   abs_dst=$(resolved_path "$dst")
-  abs_active_home=$(resolved_path "$FM_HOME")
+  abs_active_home=$(resolved_path "$MY_FM_HOME")
   abs_root=$(resolved_path "$FM_ROOT")
   if ! path_is_ancestor_of "$abs_home" "$abs_projects"; then
     echo "error: secondmate projects directory must resolve inside the secondmate home: $projects_dir" >&2
@@ -463,7 +463,7 @@ clone_project() {
   [ -d "$src" ] || { echo "error: project $project not found at $src" >&2; return 1; }
   git -C "$src" rev-parse --is-inside-work-tree >/dev/null 2>&1 || { echo "error: project $project is not a git repo" >&2; return 1; }
   read -r mode _ <<EOF
-$(FM_HOME="$FM_HOME" FM_DATA_OVERRIDE="$DATA" "$FM_ROOT/bin/fm-project-mode.sh" "$project")
+$(MY_FM_HOME="$MY_FM_HOME" FM_DATA_OVERRIDE="$DATA" "$FM_ROOT/bin/fm-project-mode.sh" "$project")
 EOF
   if [ "$mode" = local-only ]; then
     echo "error: project $project is local-only; secondmate routes support only no-mistakes and direct-PR projects" >&2
@@ -490,7 +490,7 @@ validate_seed_project() {
   [ -d "$src" ] || { echo "error: project $project not found at $src" >&2; return 1; }
   git -C "$src" rev-parse --is-inside-work-tree >/dev/null 2>&1 || { echo "error: project $project is not a git repo" >&2; return 1; }
   read -r mode _ <<EOF
-$(FM_HOME="$FM_HOME" FM_DATA_OVERRIDE="$DATA" "$FM_ROOT/bin/fm-project-mode.sh" "$project")
+$(MY_FM_HOME="$MY_FM_HOME" FM_DATA_OVERRIDE="$DATA" "$FM_ROOT/bin/fm-project-mode.sh" "$project")
 EOF
   if [ "$mode" = local-only ]; then
     echo "error: project $project is local-only; secondmate routes support only no-mistakes and direct-PR projects" >&2
@@ -546,7 +546,7 @@ seed_rollback_target() {
   [ -n "$target" ] || return 1
   [ "$target" != "/" ] || { echo "REFUSED: unsafe $label rollback target $target" >&2; return 1; }
   abs_target=$(resolved_path "$target")
-  abs_home=$(resolved_path "$FM_HOME")
+  abs_home=$(resolved_path "$MY_FM_HOME")
   abs_root=$(resolved_path "$FM_ROOT")
   if [ "$abs_target" = "$abs_home" ]; then
     echo "REFUSED: unsafe $label rollback target $target is the active firstmate home" >&2
@@ -673,7 +673,7 @@ registry_line_for_project() {
 project_mode_in_home() {
   local home=$1 project=$2 mode
   read -r mode _ <<EOF
-$(FM_ROOT_OVERRIDE='' FM_STATE_OVERRIDE='' FM_DATA_OVERRIDE='' FM_PROJECTS_OVERRIDE='' FM_CONFIG_OVERRIDE='' FM_HOME="$home" "$FM_ROOT/bin/fm-project-mode.sh" "$project")
+$(FM_ROOT_OVERRIDE='' FM_STATE_OVERRIDE='' FM_DATA_OVERRIDE='' FM_PROJECTS_OVERRIDE='' FM_CONFIG_OVERRIDE='' MY_FM_HOME="$home" "$FM_ROOT/bin/fm-project-mode.sh" "$project")
 EOF
   printf '%s\n' "$mode"
 }
@@ -954,7 +954,7 @@ seed_home() {
   {
     printf 'schema=fm-secondmate-parent.v1\n'
     printf 'route=local\n'
-    printf 'parent_home=%s\n' "$(resolved_path "$FM_HOME")"
+    printf 'parent_home=%s\n' "$(resolved_path "$MY_FM_HOME")"
   } > "$home/$SUB_HOME_PARENT_MARKER.tmp.$$"
   mv -f -- "$home/$SUB_HOME_PARENT_MARKER.tmp.$$" "$home/$SUB_HOME_PARENT_MARKER"
   printf '%s\n' "$id" > "$home/$SUB_HOME_MARKER.tmp.$$"

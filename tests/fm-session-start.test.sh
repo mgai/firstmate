@@ -52,7 +52,7 @@ fm_git_identity fmtest fmtest@example.invalid
 
 # new_world <name>: a real, throwaway git repo on `main` (so the worktree-tangle
 # and default-branch checks behave exactly as they do against the real
-# firstmate repo) to use as FM_ROOT_OVERRIDE, plus an empty FM_HOME with
+# firstmate repo) to use as FM_ROOT_OVERRIDE, plus an empty MY_FM_HOME with
 # state/, data/, config/, and a fakebin. Echoes "<root-dir>|<home-dir>|<fakebin>".
 new_world() {
   local name=$1 w root home fakebin
@@ -518,11 +518,11 @@ run_session_start() {
   local home=$1 root=$2 path=$3 pi_harness=${4:-}
   if [ -n "$pi_harness" ]; then
     env -u CLAUDECODE -u GROK_AGENT PI_CODING_AGENT=true FM_PI_HARNESS="$pi_harness" \
-      FM_HOME="$home" FM_ROOT_OVERRIDE="$root" PATH="$path" \
+      MY_FM_HOME="$home" FM_ROOT_OVERRIDE="$root" PATH="$path" \
       "$SESSION_START"
   else
     env -u CLAUDECODE -u PI_CODING_AGENT -u FM_PI_HARNESS -u GROK_AGENT \
-      FM_HOME="$home" FM_ROOT_OVERRIDE="$root" PATH="$path" \
+      MY_FM_HOME="$home" FM_ROOT_OVERRIDE="$root" PATH="$path" \
       "$SESSION_START"
   fi
 }
@@ -532,7 +532,7 @@ run_pi_session_start() {  # <home> <root> <path> [fm-session-start args...]
   shift 3
   env -u CLAUDECODE -u GROK_AGENT PI_CODING_AGENT=true FM_PI_HARNESS=pi \
     FM_FAKE_HARNESS_PID="$SESSION_START_TEST_HARNESS_PID" \
-    FM_HOME="$home" FM_ROOT_OVERRIDE="$root" PATH="$path" \
+    MY_FM_HOME="$home" FM_ROOT_OVERRIDE="$root" PATH="$path" \
     "$SESSION_START" "$@"
 }
 
@@ -541,7 +541,7 @@ run_named_harness_session_start() {  # <harness> <home> <root> <path> [fm-sessio
   shift 4
   env -u CLAUDECODE -u PI_CODING_AGENT -u FM_PI_HARNESS -u GROK_AGENT \
     FM_FAKE_HARNESS="$harness" FM_FAKE_HARNESS_PID="$SESSION_START_TEST_HARNESS_PID" \
-    FM_HOME="$home" FM_ROOT_OVERRIDE="$root" PATH="$path" \
+    MY_FM_HOME="$home" FM_ROOT_OVERRIDE="$root" PATH="$path" \
     "$SESSION_START" "$@"
 }
 
@@ -642,7 +642,7 @@ run_session_start_herdr_secondmate() {
 # here instead of straight off the digest's own output.
 wait_for_network_stage() {
   local home=$1 root=$2 limit=${3:-30}
-  FM_HOME="$home" FM_ROOT_OVERRIDE="$root" \
+  MY_FM_HOME="$home" FM_ROOT_OVERRIDE="$root" \
     "$ROOT/bin/fm-startup-network.sh" wait "$limit"
 }
 
@@ -658,7 +658,7 @@ wait_for_network_wake() {
 
 network_stage_report() {
   local home=$1 root=$2
-  FM_HOME="$home" FM_ROOT_OVERRIDE="$root" "$ROOT/bin/fm-startup-network.sh" report
+  MY_FM_HOME="$home" FM_ROOT_OVERRIDE="$root" "$ROOT/bin/fm-startup-network.sh" report
 }
 
 hash_file_for_test() {
@@ -935,7 +935,7 @@ SH
       while [ "$(find "$ready" -type f | wc -l | tr -d ' ')" -lt 40 ]; do
         sleep 0.01
       done
-      if FM_HOME="$home" FM_FAKE_LOCK_STATE="$home/state" \
+      if MY_FM_HOME="$home" FM_FAKE_LOCK_STATE="$home/state" \
         FM_FAKE_HARNESS_PID="$harness_pid" PATH="$fakebin:$BASE_PATH" \
         "$ROOT/bin/fm-lock.sh" >/dev/null 2>&1; then
         printf '%s\n' "$harness_pid" >> "$winners"
@@ -1407,14 +1407,14 @@ EOF
   # A crash window the locked start must preserve: the supervision branch
   # stored a leading routine row and a captain row that never reached Pi, plus one lease whose
   # supervising process died and one still held by a live process.
-  FM_HOME="$home" "$ROOT/bin/fm-branch-outcome.sh" append \
+  MY_FM_HOME="$home" "$ROOT/bin/fm-branch-outcome.sh" append \
     --task task-a --verdict routine --summary 'worker recovered automatically' >/dev/null \
     || fail "could not seed the unread routine branch outcome"
-  FM_HOME="$home" "$ROOT/bin/fm-branch-outcome.sh" append \
+  MY_FM_HOME="$home" "$ROOT/bin/fm-branch-outcome.sh" append \
     --task task-b --verdict captain --summary 'PR https://example.com/pr/b checks green' >/dev/null \
     || fail "could not seed the unread branch outcome"
   printf 'branch\t999999\t123\n' > "$home/state/.lease-task-dead"
-  FM_HOME="$home" FM_SUPERVISION_ACTOR=branch FM_LEASE_HOLDER_PID=$$ "$ROOT/bin/fm-lease.sh" claim task-live --actor branch \
+  MY_FM_HOME="$home" FM_SUPERVISION_ACTOR=branch FM_LEASE_HOLDER_PID=$$ "$ROOT/bin/fm-lease.sh" claim task-live --actor branch \
     || fail "could not seed the live lease"
 
   out=$(run_pi_session_start "$home" "$root" "$fakebin:$BASE_PATH")
@@ -1422,7 +1422,7 @@ EOF
     "locked start did not replay the leading routine branch outcome"
   assert_contains "$out" "worker recovered automatically" "replayed routine outcome lost its content"
   assert_not_contains "$out" "https://example.com/pr/b" "locked start crossed the captain delivery barrier"
-  assert_contains "$(FM_HOME="$home" "$ROOT/bin/fm-branch-outcome.sh" unread)" \
+  assert_contains "$(MY_FM_HOME="$home" "$ROOT/bin/fm-branch-outcome.sh" unread)" \
     "https://example.com/pr/b" "locked start marked the unrendered captain outcome read"
   [ "$(cat "$home/state/.branch-outcomes-cursor")" = 1 ] || fail "locked start advanced past the captain row"
   [ ! -e "$home/state/.lease-task-dead" ] || fail "locked start left a provably dead lease in place"
@@ -1434,7 +1434,7 @@ EOF
   case "$out" in
     *"BRANCH OUTCOMES"*) fail "second start re-presented already-replayed branch outcomes" ;;
   esac
-  assert_contains "$(FM_HOME="$home" "$ROOT/bin/fm-branch-outcome.sh" unread)" \
+  assert_contains "$(MY_FM_HOME="$home" "$ROOT/bin/fm-branch-outcome.sh" unread)" \
     "https://example.com/pr/b" "second start consumed the captain row without a Pi entry"
   pass "locked Pi session start replays leading routine outcomes, preserves the captain barrier, and sweeps only dead leases"
 }
@@ -1448,7 +1448,7 @@ EOF
   make_fake_toolchain "$fakebin"
   make_fake_ps_claude "$fakebin"
 
-  FM_HOME="$home" "$ROOT/bin/fm-branch-outcome.sh" append \
+  MY_FM_HOME="$home" "$ROOT/bin/fm-branch-outcome.sh" append \
     --task task-b --verdict captain --summary 'unread Pi branch outcome' >/dev/null \
     || fail "could not seed the non-Pi unread branch outcome"
   rm -f "$home/state/.branch-outcomes-cursor"
@@ -1967,7 +1967,7 @@ EOF
   # deferred network stage's own - because a truncated digest must not kill work
   # it was never waiting for. So the guarantee asserted here is the one that
   # actually matters: once BOTH deadlines have passed, nothing hung is left.
-  FM_HOME="$home" FM_ROOT_OVERRIDE="$root" FM_STARTUP_NETWORK_TIMEOUT=2 \
+  MY_FM_HOME="$home" FM_ROOT_OVERRIDE="$root" FM_STARTUP_NETWORK_TIMEOUT=2 \
     "$ROOT/bin/fm-startup-network.sh" wait 30 >/dev/null || true
   sleep 1
   stray=$(pgrep -f "$fakebin/git" 2>/dev/null | wc -l | tr -d ' ')
@@ -2087,7 +2087,7 @@ SH
 
   # shellcheck disable=SC2016 # $$ must expand in the launched shell, not here.
   out=$(env -u CLAUDECODE -u PI_CODING_AGENT -u FM_PI_HARNESS -u GROK_AGENT \
-    FM_HOME="$home" FM_ROOT_OVERRIDE="$root" PATH="$fakebin:$BASE_PATH" \
+    MY_FM_HOME="$home" FM_ROOT_OVERRIDE="$root" PATH="$fakebin:$BASE_PATH" \
     bash -c 'export FM_FAKE_HARNESS_PID=$$; exec "$1" 8 "$2"' _ "$nest" "$SESSION_START")
 
   assert_contains "$out" "lock acquired: harness pid" \
@@ -2121,7 +2121,7 @@ EOF
     "the full startup fixture did not exercise a mutating sweep"
 
   append_wake "$home/state" signal task-r "done: queued after the re-emit too" || fail "seed second wake failed"
-  reemit=$(FM_HOME="$home" FM_ROOT_OVERRIDE="$root" FM_FAKE_HARNESS_PID=$$ PATH="$fakebin:$BASE_PATH" \
+  reemit=$(MY_FM_HOME="$home" FM_ROOT_OVERRIDE="$root" FM_FAKE_HARNESS_PID=$$ PATH="$fakebin:$BASE_PATH" \
     env -u CLAUDECODE -u PI_CODING_AGENT -u FM_PI_HARNESS -u GROK_AGENT \
     "$SESSION_START" --reemit)
 
@@ -2340,7 +2340,7 @@ EOF
   make_fake_ps_claude "$fakebin"
   git -C "$root" checkout -q -B fm/reemit-tangle
 
-  reemit=$(FM_HOME="$home" FM_ROOT_OVERRIDE="$root" PATH="$fakebin:$BASE_PATH" \
+  reemit=$(MY_FM_HOME="$home" FM_ROOT_OVERRIDE="$root" PATH="$fakebin:$BASE_PATH" \
     env -u CLAUDECODE -u PI_CODING_AGENT -u FM_PI_HARNESS -u GROK_AGENT \
     "$SESSION_START" --reemit)
 
@@ -2355,7 +2355,7 @@ EOF
   sleep 300 &
   holder_pid=$!
   printf '%s\n' "$holder_pid" > "$home/state/.lock"
-  readonly_out=$(FM_HOME="$home" FM_ROOT_OVERRIDE="$root" PATH="$fakebin:$BASE_PATH" \
+  readonly_out=$(MY_FM_HOME="$home" FM_ROOT_OVERRIDE="$root" PATH="$fakebin:$BASE_PATH" \
     env -u CLAUDECODE -u PI_CODING_AGENT -u FM_PI_HARNESS -u GROK_AGENT \
     "$SESSION_START" --reemit)
   kill "$holder_pid" 2>/dev/null || true

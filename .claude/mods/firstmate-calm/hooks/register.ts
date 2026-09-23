@@ -100,7 +100,7 @@ async function readTheme($: EngineInterface): Promise<unknown> {
 async function load($: EngineInterface): Promise<void> {
   preferencePath = calmPreferencePath(
     {
-      FM_HOME: await $.env.get("FM_HOME"),
+      MY_FM_HOME: await $.env.get("MY_FM_HOME"),
       FM_ROOT_OVERRIDE: await $.env.get("FM_ROOT_OVERRIDE"),
       FM_CONFIG_OVERRIDE: await $.env.get("FM_CONFIG_OVERRIDE"),
     },

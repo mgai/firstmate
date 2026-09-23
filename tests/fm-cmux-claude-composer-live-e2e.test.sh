@@ -28,8 +28,8 @@ cleanup() {
       && ! untimed_status "$LAB/state/$TASK.status" | grep -q '^resolved \[key=probe-decision\]'; then
       printf '%s\n' 'resolved [key=probe-decision]: live guard cleanup' >> "$LAB/state/$TASK.status"
     fi
-    FM_HOME="$LAB" "$ROOT/bin/fm-decision-hold.sh" complete "$TASK" --none >/dev/null 2>&1 || true
-    FM_HOME="$LAB" "$ROOT/bin/fm-teardown.sh" "$TASK" >/dev/null 2>&1 || true
+    MY_FM_HOME="$LAB" "$ROOT/bin/fm-decision-hold.sh" complete "$TASK" --none >/dev/null 2>&1 || true
+    MY_FM_HOME="$LAB" "$ROOT/bin/fm-teardown.sh" "$TASK" >/dev/null 2>&1 || true
   }
   [ -z "$LAB" ] || rm -rf -- "$LAB"
 }
@@ -51,7 +51,7 @@ git -C "$LAB/projects/comms" add README.md
 git -C "$LAB/projects/comms" commit -qm 'fixture: initialize cmux Claude composer probe'
 
 STATUS="$LAB/state/$TASK.status"
-FM_HOME="$LAB" "$ROOT/bin/fm-brief.sh" "$TASK" comms --scout || fail "could not scaffold the Claude probe brief"
+MY_FM_HOME="$LAB" "$ROOT/bin/fm-brief.sh" "$TASK" comms --scout || fail "could not scaffold the Claude probe brief"
 python3 - "$LAB/data/$TASK/brief.md" "$STATUS" <<'PY'
 from pathlib import Path
 import sys
@@ -66,13 +66,13 @@ When you receive a firstmate message containing `ALBATROSS`, append `done [at=<e
 Do not change project files or make a commit.'''))
 PY
 
-FM_HOME="$LAB" "$ROOT/bin/fm-spawn.sh" "$TASK" "$LAB/projects/comms" --scout --harness claude --model haiku --backend cmux \
+MY_FM_HOME="$LAB" "$ROOT/bin/fm-spawn.sh" "$TASK" "$LAB/projects/comms" --scout --harness claude --model haiku --backend cmux \
   || fail "could not launch the real Claude cmux probe"
 SPAWNED=1
 
 # shellcheck source=bin/fm-backend.sh
-FM_HOME="$LAB"
-export FM_HOME
+MY_FM_HOME="$LAB"
+export MY_FM_HOME
 . "$ROOT/bin/fm-backend.sh"
 fm_backend_source cmux || fail "could not source the cmux adapter"
 TARGET=$(awk -F= '/^window=/{print $2}' "$LAB/state/$TASK.meta")
@@ -81,7 +81,7 @@ TARGET=$(awk -F= '/^window=/{print $2}' "$LAB/state/$TASK.meta")
 for _ in $(seq 1 45); do
   CAPTURE=$(fm_backend_cmux_capture "$TARGET" 200 "$TASK" 2>/dev/null || true)
   case "$CAPTURE" in
-    *'Yes, I trust this folder'*) FM_HOME="$LAB" "$ROOT/bin/fm-send.sh" "$TASK" --key Enter || fail "could not accept Claude's folder-trust prompt" ;;
+    *'Yes, I trust this folder'*) MY_FM_HOME="$LAB" "$ROOT/bin/fm-send.sh" "$TASK" --key Enter || fail "could not accept Claude's folder-trust prompt" ;;
   esac
   untimed_status "$STATUS" | grep -q '^needs-decision \[key=probe-decision\]' && break
   sleep 2
@@ -93,7 +93,7 @@ COMPOSER=$(fm_backend_cmux_composer_state "$TARGET" "$TASK")
 [ "$COMPOSER" = empty ] || fail "cmux classified the real Claude $(claude --version) idle composer as '$COMPOSER'"
 pass "cmux classifies the real Claude borderless composer as empty"
 
-FM_SEND_SETTLE=0 FM_HOME="$LAB" "$ROOT/bin/fm-send.sh" "$TASK" --resolve-key probe-decision ALBATROSS \
+FM_SEND_SETTLE=0 MY_FM_HOME="$LAB" "$ROOT/bin/fm-send.sh" "$TASK" --resolve-key probe-decision ALBATROSS \
   || fail "cmux did not confirm the real Claude steer"
 for _ in $(seq 1 30); do
   untimed_status "$STATUS" | grep -q '^done: received ALBATROSS' && break

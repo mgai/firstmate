@@ -47,7 +47,7 @@ cleanup() {
   local rc=$?
   trap - EXIT
   if [ -f "$STATE/.afk-contract" ] || [ -e "$STATE/.afk" ]; then
-    PATH="$FAKEBIN:$ORIGINAL_PATH" HERDR_SESSION="$SESSION" FM_HOME="$HOME_DIR" FM_STATE_OVERRIDE="$STATE" \
+    PATH="$FAKEBIN:$ORIGINAL_PATH" HERDR_SESSION="$SESSION" MY_FM_HOME="$HOME_DIR" FM_STATE_OVERRIDE="$STATE" \
       PI_CODING_AGENT=true "$ROOT/bin/fm-afk-launch.sh" stop >/dev/null 2>&1 || true
   fi
   if ! "$LAB_HELPER" teardown "$SESSION"; then
@@ -112,7 +112,7 @@ WORKSPACE=$(printf '%s' "$PRIMARY_OUT" | jq -r '.result.workspace.workspace_id')
 PRIMARY_PANE=$(printf '%s' "$PRIMARY_OUT" | jq -r '.result.root_pane.pane_id')
 PRIMARY_TARGET="$SESSION:$PRIMARY_PANE"
 EXT="$CAPTURE_EXT"
-PI_CMD=$(printf 'exec env PI_CODING_AGENT_DIR=%q FM_HOME=%q FM_PI_CAPTURE_PATH=%q pi -e %q --no-context-files --no-session' "$PI_DIR" "$HOME_DIR" "$CAPTURE" "$EXT")
+PI_CMD=$(printf 'exec env PI_CODING_AGENT_DIR=%q MY_FM_HOME=%q FM_PI_CAPTURE_PATH=%q pi -e %q --no-context-files --no-session' "$PI_DIR" "$HOME_DIR" "$CAPTURE" "$EXT")
 "$LAB_HELPER" run "$SESSION" pane run "$PRIMARY_PANE" "$PI_CMD" >/dev/null
 
 wait_for_idle() {
@@ -174,16 +174,16 @@ EOF
 # harness from its own ancestry in production; this test process is not under
 # Pi, so it supplies Pi's verified PI_CODING_AGENT environment marker.
 set +e
-START_OUT=$(PATH="$FAKEBIN:$ORIGINAL_PATH" HERDR_SESSION="$SESSION" FM_HOME="$HOME_DIR" FM_STATE_OVERRIDE="$STATE" \
+START_OUT=$(PATH="$FAKEBIN:$ORIGINAL_PATH" HERDR_SESSION="$SESSION" MY_FM_HOME="$HOME_DIR" FM_STATE_OVERRIDE="$STATE" \
   PI_CODING_AGENT=true FM_SUPERVISOR_BACKEND=herdr FM_SUPERVISOR_TARGET="$PRIMARY_TARGET" \
   "$ROOT/bin/fm-afk-launch.sh" start 2>&1)
 START_RC=$?
 set -e
 [ "$START_RC" -ne 0 ] || fail "the away daemon launched on a Pi primary"
 assert_contains "$START_OUT" 'the away daemon is no longer launched on pi' "the Pi refusal did not name its reason"
-PATH="$FAKEBIN:$ORIGINAL_PATH" HERDR_SESSION="$SESSION" FM_HOME="$HOME_DIR" FM_STATE_OVERRIDE="$STATE" \
+PATH="$FAKEBIN:$ORIGINAL_PATH" HERDR_SESSION="$SESSION" MY_FM_HOME="$HOME_DIR" FM_STATE_OVERRIDE="$STATE" \
   PI_CODING_AGENT=true "$ROOT/bin/fm-afk-launch.sh" propose >/dev/null || fail "the away posture read-back failed on Pi"
-CONFIRM_OUT=$(PATH="$FAKEBIN:$ORIGINAL_PATH" HERDR_SESSION="$SESSION" FM_HOME="$HOME_DIR" FM_STATE_OVERRIDE="$STATE" \
+CONFIRM_OUT=$(PATH="$FAKEBIN:$ORIGINAL_PATH" HERDR_SESSION="$SESSION" MY_FM_HOME="$HOME_DIR" FM_STATE_OVERRIDE="$STATE" \
   PI_CODING_AGENT=true "$ROOT/bin/fm-afk-launch.sh" confirm 2>&1) || fail "the away posture could not be recorded on Pi: $CONFIRM_OUT"
 assert_contains "$CONFIRM_OUT" 'hold-for-return only' "the entry announcement did not say hold-for-return"
 [ -f "$STATE/.afk-contract" ] || fail "confirm did not write the away-posture record"
@@ -244,7 +244,7 @@ assert_blocker_open 'before return catch-up'
 [ -f "$STATE/repair-task.meta" ] || fail "live blocker metadata disappeared before return catch-up"
 
 set +e
-RETURN_OUT=$(PATH="$FAKEBIN:$ORIGINAL_PATH" HERDR_SESSION="$SESSION" FM_ROOT_OVERRIDE="$PROJECT" FM_HOME="$HOME_DIR" FM_STATE_OVERRIDE="$STATE" \
+RETURN_OUT=$(PATH="$FAKEBIN:$ORIGINAL_PATH" HERDR_SESSION="$SESSION" FM_ROOT_OVERRIDE="$PROJECT" MY_FM_HOME="$HOME_DIR" FM_STATE_OVERRIDE="$STATE" \
   PI_CODING_AGENT=true "$ROOT/bin/fm-afk-return.sh" begin 2>&1)
 RETURN_RC=$?
 set -e
@@ -253,7 +253,7 @@ assert_contains "$RETURN_OUT" 'firstmate-actionable blocker: repair-task [key=sy
 assert_contains "$RETURN_OUT" '=== Return brief (away ' "the return did not render the brief"
 assert_contains "$RETURN_OUT" 'Supervisor health:' "the brief did not lead with supervisor health"
 [ ! -f "$STATE/.afk-contract" ] || fail "the return did not archive the away-posture record"
-BEARINGS_OUT=$(PATH="$FAKEBIN:$ORIGINAL_PATH" HERDR_SESSION="$SESSION" FM_ROOT_OVERRIDE="$PROJECT" FM_HOME="$HOME_DIR" FM_STATE_OVERRIDE="$STATE" \
+BEARINGS_OUT=$(PATH="$FAKEBIN:$ORIGINAL_PATH" HERDR_SESSION="$SESSION" FM_ROOT_OVERRIDE="$PROJECT" MY_FM_HOME="$HOME_DIR" FM_STATE_OVERRIDE="$STATE" \
   "$ROOT/bin/fm-bearings-snapshot.sh" --json 2>&1) \
   || fail "Bearings refused behind the return gate instead of reporting it: $BEARINGS_OUT"
 printf '%s' "$BEARINGS_OUT" | jq -e '
@@ -264,20 +264,20 @@ printf '%s' "$BEARINGS_OUT" | jq -e '
 pass "real unmarked Pi return renders the brief, opens catch-up, and reports that posture through Bearings while the blocker stays Firstmate's to remediate"
 
 printf 'resolved [key=synthetic-dependency]: refreshed the synthetic token and resumed the task\n' >> "$STATE/repair-task.status"
-PATH="$FAKEBIN:$ORIGINAL_PATH" HERDR_SESSION="$SESSION" FM_ROOT_OVERRIDE="$PROJECT" FM_HOME="$HOME_DIR" FM_STATE_OVERRIDE="$STATE" \
+PATH="$FAKEBIN:$ORIGINAL_PATH" HERDR_SESSION="$SESSION" FM_ROOT_OVERRIDE="$PROJECT" MY_FM_HOME="$HOME_DIR" FM_STATE_OVERRIDE="$STATE" \
   "$ROOT/bin/fm-afk-return.sh" check >/dev/null || fail "remediated blocker did not clear return catch-up"
-PATH="$FAKEBIN:$ORIGINAL_PATH" HERDR_SESSION="$SESSION" FM_ROOT_OVERRIDE="$PROJECT" FM_HOME="$HOME_DIR" FM_STATE_OVERRIDE="$STATE" \
+PATH="$FAKEBIN:$ORIGINAL_PATH" HERDR_SESSION="$SESSION" FM_ROOT_OVERRIDE="$PROJECT" MY_FM_HOME="$HOME_DIR" FM_STATE_OVERRIDE="$STATE" \
   "$ROOT/bin/fm-bearings-snapshot.sh" --json \
   | jq -e '[.gates[].id] | index("(return-catchup)") | not' >/dev/null \
   || fail "Bearings kept the catch-up posture row after the gate cleared"
 
 # A clean re-entry records a fresh posture, and an immediate return is
 # idempotently clear because the keyed blocker is resolved.
-PATH="$FAKEBIN:$ORIGINAL_PATH" HERDR_SESSION="$SESSION" FM_HOME="$HOME_DIR" FM_STATE_OVERRIDE="$STATE" \
+PATH="$FAKEBIN:$ORIGINAL_PATH" HERDR_SESSION="$SESSION" MY_FM_HOME="$HOME_DIR" FM_STATE_OVERRIDE="$STATE" \
   PI_CODING_AGENT=true "$ROOT/bin/fm-afk-launch.sh" propose >/dev/null || fail "clean away re-entry read-back failed"
-PATH="$FAKEBIN:$ORIGINAL_PATH" HERDR_SESSION="$SESSION" FM_HOME="$HOME_DIR" FM_STATE_OVERRIDE="$STATE" \
+PATH="$FAKEBIN:$ORIGINAL_PATH" HERDR_SESSION="$SESSION" MY_FM_HOME="$HOME_DIR" FM_STATE_OVERRIDE="$STATE" \
   PI_CODING_AGENT=true "$ROOT/bin/fm-afk-launch.sh" confirm >/dev/null || fail "clean away re-entry failed"
-PATH="$FAKEBIN:$ORIGINAL_PATH" HERDR_SESSION="$SESSION" FM_ROOT_OVERRIDE="$PROJECT" FM_HOME="$HOME_DIR" FM_STATE_OVERRIDE="$STATE" \
+PATH="$FAKEBIN:$ORIGINAL_PATH" HERDR_SESSION="$SESSION" FM_ROOT_OVERRIDE="$PROJECT" MY_FM_HOME="$HOME_DIR" FM_STATE_OVERRIDE="$STATE" \
   PI_CODING_AGENT=true "$ROOT/bin/fm-afk-return.sh" begin >/dev/null \
   || fail "clean away re-entry/return was not idempotent"
 [ "$(find "$STATE/afk-contracts" -name '*.afk-contract' | wc -l | tr -d ' ')" -eq 2 ] || fail "each away window did not leave exactly one archived record"

@@ -597,7 +597,7 @@ run_spawn() {  # <case-dir> <args...>
   # store (bin/fm-claude-trust.sh), so it runs against a throwaway HOME;
   # without it this suite would write the developer's real ~/.claude.json.
   mkdir -p "$case_dir/user-home"
-  FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$(home_of "$case_dir")" HOME="$case_dir/user-home" \
+  FM_ROOT_OVERRIDE="$ROOT" MY_FM_HOME="$(home_of "$case_dir")" HOME="$case_dir/user-home" \
     FM_SPAWN_NO_GUARD=1 FM_FAKE_PANE_PATH="$case_dir/wt" TMUX="fake,1,0" \
     CLAUDE_CONFIG_DIR='' \
     PATH="$case_dir/fakebin:$PATH" \
@@ -615,14 +615,14 @@ run_ship_spawn() {  # <case-dir> <id>
 run_teardown() {  # <case-dir> <id> [args...]
   local case_dir=$1
   shift
-  FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$(home_of "$case_dir")" \
+  FM_ROOT_OVERRIDE="$ROOT" MY_FM_HOME="$(home_of "$case_dir")" \
     PATH="$case_dir/fakebin:$PATH" \
     "$TEARDOWN" "$@" 2>&1
 }
 
 run_bootstrap() {  # <case-dir>
   local case_dir=$1
-  FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$(home_of "$case_dir")" \
+  FM_ROOT_OVERRIDE="$ROOT" MY_FM_HOME="$(home_of "$case_dir")" \
     FM_BOOTSTRAP_NETWORK=skip \
     PATH="$case_dir/fakebin:$PATH" \
     "$BOOTSTRAP" 2>&1
@@ -751,7 +751,7 @@ test_captain_hold_preserves_relocated_backlog_on_backend_error() {
       readable) printf '%s\n' 'backend = "markdown"' > "$home/.tasks.toml" ;;
     esac
     rc=0
-    out=$(env -u TASKS_AXI_BACKEND HOME="$case_dir/user-home" FM_HOME="$home" \
+    out=$(env -u TASKS_AXI_BACKEND HOME="$case_dir/user-home" MY_FM_HOME="$home" \
       FM_DATA_OVERRIDE="$data" "$ROOT/bin/fm-captain-hold.sh" hold "$id" \
       --title "Hold regression" --reason "Captain must choose" 2>&1) || rc=$?
     if [ "$config_state" = dangling ]; then
@@ -1091,7 +1091,7 @@ test_completion_targets_a_nested_relative_data_directory() {
   write_task_meta "$case_dir" "$id" ship local-only "spawn_gen=spawn-relative-data"
 
   out=$(cd "$case_dir" && \
-    FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$(home_of "$case_dir")" \
+    FM_ROOT_OVERRIDE="$ROOT" MY_FM_HOME="$(home_of "$case_dir")" \
     FM_DATA_OVERRIDE="$relative_data" PATH="$case_dir/fakebin:$PATH" \
     "$TEARDOWN" "$id" 2>&1) \
     || fail "relative-data teardown failed: $out"
@@ -1478,7 +1478,7 @@ test_deferred_signal_verification_outlives_an_unresponsive_tasks_axi() {
   # and exit - the outer `timeout -k 5 30` only turns a regression back into
   # the lock-held-forever hang it exists to catch.
   mkdir -p "$case_dir/user-home"
-  out=$(FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$(home_of "$case_dir")" \
+  out=$(FM_ROOT_OVERRIDE="$ROOT" MY_FM_HOME="$(home_of "$case_dir")" \
     HOME="$case_dir/user-home" FM_SPAWN_NO_GUARD=1 \
     FM_FAKE_PANE_PATH="$case_dir/wt" TMUX="fake,1,0" CLAUDE_CONFIG_DIR='' \
     FM_TASKS_AXI_TIMEOUT=3 PATH="$case_dir/fakebin:$PATH" \
@@ -1581,7 +1581,7 @@ test_completion_closes_a_scout_with_its_report() {
   # captain-call completion gate; satisfy both the way a real scout does.
   mkdir -p "$(home_of "$case_dir")/data/$id"
   printf 'findings\n' > "$(home_of "$case_dir")/data/$id/report.md"
-  FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$(home_of "$case_dir")" \
+  FM_ROOT_OVERRIDE="$ROOT" MY_FM_HOME="$(home_of "$case_dir")" \
     PATH="$case_dir/fakebin:$PATH" \
     "$ROOT/bin/fm-captain-hold.sh" complete "$id" --none >/dev/null \
     || fail "could not record the scout's completed captain-call inventory"
@@ -1651,7 +1651,7 @@ test_completion_records_a_relative_report_for_relocated_data() {
   write_task_meta "$case_dir" "$id" scout '' "spawn_gen=spawn-relocated-scout"
   mkdir -p "$relocated/$id"
   printf 'findings\n' > "$relocated/$id/report.md"
-  FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$(home_of "$case_dir")" \
+  FM_ROOT_OVERRIDE="$ROOT" MY_FM_HOME="$(home_of "$case_dir")" \
     FM_DATA_OVERRIDE="$relocated////" PATH="$case_dir/fakebin:$PATH" \
     "$ROOT/bin/fm-captain-hold.sh" complete "$id" --none >/dev/null \
     || fail "could not record the relocated scout's captain-call inventory"
@@ -1679,7 +1679,7 @@ test_space_containing_scout_report_marker_replays() {
   write_task_meta "$case_dir" "$id" scout '' "spawn_gen=spawn-space-report"
   mkdir -p "$data/$id"
   printf 'findings\n' > "$data/$id/report.md"
-  FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$(home_of "$case_dir")" \
+  FM_ROOT_OVERRIDE="$ROOT" MY_FM_HOME="$(home_of "$case_dir")" \
     FM_DATA_OVERRIDE="$data" PATH="$case_dir/fakebin:$PATH" \
     "$ROOT/bin/fm-captain-hold.sh" complete "$id" --none >/dev/null \
     || fail "could not record the space-path scout's captain-call inventory"
@@ -2775,7 +2775,7 @@ test_spawn_refuses_a_special_file_tasks_config() {
   rm -f "$home/.tasks.toml"
   mkfifo "$home/.tasks.toml"
 
-  out=$(FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$home" \
+  out=$(FM_ROOT_OVERRIDE="$ROOT" MY_FM_HOME="$home" \
     FM_SPAWN_NO_GUARD=1 FM_FAKE_PANE_PATH="$case_dir/wt" TMUX="fake,1,0" \
     CLAUDE_CONFIG_DIR='' \
     PATH="$case_dir/fakebin:$PATH" \

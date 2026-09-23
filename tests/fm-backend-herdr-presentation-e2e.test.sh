@@ -408,7 +408,7 @@ EOF
 
 spawn_task() {  # <id> <home> <project>
   local id=$1 home=$2 project=$3
-  FM_GATE_REFUSE_BYPASS=1 FM_SPAWN_NO_GUARD=1 FM_HOME="$home" FM_ROOT_OVERRIDE="$ROOT" \
+  FM_GATE_REFUSE_BYPASS=1 FM_SPAWN_NO_GUARD=1 MY_FM_HOME="$home" FM_ROOT_OVERRIDE="$ROOT" \
     "$ROOT/bin/fm-spawn.sh" "$id" "$project" "sh -c 'while :; do sleep 60; done'" --mode no-mistakes --yolo off --backend herdr
 }
 
@@ -433,13 +433,13 @@ finish_concurrent_expected_abort() {  # <id> <status> <stdout> <stderr>
 
 spawn_secondmate_task() {
   local id=$1 home=$2
-  FM_GATE_REFUSE_BYPASS=1 FM_SPAWN_NO_GUARD=1 FM_HOME="$HOME_DIR" FM_ROOT_OVERRIDE="$ROOT" \
+  FM_GATE_REFUSE_BYPASS=1 FM_SPAWN_NO_GUARD=1 MY_FM_HOME="$HOME_DIR" FM_ROOT_OVERRIDE="$ROOT" \
     "$ROOT/bin/fm-spawn.sh" "$id" "$home" "sh -c 'while :; do sleep 60; done'" --secondmate --backend herdr
 }
 
 teardown_task() {  # <id> <home>
   local id=$1 home=$2
-  FM_GATE_REFUSE_BYPASS=1 FM_HOME="$home" FM_ROOT_OVERRIDE="$ROOT" \
+  FM_GATE_REFUSE_BYPASS=1 MY_FM_HOME="$home" FM_ROOT_OVERRIDE="$ROOT" \
     FM_STATE_OVERRIDE="$home/state" FM_DATA_OVERRIDE="$home/data" \
     FM_CONFIG_OVERRIDE="$home/config" \
     "$ROOT/bin/fm-teardown.sh" "$id" --force
@@ -964,7 +964,7 @@ done
 pass "real Herdr lab: three repeated concurrent create/order/cleanup waves have zero active workspace or tab drift"
 
 # ------------------------------------------------------------------
-# Multi-home topology: real secondmate FM_HOME spawn paths, inheritance,
+# Multi-home topology: real secondmate MY_FM_HOME spawn paths, inheritance,
 # concurrent cross-home waves, and session-scoped lock contention.
 # ------------------------------------------------------------------
 SECOND_HOME_A="$TMP_ROOT/home-2ndmate-alpha"

@@ -227,7 +227,7 @@ test_secondmate_launch_relies_on_discovery() {
   # FM_BACKEND=tmux pins the fake tmux even where the developer shell carries a
   # live Herdr environment; without it auto-detection would spawn a real pane.
   out=$(PATH="$fakebin:$PATH" TMUX='fake,1,0' FM_BACKEND=tmux CLAUDECODE=1 \
-    FM_ROOT_OVERRIDE='' FM_HOME="$world/home" \
+    FM_ROOT_OVERRIDE='' MY_FM_HOME="$world/home" \
     FM_STATE_OVERRIDE="$world/home/state" FM_DATA_OVERRIDE="$world/home/data" \
     FM_PROJECTS_OVERRIDE="$world/home/projects" FM_CONFIG_OVERRIDE="$world/home/config" \
     FM_SPAWN_NO_GUARD=1 FM_FAKE_LAUNCH_LOG="$launchlog" \
@@ -264,7 +264,7 @@ test_secondmate_config_pinned_model_is_validated() {
   launchlog="$world/launch.log"
   : > "$launchlog"
   out=$(PATH="$fakebin:$PATH" TMUX='fake,1,0' FM_BACKEND=tmux CLAUDECODE=1 \
-    FM_ROOT_OVERRIDE='' FM_HOME="$world/home" \
+    FM_ROOT_OVERRIDE='' MY_FM_HOME="$world/home" \
     FM_STATE_OVERRIDE="$world/home/state" FM_DATA_OVERRIDE="$world/home/data" \
     FM_PROJECTS_OVERRIDE="$world/home/projects" FM_CONFIG_OVERRIDE="$world/home/config" \
     FM_SPAWN_NO_GUARD=1 FM_FAKE_LAUNCH_LOG="$launchlog" \
@@ -426,12 +426,12 @@ test_ownership_proof_is_omp_keyed() {
   record_omp_session "$root" "$home" "$pid" || fail "could not record the verdict session"
   touch "$home/state/.last-watcher-beat"
   local verdict
-  verdict=$(FM_SUPERVISION_MODEL=extension FM_HOME="$home" bash -c '
+  verdict=$(FM_SUPERVISION_MODEL=extension MY_FM_HOME="$home" bash -c '
     . "$1"; fm_watcher_supervision_verdict "$2" "$3" 999 "$4" "$5"; printf "%s %s" "$FM_WATCHER_VERDICT_OK" "$FM_WATCHER_VERDICT_REASON"' \
     _ "$ROOT/bin/fm-wake-lib.sh" "$home/state" "$root/bin/fm-watch.sh" "$home" "$root")
   [ "${verdict%% *}" = true ] || fail "an unheld lock with a fresh beacon and the omp proof must be healthy, got '$verdict'"
   rm -f "$home/state/.omp-turnend-extension-loaded"
-  verdict=$(FM_SUPERVISION_MODEL=extension FM_HOME="$home" bash -c '
+  verdict=$(FM_SUPERVISION_MODEL=extension MY_FM_HOME="$home" bash -c '
     . "$1"; fm_watcher_supervision_verdict "$2" "$3" 999 "$4" "$5"; printf "%s %s" "$FM_WATCHER_VERDICT_OK" "$FM_WATCHER_VERDICT_REASON"' \
     _ "$ROOT/bin/fm-wake-lib.sh" "$home/state" "$root/bin/fm-watch.sh" "$home" "$root")
   [ "$verdict" = "false no-watcher" ] || fail "without the proof the same hand-off must alarm as no-watcher, got '$verdict'"
@@ -472,7 +472,7 @@ SH
   # shellcheck disable=SC2016 # $2 expands in the generated script
   printf '#!/usr/bin/env bash\nprintf "OMP DIGEST source=%%s\\n" "$2"\n' > "$repo/bin/fm-sessionstart-run.sh"
   chmod +x "$repo/bin/"*.sh
-  out=$(FM_GUARD_LOG="$TMP_ROOT/guard/guard.log" FM_HOME="$home" EXT="$repo/.omp/extensions/fm-primary-turnend-guard.ts" node --input-type=module 2>&1 <<'EOF'
+  out=$(FM_GUARD_LOG="$TMP_ROOT/guard/guard.log" MY_FM_HOME="$home" EXT="$repo/.omp/extensions/fm-primary-turnend-guard.ts" node --input-type=module 2>&1 <<'EOF'
 import { pathToFileURL } from "node:url";
 import { readFileSync, existsSync } from "node:fs";
 const handlers = new Map();
@@ -504,7 +504,7 @@ const r2 = await handlers.get("session_stop")({ type: "session_stop", stop_hook_
 if (r2 !== undefined) throw new Error(`the flagged second stop must stand down, got ${JSON.stringify(r2)}`);
 const payloads = readFileSync(process.env.FM_GUARD_LOG, "utf8").trim().split("\n");
 if (payloads.join("|") !== '{"stop_hook_active":false}|{"stop_hook_active":true}') throw new Error(`guard payloads were ${payloads.join("|")}`);
-if (!existsSync(`${process.env.FM_HOME}/state/.omp-turnend-extension-loaded`)) throw new Error("loaded marker was not written");
+if (!existsSync(`${process.env.MY_FM_HOME}/state/.omp-turnend-extension-loaded`)) throw new Error("loaded marker was not written");
 await handlers.get("session_shutdown")({}, {});
 EOF
 )
@@ -524,8 +524,8 @@ test_watch_extension_arms_and_delivers() {
   cat > "$repo/bin/fm-watch-arm.sh" <<'SH'
 #!/usr/bin/env bash
 printf 'watcher: started pid=%s (beacon 0s) recovery-generation=gen-1\n' "$$"
-if [ ! -e "${FM_HOME:?}/state/.e2e-fired" ]; then
-  : > "$FM_HOME/state/.e2e-fired"
+if [ ! -e "${MY_FM_HOME:?}/state/.e2e-fired" ]; then
+  : > "$MY_FM_HOME/state/.e2e-fired"
   sleep 1
   printf 'signal: omp-e2e done\n'
   exit 0
@@ -533,11 +533,11 @@ fi
 sleep 30
 SH
   chmod +x "$repo/bin/fm-watch-arm.sh"
-  out=$(FM_HOME="$home" FM_ROOT_OVERRIDE="$repo" FM_OMP_ARM_READY_TIMEOUT_MS=3000 FM_WATCH_REARM_RETRY_LIMIT=1 FM_WATCH_REARM_RETRY_BASE_MS=5 FM_WATCH_REARM_RETRY_MAX_MS=10 \
+  out=$(MY_FM_HOME="$home" FM_ROOT_OVERRIDE="$repo" FM_OMP_ARM_READY_TIMEOUT_MS=3000 FM_WATCH_REARM_RETRY_LIMIT=1 FM_WATCH_REARM_RETRY_BASE_MS=5 FM_WATCH_REARM_RETRY_MAX_MS=10 \
     EXT="$repo/.omp/extensions/fm-primary-omp-watch.ts" node --input-type=module 2>&1 <<'EOF'
 import { pathToFileURL } from "node:url";
 import { writeFileSync, existsSync, readFileSync } from "node:fs";
-writeFileSync(`${process.env.FM_HOME}/state/.lock`, `${process.pid}\n`);
+writeFileSync(`${process.env.MY_FM_HOME}/state/.lock`, `${process.pid}\n`);
 const handlers = new Map(); let tool = null; let command = null; const sent = [];
 const pi = {
   on(e, h) { handlers.set(e, h); },
@@ -553,7 +553,7 @@ if (!command) throw new Error("/fm-watch-arm-omp was not registered");
 if (tool.parameters?.type !== "object") throw new Error("tool parameters must be an empty object schema");
 const result = await tool.execute();
 if (!/^watcher: started omp extension arm child 1;/.test(result.content[0].text)) throw new Error(`unexpected arm result: ${result.content[0].text}`);
-const marker = readFileSync(`${process.env.FM_HOME}/state/.omp-watch-extension-loaded`, "utf8").split("\n");
+const marker = readFileSync(`${process.env.MY_FM_HOME}/state/.omp-watch-extension-loaded`, "utf8").split("\n");
 if (marker[1] !== String(process.pid)) throw new Error("loaded marker must record the session pid");
 const again = await tool.execute();
 if (!/^watcher: unchanged - omp extension already owns an arm child/.test(again.content[0].text)) throw new Error(`redundant arm was not an ownership no-op: ${again.content[0].text}`);
@@ -564,7 +564,7 @@ if (sent[0].o?.deliverAs !== "followUp") throw new Error("wake must be delivered
 // The wake is consumed when omp starts the next run with that exact prompt.
 await handlers.get("before_agent_start")({ type: "before_agent_start", prompt: sent[0].m }, {});
 await handlers.get("session_shutdown")({}, {});
-if (existsSync(`${process.env.FM_HOME}/state/extensions/omp-primary-watch/session-replacement-actionable.json`)) throw new Error("a consumed wake must not ride the replacement handoff");
+if (existsSync(`${process.env.MY_FM_HOME}/state/extensions/omp-primary-watch/session-replacement-actionable.json`)) throw new Error("a consumed wake must not ride the replacement handoff");
 process.exit(0);
 EOF
 )

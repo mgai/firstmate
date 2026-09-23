@@ -275,7 +275,7 @@ The isolated process and endpoint checks used:
 tmux display-message -p -t "$target" '#{pane_current_command}'
 ps -o comm= -p "$wrapper_pid"
 ps -o comm= -p "$engine_pid"
-FM_HOME="$fixture_home" bin/fm-crew-state.sh "$task_id"
+MY_FM_HOME="$fixture_home" bin/fm-crew-state.sh "$task_id"
 ```
 
 Observed bounded shapes:
@@ -2112,7 +2112,7 @@ A second regression holds a branch settlement open while the verified successor 
 ### 2026-09-04 off-thread supervision outcome delivery
 
 The real-TUI responsiveness guard, focused extension suite, store suite, and strict typecheck were run on macOS 26.5.0 arm64, Node v24.13.1, tmux 3.6a, against the signed Pi launcher 0.82.0 for the TUI arms and the npm `@earendil-works/pi-coding-agent` 0.81.1 package for the typecheck.
-The lab used a scratch `FM_HOME`, a scratch project holding a copy of the tracked extension, a private tmux socket, a scratch session directory, and `--offline`; only `/new` was ever sent, so no model turn ran and no request left the machine, and the captain's own Pi session was not touched.
+The lab used a scratch `MY_FM_HOME`, a scratch project holding a copy of the tracked extension, a private tmux socket, a scratch session directory, and `--offline`; only `/new` was ever sent, so no model turn ran and no request left the machine, and the captain's own Pi session was not touched.
 
 ```sh
 FM_PI_BRANCH_RESPONSIVENESS_E2E=1 bash tests/fm-pi-branch-responsiveness-live-e2e.test.sh

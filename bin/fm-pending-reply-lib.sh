@@ -17,9 +17,9 @@
 # records, and never treat wrong-home or structured-home heuristics as
 # acknowledgement. A same-basename restatement-copy of the mate home's
 # state/<task_id>.status onto the parent channel is a repair of the
-# FM_HOME-relative mixup, not acknowledgement of an arbitrary mate-home file.
+# MY_FM_HOME-relative mixup, not acknowledgement of an arbitrary mate-home file.
 #
-# Record location (parent FM_HOME):
+# Record location (parent MY_FM_HOME):
 #   state/pending-replies/<corr_id>
 # One more durable input, owned by bin/fm-procevent-remote-reply.sh and read
 # here: state/remote-replies/<task_id>.caught-up, the remote reply mirror's
@@ -28,7 +28,7 @@
 #   schema=fm-pending-reply.v1
 #   corr_id=                privacy-safe correlation token
 #   task_id=                secondmate task id in the parent home
-#   parent_home=            absolute parent FM_HOME
+#   parent_home=            absolute parent MY_FM_HOME
 #   parent_status=          absolute path of parent state/<task_id>.status
 #   parent_status_scan_signature=
 #   request_summary=        short sanitized summary (no secrets by design)
@@ -963,7 +963,7 @@ fm_pending_reply_send_recovery() {  # <state-dir> <corr_id>
   else
     if [ -z "$parent_home" ] || [ ! -d "$parent_home" ]; then
       send_status=1
-    elif ! env FM_HOME="$parent_home" FM_PENDING_REPLY_EXISTING_CORR="$corr" \
+    elif ! env MY_FM_HOME="$parent_home" FM_PENDING_REPLY_EXISTING_CORR="$corr" \
       "$_FM_PENDING_REPLY_LIB_DIR/fm-send.sh" "$task_id" "$msg"; then
       send_status=1
     fi

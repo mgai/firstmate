@@ -42,7 +42,7 @@ printf 'fixture\n' > "$REMOTE_ROOT/AGENTS.md"
 cat > "$REMOTE_ROOT/bin/fm-probe-job.sh" <<'SH'
 #!/bin/bash
 set -u
-printf 'home=%s\nroot=%s\nactive=%s\npath=%s\n' "$FM_HOME" "$FM_ROOT_OVERRIDE" "${FM_REMOTE_JOB_ACTIVE:-}" "$PATH"
+printf 'home=%s\nroot=%s\nactive=%s\npath=%s\n' "$MY_FM_HOME" "$FM_ROOT_OVERRIDE" "${FM_REMOTE_JOB_ACTIVE:-}" "$PATH"
 printf 'args:'
 printf ' <%s>' "$@"
 printf '\n'
@@ -215,7 +215,7 @@ JOB_DIR="$STATE_ROOT/jobs/$JOB_ID"
 fm_remote_job_wait "$ACCOUNT_HOME" "$JOB_ID" || fail "$FM_REMOTE_JOB_ERROR"
 [ "$FM_REMOTE_JOB_EXIT" -eq 0 ] || fail "the completed probe did not preserve exit status"
 OUT=$(<"$FM_REMOTE_JOB_STDOUT")
-assert_contains "$OUT" "home=$REMOTE_HOME" "the worker did not pass the staged FM_HOME"
+assert_contains "$OUT" "home=$REMOTE_HOME" "the worker did not pass the staged MY_FM_HOME"
 assert_contains "$OUT" "root=$REMOTE_ROOT" "the worker did not pass the configured root"
 assert_contains "$OUT" 'active=1' "the target did not execute inside the worker environment"
 # shellcheck disable=SC2016 # Literal shell-looking expected output is an injection probe.

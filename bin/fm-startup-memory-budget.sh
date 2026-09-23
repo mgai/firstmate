@@ -14,9 +14,9 @@ set -eu
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FM_ROOT="${FM_ROOT_OVERRIDE:-$(cd "$SCRIPT_DIR/.." && pwd)}"
-FM_HOME="${FM_HOME:-${FM_ROOT_OVERRIDE:-$FM_ROOT}}"
-CONFIG="${FM_CONFIG_OVERRIDE:-$FM_HOME/config}"
-DATA="${FM_DATA_OVERRIDE:-$FM_HOME/data}"
+MY_FM_HOME="${MY_FM_HOME:-${FM_ROOT_OVERRIDE:-$FM_ROOT}}"
+CONFIG="${FM_CONFIG_OVERRIDE:-$MY_FM_HOME/config}"
+DATA="${FM_DATA_OVERRIDE:-$MY_FM_HOME/data}"
 
 # shellcheck source=bin/fm-startup-memory-budget-lib.sh
 . "$SCRIPT_DIR/fm-startup-memory-budget-lib.sh"
@@ -43,7 +43,7 @@ report() {
     return 2
   fi
 
-  if [ -e "$FM_HOME/.fm-secondmate-home" ] || [ -L "$FM_HOME/.fm-secondmate-home" ]; then
+  if [ -e "$MY_FM_HOME/.fm-secondmate-home" ] || [ -L "$MY_FM_HOME/.fm-secondmate-home" ]; then
     role=secondmate
   fi
 

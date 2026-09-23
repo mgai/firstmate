@@ -229,7 +229,7 @@ add_repo_backed_mate() {  # <case-dir> <id> [harness] [backend]
 run_update_in_case() {
   local dir=$1
   env PATH="$dir/fakebin:$PATH" FM_FAKE_DIR="$dir/fake" \
-    FM_ROOT_OVERRIDE="$dir/fmrepo" FM_HOME="$dir/home" \
+    FM_ROOT_OVERRIDE="$dir/fmrepo" MY_FM_HOME="$dir/home" \
     FM_SSH_BIN="${FM_TEST_SSH_BIN:-ssh}" \
     "$ROOT/bin/fm-update.sh" 2>/dev/null
 }
@@ -243,7 +243,7 @@ arm_answer() {
 
 run_restart() {  # <case-dir> <args...>
   local dir=$1; shift
-  env PATH="$dir/fakebin:$PATH" FM_HOME="$dir/home" FM_FAKE_DIR="$dir/fake" \
+  env PATH="$dir/fakebin:$PATH" MY_FM_HOME="$dir/home" FM_FAKE_DIR="$dir/fake" \
     FM_SPAWN_NO_GUARD=1 FM_SECONDMATE_PERSIST_POLL=1 \
     FM_SECONDMATE_PERSIST_WAIT="${FM_TEST_PERSIST_WAIT:-30}" \
     FM_CONTROL_POLL=0.01 FM_CONTROL_EXIT_WAIT=0.05 FM_CONTROL_LAUNCH_WAIT=0.05 \
@@ -731,9 +731,9 @@ test_result_published_while_reaping_is_honored() {
   cat > "$dir/fakebin/ps" <<'SH'
 #!/usr/bin/env bash
 if [ -e "$FM_FAKE_DIR/remote-relaunch-start" ] && [ ! -e "$FM_FAKE_DIR/result-race-injected" ]; then
-  result=$(find "$FM_HOME/state" -maxdepth 2 -name '0.result' -print -quit)
+  result=$(find "$MY_FM_HOME/state" -maxdepth 2 -name '0.result' -print -quit)
   if [ -z "$result" ]; then
-    result_dir=$(find "$FM_HOME/state" -maxdepth 1 -type d -name '.secondmate-restart.*' -print -quit)
+    result_dir=$(find "$MY_FM_HOME/state" -maxdepth 1 -type d -name '.secondmate-restart.*' -print -quit)
     if [ -n "$result_dir" ]; then
       printf 'restarted: sm1 on remote-mac (claude)\n' > "$result_dir/0.result"
       : > "$FM_FAKE_DIR/result-race-injected"

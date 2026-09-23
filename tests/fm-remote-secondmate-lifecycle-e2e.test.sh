@@ -34,7 +34,7 @@ cleanup() {
   local worker_pid='' wait_attempt=0
   touch "$TMP_ROOT/provision.release" "$TMP_ROOT/seed.release" "$TMP_ROOT/handoff.release" \
     "$TMP_ROOT/inherit.release" "$TMP_ROOT/launch.release" 2>/dev/null || true
-  FM_HOME="$PARENT" FM_PROCEVENT_CLAIM_ROOT="$CLAIMS" \
+  MY_FM_HOME="$PARENT" FM_PROCEVENT_CLAIM_ROOT="$CLAIMS" \
     "$ROOT/bin/fm-procevent.sh" sweep-home >/dev/null 2>&1 || true
   if [ -f "$TMP_ROOT/remote-jobs/worker.pid" ]; then
     worker_pid=$(cat "$TMP_ROOT/remote-jobs/worker.pid")
@@ -249,7 +249,7 @@ chmod +x "$FAKEBIN/fake-ssh"
 
 publish_healthy_watcher_identity() { # <state> <home> <watch-script>
   local state=$1 home=$2 watch=$3 identity
-  identity=$(FM_HOME="$PARENT" FM_STATE_OVERRIDE="$PARENT/state" /bin/bash -c \
+  identity=$(MY_FM_HOME="$PARENT" FM_STATE_OVERRIDE="$PARENT/state" /bin/bash -c \
     '. "$1"; fm_pid_identity "$2"' _ "$ROOT/bin/fm-wake-lib.sh" "$$") \
     || fail "could not derive fixture watcher identity"
   mkdir -p "$state/.watch.lock"
@@ -261,7 +261,7 @@ publish_healthy_watcher_identity() { # <state> <home> <watch-script>
 }
 
 remote_env() {
-  FM_HOME="$PARENT" \
+  MY_FM_HOME="$PARENT" \
   FM_ROOT_OVERRIDE="$REMOTE_ROOT" \
   FM_PROCEVENT_CLAIM_ROOT="$CLAIMS" \
   FM_SSH_BIN="$FAKEBIN/fake-ssh" \
@@ -298,7 +298,7 @@ newest_remote_inbox_corr() {
 }
 
 seed_env() {
-  FM_HOME="$TMP_ROOT/seed-parent" \
+  MY_FM_HOME="$TMP_ROOT/seed-parent" \
   FM_ROOT_OVERRIDE="$REMOTE_ROOT" \
   FM_PROCEVENT_CLAIM_ROOT="$CLAIMS" \
   FM_SSH_BIN="$FAKEBIN/fake-ssh" \
@@ -332,7 +332,7 @@ printf 'schema=fm-remote-home-provision.v1\nid_b64=%s\ncharter_b64=%s\nproject_c
   "$(printf ios | base64 | tr -d '\n')" \
   "$(printf 'Concurrent provisioning charter.\n' | base64 | tr -d '\n')" \
   > "$TMP_ROOT/provision.manifest"
-PATH="$FAKEBIN:$PATH" FM_HOME="$TMP_ROOT/concurrent-home" FM_ROOT_OVERRIDE="$REMOTE_ROOT" \
+PATH="$FAKEBIN:$PATH" MY_FM_HOME="$TMP_ROOT/concurrent-home" FM_ROOT_OVERRIDE="$REMOTE_ROOT" \
   "$REMOTE_ROOT/bin/fm-remote-home-provision.sh" < "$TMP_ROOT/provision.manifest" \
   > "$TMP_ROOT/provision-one.out" 2>&1 &
 provision_one=$!
@@ -343,7 +343,7 @@ while [ ! -f "$TMP_ROOT/provision.entered" ]; do
   [ "$provision_wait" -le 250 ] || fail "first provisioning attempt never reached cloning"
   sleep 0.02
 done
-PATH="$FAKEBIN:$PATH" FM_HOME="$TMP_ROOT/concurrent-home" FM_ROOT_OVERRIDE="$REMOTE_ROOT" \
+PATH="$FAKEBIN:$PATH" MY_FM_HOME="$TMP_ROOT/concurrent-home" FM_ROOT_OVERRIDE="$REMOTE_ROOT" \
   "$REMOTE_ROOT/bin/fm-remote-home-provision.sh" < "$TMP_ROOT/provision.manifest" \
   > "$TMP_ROOT/provision-two.out" 2>&1 &
 provision_two=$!
@@ -552,7 +552,7 @@ printf 'schema=fm-remote-home-provision.v1\nid_b64=%s\ncharter_b64=%s\nproject_c
   "$(printf -- '- beta [direct-PR] - beta project (added 2026-08-06)' | base64 | tr -d '\n')" \
   "$(printf direct-PR | base64 | tr -d '\n')" \
   > "$TMP_ROOT/unsafe-origin.manifest"
-if FM_HOME="$TMP_ROOT/unsafe-origin-home" FM_ROOT_OVERRIDE="$REMOTE_ROOT" \
+if MY_FM_HOME="$TMP_ROOT/unsafe-origin-home" FM_ROOT_OVERRIDE="$REMOTE_ROOT" \
   "$REMOTE_ROOT/bin/fm-remote-home-provision.sh" < "$TMP_ROOT/unsafe-origin.manifest" \
   > "$TMP_ROOT/unsafe-origin.out" 2>&1; then
   fail "remote provisioning accepted an origin the transport had not validated"
@@ -679,18 +679,18 @@ mkdir -p "$PROTOCOL_HOME/config" "$PROTOCOL_HOME/data" "$PROTOCOL_HOME/state"
 printf 'complete inherited payload\n' > "$TMP_ROOT/inherit-complete"
 inherit_bytes=$(LC_ALL=C wc -c < "$TMP_ROOT/inherit-complete" | tr -d ' ')
 inherit_hash=$(sha256_file "$TMP_ROOT/inherit-complete")
-if printf 'complete' | FM_HOME="$PROTOCOL_HOME" "$REMOTE_ROOT/bin/fm-remote-inherit.sh" \
+if printf 'complete' | MY_FM_HOME="$PROTOCOL_HOME" "$REMOTE_ROOT/bin/fm-remote-inherit.sh" \
   put config/crew-harness "$inherit_bytes" "$inherit_hash" 1 >/dev/null 2>&1; then
   fail "remote inheritance published a truncated payload"
 fi
 assert_absent "$PROTOCOL_HOME/config/crew-harness" "truncated inheritance published a destination"
-FM_HOME="$PROTOCOL_HOME" "$REMOTE_ROOT/bin/fm-remote-inherit.sh" \
+MY_FM_HOME="$PROTOCOL_HOME" "$REMOTE_ROOT/bin/fm-remote-inherit.sh" \
   put config/crew-harness "$inherit_bytes" "$inherit_hash" 2 \
   < "$TMP_ROOT/inherit-complete" >/dev/null
 printf 'stale inherited payload\n' > "$TMP_ROOT/inherit-stale"
 inherit_stale_bytes=$(LC_ALL=C wc -c < "$TMP_ROOT/inherit-stale" | tr -d ' ')
 inherit_stale_hash=$(sha256_file "$TMP_ROOT/inherit-stale")
-if FM_HOME="$PROTOCOL_HOME" "$REMOTE_ROOT/bin/fm-remote-inherit.sh" \
+if MY_FM_HOME="$PROTOCOL_HOME" "$REMOTE_ROOT/bin/fm-remote-inherit.sh" \
   put config/crew-harness "$inherit_stale_bytes" "$inherit_stale_hash" 1 \
   < "$TMP_ROOT/inherit-stale" >/dev/null 2>&1; then
   fail "remote inheritance accepted a superseded payload generation"
@@ -1037,7 +1037,7 @@ resolve_ios_pending
 
 # Structured fleet state comes from each home's published ledger. The remote
 # host is explicit, and the local route remains alongside it.
-FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$LOCAL_HOME" \
+FM_ROOT_OVERRIDE="$ROOT" MY_FM_HOME="$LOCAL_HOME" \
   "$ROOT/bin/fm-home-summary-refresh.sh" >/dev/null \
   || fail "local fixture did not publish its home ledger"
 remote_env "$ROOT/bin/fm-on.sh" ios fm-home-summary-refresh.sh >/dev/null \
@@ -1120,7 +1120,7 @@ pass "startup repairs remote readiness before probing without relaunching"
 # the live endpoint through the accepted client.
 make_herdr_client_pair "$TMP_ROOT/client-pair" 0.7.1 14 0.7.5 16
 export FM_HERDR_PAIR_DIR="$TMP_ROOT/client-pair"
-SHADOWED_STATE=$(FM_HOME="$REMOTE_HOME" FM_ROOT_OVERRIDE="$REMOTE_ROOT" \
+SHADOWED_STATE=$(MY_FM_HOME="$REMOTE_HOME" FM_ROOT_OVERRIDE="$REMOTE_ROOT" \
   PATH="$TMP_ROOT/client-pair/stale:$REMOTE_ROOT/bin:$TMP_ROOT/client-pair/tools:/usr/bin:/bin" \
   "$REMOTE_ROOT/bin/fm-remote-secondmate-control.sh" state ios 2>"$TMP_ROOT/shadowed-state.err")
 [ "$SHADOWED_STATE" = alive ] \
@@ -1239,13 +1239,13 @@ assert_present "$REMOTE_HOME" "unsafe pending-replies retirement removed the rem
 assert_present "$TMP_ROOT/external-pending/escape" "unsafe retirement removed an external pending reply"
 rm -f "$PARENT/state/pending-replies"
 mv "$PARENT/state/pending-replies.safe" "$PARENT/state/pending-replies"
-retired_wake_corr=$(FM_HOME="$PARENT" bash -c '
+retired_wake_corr=$(MY_FM_HOME="$PARENT" bash -c '
   . "$1"
   fm_pending_reply_create "$2" "$2/state" ios "New routed work is in your backlog."
 ' _ "$ROOT/bin/fm-pending-reply-lib.sh" "$PARENT") \
   || fail "could not seed remote receiver wake retirement state"
 retired_wake_rec="$PARENT/state/pending-replies/$retired_wake_corr"
-FM_HOME="$PARENT" bash -c '
+MY_FM_HOME="$PARENT" bash -c '
   . "$1"
   fm_pending_reply_set "$2" phase resolved
   fm_pending_reply_set "$2" delivered_epoch 1
@@ -1253,7 +1253,7 @@ FM_HOME="$PARENT" bash -c '
   || fail "could not settle remote receiver wake retirement state"
 printf 'confirmed:%s\n' "$retired_wake_corr" > "$PARENT/state/.backlog-handoff-ios.wake-pending"
 handoff_lock="$PARENT/state/.backlog-handoff-ios.lock"
-FM_HOME="$PARENT" /bin/bash -c '
+MY_FM_HOME="$PARENT" /bin/bash -c '
   . "$1"
   fm_lock_acquire_wait "$2"
   touch "$3"

@@ -8,7 +8,7 @@
 # "workspace-per-home" pass (AGENTS.md task herdr-sm-spaces-k4). Herdr is a
 # session provider ONLY (D3): the worktree provider stays treehouse, exactly
 # like tmux. Sourced only through bin/fm-backend.sh's fm_backend_source in
-# normal operation; the unit tests source it directly, so the FM_HOME fallback
+# normal operation; the unit tests source it directly, so the MY_FM_HOME fallback
 # below keeps that path sane without fm-backend.sh's preamble.
 #
 # Default container shape (D4, decided empirically - see
@@ -60,8 +60,8 @@
 # through fm_backend_required_tools only when herdr is the resolved backend;
 # this adapter also gates them again before spawning.
 
-# FM_HOME fallback: every real caller (fm-spawn.sh, fm-peek.sh, fm-send.sh,
-# fm-teardown.sh, fm-watch.sh, fm-crew-state.sh) already sets FM_HOME as a
+# MY_FM_HOME fallback: every real caller (fm-spawn.sh, fm-peek.sh, fm-send.sh,
+# fm-teardown.sh, fm-watch.sh, fm-crew-state.sh) already sets MY_FM_HOME as a
 # global before sourcing fm-backend.sh (which sources this file), so this
 # never overrides a real invocation. It exists only so this file's own unit
 # tests, which source it directly without that preamble, resolve to a sane
@@ -70,7 +70,7 @@
 # pre-P3 behavior when a test does not care about home-specific labeling).
 FM_BACKEND_HERDR_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 FM_ROOT="${FM_ROOT_OVERRIDE:-${FM_ROOT:-$FM_BACKEND_HERDR_ROOT}}"
-FM_HOME="${FM_HOME:-${FM_ROOT_OVERRIDE:-$FM_ROOT}}"
+MY_FM_HOME="${MY_FM_HOME:-${FM_ROOT_OVERRIDE:-$FM_ROOT}}"
 
 # Shared composer-content classifier (empty|pending|unknown, and the fleet-wide
 # dead-shell-vs-agent-composer rule). Owned by bin/fm-composer-lib.sh, reused by
@@ -350,15 +350,15 @@ fm_backend_herdr_presentation_enabled() {  # <config-dir> [<state-dir>]
 # every pre-existing task's recorded label - no forced migration. A SECONDMATE
 # home resolves to "2ndmate-<secondmate-id>", so its tasks land in their own
 # workspace, obviously distinguishable from the primary's (and from every
-# other secondmate's) in herdr's spaces sidebar. Read fresh from FM_HOME on
-# every call rather than cached at source time: FM_HOME is the home's own
+# other secondmate's) in herdr's spaces sidebar. Read fresh from MY_FM_HOME on
+# every call rather than cached at source time: MY_FM_HOME is the home's own
 # durable identity, not env plumbing threaded through a call chain, so the
 # label is automatically stable across every respawn/recovery for the life of
-# that home. fm-spawn.sh briefly shadows FM_HOME to a secondmate's own home
-# when the PRIMARY spawns that secondmate (its own process's FM_HOME still
+# that home. fm-spawn.sh briefly shadows MY_FM_HOME to a secondmate's own home
+# when the PRIMARY spawns that secondmate (its own process's MY_FM_HOME still
 # names the primary at that point) - see fm-spawn.sh's herdr case arm.
 fm_backend_herdr_workspace_label() {
-  local marker="$FM_HOME/$FM_BACKEND_HERDR_SECONDMATE_MARKER" id
+  local marker="$MY_FM_HOME/$FM_BACKEND_HERDR_SECONDMATE_MARKER" id
   if [ -f "$marker" ]; then
     id=$(tr -d '[:space:]' < "$marker" 2>/dev/null)
     if [ -n "$id" ]; then
@@ -1457,7 +1457,7 @@ fm_backend_herdr_pane_idle_shell_sample() {  # <session> <pane-id>
 # returned by THIS projected create immediately after its owning parent's
 # contiguous child block and before the next parent.
 #
-# <parent-label> is the owning FM_HOME label (firstmate or 2ndmate-<id>).
+# <parent-label> is the owning MY_FM_HOME label (firstmate or 2ndmate-<id>).
 # Optional <parent-workspace-id> is that parent's EXACT id, which the caller
 # already resolved from the launching agent's own herdr identity. When given it
 # anchors the owning parent by id, so two workspaces sharing the home label no
@@ -1658,7 +1658,7 @@ fm_backend_herdr_server_ensure() {  # <session>
   running=$(fm_backend_herdr_cli "$session" status --json 2>/dev/null | jq -r '.server.running // false' 2>/dev/null)
   [ "$running" = "true" ] && return 0
   (
-    unset FM_HOME FM_ROOT_OVERRIDE FM_STATE_OVERRIDE FM_DATA_OVERRIDE FM_PROJECTS_OVERRIDE FM_CONFIG_OVERRIDE \
+    unset MY_FM_HOME FM_ROOT_OVERRIDE FM_STATE_OVERRIDE FM_DATA_OVERRIDE FM_PROJECTS_OVERRIDE FM_CONFIG_OVERRIDE \
       CURSOR_AGENT CURSOR_INVOKED_AS CLAUDECODE PI_CODING_AGENT FM_PI_HARNESS GROK_AGENT FM_SUPERVISION_MODEL
     fm_backend_herdr_cli "$session" server >/dev/null 2>&1 &
   ) || return 1
@@ -3587,7 +3587,7 @@ EOF
 # guaranteed stable across every server lifecycle (see herdr-verification-p2.md
 # "ID stability"). A caller running as a given home (e.g. a secondmate
 # recovering its own in-flight work) naturally scopes to that home's own
-# workspace because FM_HOME already names it - no glue needed, unlike the
+# workspace because MY_FM_HOME already names it - no glue needed, unlike the
 # primary-spawns-a-secondmate path in fm-spawn.sh. Read-only: a session/
 # workspace that does not exist yet simply lists nothing. One
 # "<session>:<pane_id>\t<label>" line per live task tab.

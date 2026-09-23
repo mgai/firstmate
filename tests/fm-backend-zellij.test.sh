@@ -236,7 +236,7 @@ test_scoped_title_uses_primary_home_label() {
   local dir out expected
   dir="$TMP_ROOT/scoped-title-primary"; mkdir -p "$dir"
   expected=$(zellij_expected_scoped_title fm-task1 "$dir")
-  out=$( FM_HOME="$dir" bash -c '. "$0/bin/backends/zellij.sh"; fm_backend_zellij_scoped_title fm-task1' "$ROOT" )
+  out=$( MY_FM_HOME="$dir" bash -c '. "$0/bin/backends/zellij.sh"; fm_backend_zellij_scoped_title fm-task1' "$ROOT" )
   [ "$out" = "$expected" ] || fail "primary scoped title should be $expected, got '$out'"
   pass "fm_backend_zellij_scoped_title: scopes a primary task title with firstmate plus root hash"
 }
@@ -246,7 +246,7 @@ test_scoped_title_uses_secondmate_home_label() {
   dir="$TMP_ROOT/scoped-title-secondmate"; mkdir -p "$dir"
   printf 'sm-one\n' > "$dir/.fm-secondmate-home"
   expected=$(zellij_expected_scoped_title fm-task1 "$dir")
-  out=$( FM_HOME="$dir" bash -c '. "$0/bin/backends/zellij.sh"; fm_backend_zellij_scoped_title fm-task1' "$ROOT" )
+  out=$( MY_FM_HOME="$dir" bash -c '. "$0/bin/backends/zellij.sh"; fm_backend_zellij_scoped_title fm-task1' "$ROOT" )
   [ "$out" = "$expected" ] || fail "secondmate scoped title should be $expected, got '$out'"
   pass "fm_backend_zellij_scoped_title: scopes a secondmate task title with the home marker plus root hash"
 }
@@ -257,8 +257,8 @@ test_scoped_title_changes_with_root_path() {
   mkdir -p "$home" "$root_one" "$root_two"
   expected_one=$(zellij_expected_scoped_title fm-task1 "$home" "$root_one")
   expected_two=$(zellij_expected_scoped_title fm-task1 "$home" "$root_two")
-  out_one=$( FM_HOME="$home" FM_ROOT_OVERRIDE="$root_one" bash -c '. "$0/bin/backends/zellij.sh"; fm_backend_zellij_scoped_title fm-task1' "$ROOT" )
-  out_two=$( FM_HOME="$home" FM_ROOT_OVERRIDE="$root_two" bash -c '. "$0/bin/backends/zellij.sh"; fm_backend_zellij_scoped_title fm-task1' "$ROOT" )
+  out_one=$( MY_FM_HOME="$home" FM_ROOT_OVERRIDE="$root_one" bash -c '. "$0/bin/backends/zellij.sh"; fm_backend_zellij_scoped_title fm-task1' "$ROOT" )
+  out_two=$( MY_FM_HOME="$home" FM_ROOT_OVERRIDE="$root_two" bash -c '. "$0/bin/backends/zellij.sh"; fm_backend_zellij_scoped_title fm-task1' "$ROOT" )
   [ "$out_one" = "$expected_one" ] || fail "scoped title should include root-one hash as $expected_one, got '$out_one'"
   [ "$out_two" = "$expected_two" ] || fail "scoped title should include root-two hash as $expected_two, got '$out_two'"
   [ "$out_one" != "$out_two" ] || fail "scoped titles should differ for distinct FM_ROOT paths"
@@ -1238,7 +1238,7 @@ SH
     "fm-peek did not route the explicit metadata-matched target through zellij capture"
 
   : > "$dir/log"
-  PATH="$fb:$PATH" FM_ROOT_OVERRIDE="$neutral" FM_HOME="$neutral" FM_STATE_OVERRIDE="$state" \
+  PATH="$fb:$PATH" FM_ROOT_OVERRIDE="$neutral" MY_FM_HOME="$neutral" FM_STATE_OVERRIDE="$state" \
     FM_ZELLIJ_LOG="$dir/log" FM_ZELLIJ_RESPONSES="$dir/responses" FM_ZELLIJ_SESSION_LIST="firstmate" \
     "$ROOT/bin/fm-send.sh" firstmate:7 --key Escape >/dev/null 2>&1
   expect_code 0 $? "fm-send --key should route an explicit metadata-matched target through zellij"
@@ -1281,7 +1281,7 @@ test_scripts_reject_fm_target_label_mismatch() {
   zellij_tab_response "$dir" 2 3 not-the-task
   fb=$(make_zellij_fakebin "$dir")
 
-  PATH="$fb:$PATH" FM_ROOT_OVERRIDE="$neutral" FM_HOME="$neutral" FM_STATE_OVERRIDE="$state" \
+  PATH="$fb:$PATH" FM_ROOT_OVERRIDE="$neutral" MY_FM_HOME="$neutral" FM_STATE_OVERRIDE="$state" \
     FM_ZELLIJ_LOG="$dir/log" FM_ZELLIJ_RESPONSES="$dir/responses" FM_ZELLIJ_SESSION_LIST="firstmate" \
     "$ROOT/bin/fm-send.sh" fm-zreuse --key Escape >/dev/null 2>&1
   status=$?

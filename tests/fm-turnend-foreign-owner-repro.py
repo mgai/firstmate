@@ -48,7 +48,7 @@ def make(name):
     (root / "state/task.meta").write_text("project=synthetic\n")
     (root / "state/home-summary.json").write_text("{}\n")
     env = BASE_ENV | {
-        "FM_HOME": str(root),
+        "MY_FM_HOME": str(root),
         "FM_ROOT_OVERRIDE": str(root),
         "FM_STATE_OVERRIDE": str(root / "state"),
         "FM_CONFIG_OVERRIDE": str(root / "config"),
@@ -148,7 +148,7 @@ try:
     root, env = make("nonowner")
     owner = start(
         env,
-        '"$FM_ROOT_OVERRIDE/bin/fm-lock.sh" && touch "$FM_HOME/state/owner-ready" && while :; do sleep 1; done',
+        '"$FM_ROOT_OVERRIDE/bin/fm-lock.sh" && touch "$MY_FM_HOME/state/owner-ready" && while :; do sleep 1; done',
         "owner-idle.txt",
     )
     lock_path = root / "state/.lock"
@@ -219,7 +219,7 @@ try:
     same_env["CLAUDE_CODE_SESSION_ID"] = "synthetic-same"
     same_owner = start(
         same_env,
-        'export CLAUDE_PID=$$; "$FM_ROOT_OVERRIDE/bin/fm-lock.sh" && touch "$FM_HOME/state/owner-ready" && while :; do sleep 1; done',
+        'export CLAUDE_PID=$$; "$FM_ROOT_OVERRIDE/bin/fm-lock.sh" && touch "$MY_FM_HOME/state/owner-ready" && while :; do sleep 1; done',
         "same-owner.txt",
     )
     same_lock = same / "state/.lock"
@@ -271,7 +271,7 @@ try:
     sole_owner = run(
         single_env,
         '"$FM_ROOT_OVERRIDE/bin/fm-lock.sh"; . "$FM_ROOT_OVERRIDE/bin/fm-session-lock-lib.sh"; '
-        'if fm_session_lock_owned_by_self "$FM_HOME/state"; then printf "single_owner_verified=1\\n"; fi; '
+        'if fm_session_lock_owned_by_self "$MY_FM_HOME/state"; then printf "single_owner_verified=1\\n"; fi; '
         'printf \'%s\\n\' \'{"session_id":"synthetic-second","stop_hook_active":true}\' | '
         '"$FM_ROOT_OVERRIDE/bin/fm-turnend-guard.sh" --claude; rc=$?; printf "single_owner_guard_rc=%s\\n" "$rc"; true',
     )

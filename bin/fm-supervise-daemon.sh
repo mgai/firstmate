@@ -155,7 +155,7 @@ set -u
 
 FM_DAEMON_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FM_ROOT="${FM_ROOT_OVERRIDE:-$(cd "$FM_DAEMON_DIR/.." && pwd)}"
-FM_HOME="${FM_HOME:-${FM_ROOT_OVERRIDE:-$FM_ROOT}}"
+MY_FM_HOME="${MY_FM_HOME:-${FM_ROOT_OVERRIDE:-$FM_ROOT}}"
 
 # Shared tmux pane primitives for supervisor injection (busy/composer detection
 # + verify-retry submit). Sourced at top level so BOTH the executed daemon and
@@ -238,9 +238,9 @@ LOG_KEEP_LINES_DEFAULT=2000
 AFK_FLAG_NAME=".afk"
 
 # Resolve the effective state dir. FM_STATE_OVERRIDE wins (testing); otherwise
-# $FM_HOME/state. Kept as a function so the pure
+# $MY_FM_HOME/state. Kept as a function so the pure
 # classifiers can take an explicit state arg without depending on globals.
-_state_root() { printf '%s' "${FM_STATE_OVERRIDE:-$FM_HOME/state}"; }
+_state_root() { printf '%s' "${FM_STATE_OVERRIDE:-$MY_FM_HOME/state}"; }
 
 # --- portable stat (same trap as fm-watch.sh: no `stat -f || stat -c`) -------
 if [ "$(uname)" = Darwin ]; then
@@ -751,7 +751,7 @@ wedge_alarm_configured_channels() {
     printf '%s\n' "$FM_WEDGE_ALARM_CHANNEL"
     return 0
   fi
-  cfg="${FM_CONFIG_OVERRIDE:-$FM_HOME/config}/wedge-alarm"
+  cfg="${FM_CONFIG_OVERRIDE:-$MY_FM_HOME/config}/wedge-alarm"
   if [ -f "$cfg" ]; then
     while IFS= read -r line || [ -n "$line" ]; do
       line="${line#"${line%%[![:space:]]*}"}"

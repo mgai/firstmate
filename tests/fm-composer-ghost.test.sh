@@ -665,10 +665,10 @@ test_peek_output_is_escape_free() {
   # A pane full of styling, including dim ghost text. The plain peek path must
   # surface NONE of these escape codes into firstmate's context.
   printf 'normal output line\n\xe2\x9d\xaf \033[2mpredicted next prompt\033[0m\n' > "$capture"
-  # Empty FM_HOME so fm-guard.sh finds no in-flight task and stays silent.
+  # Empty MY_FM_HOME so fm-guard.sh finds no in-flight task and stays silent.
   home="$dir/home"; mkdir -p "$home/state"
   # Pass an explicit session:window so resolution needs no metadata.
-  out=$(PATH="$fb:$PATH" FM_HOME="$home" FM_FAKE_STYLED="$capture" \
+  out=$(PATH="$fb:$PATH" MY_FM_HOME="$home" FM_FAKE_STYLED="$capture" \
         "$PEEK" "sess:win" 2>/dev/null)
   case "$out" in
     *"$ESC"*) fail "fm-peek surfaced ANSI escape codes into LLM-facing output" ;;

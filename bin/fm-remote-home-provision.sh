@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Provision the FM_HOME selected by the fixed remote entrypoint.
+# Provision the MY_FM_HOME selected by the fixed remote entrypoint.
 #
 # Usage:
 #   fm-remote-home-provision.sh < manifest
@@ -21,7 +21,7 @@ set -eu
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FM_ROOT="${FM_ROOT_OVERRIDE:-$(cd "$SCRIPT_DIR/.." && pwd)}"
-FM_HOME=${FM_HOME:?FM_HOME is required}
+MY_FM_HOME=${MY_FM_HOME:?MY_FM_HOME is required}
 MAX_MANIFEST_BYTES=1048576
 
 # shellcheck source=bin/fm-project-origin-lib.sh
@@ -60,7 +60,7 @@ release_provision_lock() {
   fi
 }
 restore_owned_file() { # <relative-path>
-  local rel=$1 dest="$FM_HOME/$1" backup="$TMP/before/$1"
+  local rel=$1 dest="$MY_FM_HOME/$1" backup="$TMP/before/$1"
   if [ -f "$backup.present" ]; then
     mkdir -p "$(dirname "$dest")" || return 1
     cp -p -- "$backup" "$dest.tmp.rollback.$$" || return 1
@@ -73,16 +73,16 @@ rollback() {
   local status=$? project
   if [ "$status" -ne 0 ] && [ "$PUBLISHED" -eq 0 ]; then
     if [ "$CREATED_HOME" -eq 1 ]; then
-      rm -rf -- "$FM_HOME"
+      rm -rf -- "$MY_FM_HOME"
     elif [ "$EXISTING_HOME" -eq 1 ]; then
       while IFS= read -r project; do
-        [ -n "$project" ] && rm -rf -- "$FM_HOME/projects/$project"
+        [ -n "$project" ] && rm -rf -- "$MY_FM_HOME/projects/$project"
       done < "$CREATED_PROJECTS"
       restore_owned_file data/charter.md || true
       restore_owned_file data/projects.md || true
       restore_owned_file .fm-secondmate-home || true
       restore_owned_file .fm-secondmate-parent || true
-      [ "$CREATED_BACKLOG" -eq 0 ] || rm -f -- "$FM_HOME/data/backlog.md"
+      [ "$CREATED_BACKLOG" -eq 0 ] || rm -f -- "$MY_FM_HOME/data/backlog.md"
     fi
   fi
   release_provision_lock
@@ -118,7 +118,7 @@ case "$COUNT" in ''|*[!0-9]*) die "manifest project count is invalid" ;; esac
 RECORDS=$(grep -c '^project=' "$TMP/manifest" 2>/dev/null || true)
 [ "$RECORDS" -eq "$COUNT" ] || die "manifest project count does not match its records"
 
-HOME_PARENT=$(dirname "$FM_HOME")
+HOME_PARENT=$(dirname "$MY_FM_HOME")
 HOME_PARENT_REAL=$(CDPATH='' cd -- "$HOME_PARENT" 2>/dev/null && pwd -P) \
   || die "remote home parent is unavailable"
 [ "$HOME_PARENT_REAL" = "$HOME_PARENT" ] || die "remote home parent is not canonical"
@@ -132,9 +132,9 @@ else
     || die "cannot create remote provisioning lock root"
 fi
 if command -v shasum >/dev/null 2>&1; then
-  HOME_LOCK_KEY=$(printf '%s' "$FM_HOME" | shasum -a 256 | awk '{print $1}')
+  HOME_LOCK_KEY=$(printf '%s' "$MY_FM_HOME" | shasum -a 256 | awk '{print $1}')
 elif command -v sha256sum >/dev/null 2>&1; then
-  HOME_LOCK_KEY=$(printf '%s' "$FM_HOME" | sha256sum | awk '{print $1}')
+  HOME_LOCK_KEY=$(printf '%s' "$MY_FM_HOME" | sha256sum | awk '{print $1}')
 else
   die "no SHA-256 tool is available for provisioning serialization"
 fi
@@ -145,12 +145,12 @@ PROVISION_LOCK="$STATE/.remote-home-provision-$HOME_LOCK_KEY.lock"
 fm_lock_acquire_wait "$PROVISION_LOCK"
 PROVISION_LOCK_HELD=1
 
-if [ -e "$FM_HOME" ] || [ -L "$FM_HOME" ]; then
-  [ -d "$FM_HOME" ] && [ ! -L "$FM_HOME" ] || die "remote home exists but is not a safe directory"
-  [ -f "$FM_HOME/AGENTS.md" ] && [ ! -L "$FM_HOME/AGENTS.md" ] \
-    && [ -d "$FM_HOME/bin" ] && [ ! -L "$FM_HOME/bin" ] || die "existing remote home is not a safe Firstmate checkout"
+if [ -e "$MY_FM_HOME" ] || [ -L "$MY_FM_HOME" ]; then
+  [ -d "$MY_FM_HOME" ] && [ ! -L "$MY_FM_HOME" ] || die "remote home exists but is not a safe directory"
+  [ -f "$MY_FM_HOME/AGENTS.md" ] && [ ! -L "$MY_FM_HOME/AGENTS.md" ] \
+    && [ -d "$MY_FM_HOME/bin" ] && [ ! -L "$MY_FM_HOME/bin" ] || die "existing remote home is not a safe Firstmate checkout"
   for operational_dir in data state config projects; do
-    operational_path="$FM_HOME/$operational_dir"
+    operational_path="$MY_FM_HOME/$operational_dir"
     if [ -e "$operational_path" ] || [ -L "$operational_path" ]; then
       [ -d "$operational_path" ] && [ ! -L "$operational_path" ] \
         || die "remote home has unsafe operational directory: $operational_dir"
@@ -158,7 +158,7 @@ if [ -e "$FM_HOME" ] || [ -L "$FM_HOME" ]; then
   done
   mkdir -p "$TMP/before/data"
   for rel in data/charter.md data/projects.md .fm-secondmate-home .fm-secondmate-parent; do
-    existing="$FM_HOME/$rel"
+    existing="$MY_FM_HOME/$rel"
     if [ -e "$existing" ] || [ -L "$existing" ]; then
       [ -f "$existing" ] && [ ! -L "$existing" ] || die "existing remote home has unsafe owned file: $rel"
       mkdir -p "$(dirname "$TMP/before/$rel")"
@@ -167,17 +167,17 @@ if [ -e "$FM_HOME" ] || [ -L "$FM_HOME" ]; then
     fi
   done
   EXISTING_HOME=1
-  if [ -f "$FM_HOME/.fm-secondmate-home" ]; then
-    [ "$(cat "$FM_HOME/.fm-secondmate-home")" = "$ID" ] || die "existing remote home belongs to another secondmate"
-  elif find "$FM_HOME/data" "$FM_HOME/state" "$FM_HOME/projects" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null | grep -q .; then
+  if [ -f "$MY_FM_HOME/.fm-secondmate-home" ]; then
+    [ "$(cat "$MY_FM_HOME/.fm-secondmate-home")" = "$ID" ] || die "existing remote home belongs to another secondmate"
+  elif find "$MY_FM_HOME/data" "$MY_FM_HOME/state" "$MY_FM_HOME/projects" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null | grep -q .; then
     die "unmarked existing remote home contains operational data"
   fi
 else
   CREATED_HOME=1
-  git clone --quiet -- "$FM_ROOT" "$FM_HOME" || die "could not clone the remote Firstmate home"
+  git clone --quiet -- "$FM_ROOT" "$MY_FM_HOME" || die "could not clone the remote Firstmate home"
 fi
 for operational_dir in data state config projects; do
-  operational_path="$FM_HOME/$operational_dir"
+  operational_path="$MY_FM_HOME/$operational_dir"
   if [ -e "$operational_path" ] || [ -L "$operational_path" ]; then
     [ -d "$operational_path" ] && [ ! -L "$operational_path" ] \
       || die "remote home has unsafe operational directory: $operational_dir"
@@ -185,11 +185,11 @@ for operational_dir in data state config projects; do
     mkdir "$operational_path" || die "cannot create remote operational directory: $operational_dir"
   fi
 done
-if [ -e "$FM_HOME/data/backlog.md" ] || [ -L "$FM_HOME/data/backlog.md" ]; then
-  [ -f "$FM_HOME/data/backlog.md" ] && [ ! -L "$FM_HOME/data/backlog.md" ] \
+if [ -e "$MY_FM_HOME/data/backlog.md" ] || [ -L "$MY_FM_HOME/data/backlog.md" ]; then
+  [ -f "$MY_FM_HOME/data/backlog.md" ] && [ ! -L "$MY_FM_HOME/data/backlog.md" ] \
     || die "remote backlog is not a safe regular file"
 else
-  printf '## In flight\n\n## Queued\n\n## Done\n' > "$FM_HOME/data/backlog.md"
+  printf '## In flight\n\n## Queued\n\n## Done\n' > "$MY_FM_HOME/data/backlog.md"
   CREATED_BACKLOG=1
 fi
 
@@ -221,7 +221,7 @@ EOF
   fm_project_origin_safe "$ORIGIN" || die "project $NAME origin is not an accepted clone URL: $ORIGIN"
   case "$MODE" in no-mistakes|direct-PR) ;; *) die "project $NAME has unsupported remote mode: $MODE" ;; esac
   case "$REGISTRY_LINE" in "- $NAME "*) ;; *) die "project $NAME registry line is malformed" ;; esac
-  DEST="$FM_HOME/projects/$NAME"
+  DEST="$MY_FM_HOME/projects/$NAME"
   if [ -e "$DEST" ] || [ -L "$DEST" ]; then
     [ -d "$DEST" ] && [ ! -L "$DEST" ] && [ -d "$DEST/.git" ] \
       || die "project destination exists but is not a safe clone: $DEST"
@@ -239,21 +239,21 @@ EOF
   printf '%s\n' "$REGISTRY_LINE" >> "$PROJECT_REG"
 done < <(grep '^project=' "$TMP/manifest")
 
-cp "$TMP/charter" "$FM_HOME/data/charter.md.tmp.$$"
-chmod 600 "$FM_HOME/data/charter.md.tmp.$$"
-mv -f -- "$FM_HOME/data/charter.md.tmp.$$" "$FM_HOME/data/charter.md"
-cp "$PROJECT_REG" "$FM_HOME/data/projects.md.tmp.$$"
-mv -f -- "$FM_HOME/data/projects.md.tmp.$$" "$FM_HOME/data/projects.md"
+cp "$TMP/charter" "$MY_FM_HOME/data/charter.md.tmp.$$"
+chmod 600 "$MY_FM_HOME/data/charter.md.tmp.$$"
+mv -f -- "$MY_FM_HOME/data/charter.md.tmp.$$" "$MY_FM_HOME/data/charter.md"
+cp "$PROJECT_REG" "$MY_FM_HOME/data/projects.md.tmp.$$"
+mv -f -- "$MY_FM_HOME/data/projects.md.tmp.$$" "$MY_FM_HOME/data/projects.md"
 {
   printf 'schema=fm-secondmate-parent.v1\n'
   printf 'route=remote\n'
   [ -z "$PARENT_HOST" ] || printf 'parent_host=%s\n' "$PARENT_HOST"
-} > "$FM_HOME/.fm-secondmate-parent.tmp.$$"
-mv -f -- "$FM_HOME/.fm-secondmate-parent.tmp.$$" "$FM_HOME/.fm-secondmate-parent"
-printf '%s\n' "$ID" > "$FM_HOME/.fm-secondmate-home.tmp.$$"
-mv -f -- "$FM_HOME/.fm-secondmate-home.tmp.$$" "$FM_HOME/.fm-secondmate-home"
+} > "$MY_FM_HOME/.fm-secondmate-parent.tmp.$$"
+mv -f -- "$MY_FM_HOME/.fm-secondmate-parent.tmp.$$" "$MY_FM_HOME/.fm-secondmate-parent"
+printf '%s\n' "$ID" > "$MY_FM_HOME/.fm-secondmate-home.tmp.$$"
+mv -f -- "$MY_FM_HOME/.fm-secondmate-home.tmp.$$" "$MY_FM_HOME/.fm-secondmate-home"
 PUBLISHED=1
 release_provision_lock
 trap - EXIT
 rm -rf -- "$TMP"
-printf 'provisioned: %s projects=%s\n' "$FM_HOME" "$COUNT"
+printf 'provisioned: %s projects=%s\n' "$MY_FM_HOME" "$COUNT"

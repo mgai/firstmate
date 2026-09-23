@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Regression tests for fm-guard's watcher-down banner deduplication.
 #
-# The first stale command in one FM_HOME must print the full actionable watcher
+# The first stale command in one MY_FM_HOME must print the full actionable watcher
 # banner.
 # Repeated commands in that same stale episode should print only a concise
 # reminder, while unrelated alarms such as queued wakes stay independent.
@@ -47,7 +47,7 @@ record_live_watcher() {
 run_guard_case() {
   local dir=$1
   FM_ROOT_OVERRIDE="$(case_root "$dir")" \
-    FM_HOME="$(case_home "$dir")" \
+    MY_FM_HOME="$(case_home "$dir")" \
     FM_GUARD_GRACE=999 \
     FM_SUPERVISION_MODEL=persistent \
     "$ROOT/bin/fm-guard.sh" 2>&1
@@ -56,7 +56,7 @@ run_guard_case() {
 run_guard_case_read_only() {
   local dir=$1
   FM_ROOT_OVERRIDE="$(case_root "$dir")" \
-    FM_HOME="$(case_home "$dir")" \
+    MY_FM_HOME="$(case_home "$dir")" \
     FM_GUARD_GRACE=999 \
     FM_SUPERVISION_MODEL=persistent \
     FM_GUARD_READ_ONLY=1 \
@@ -68,7 +68,7 @@ run_guard_case_read_only() {
 run_guard_case_autoarm() {
   local dir=$1
   FM_ROOT_OVERRIDE="$(case_root "$dir")" \
-    FM_HOME="$(case_home "$dir")" \
+    MY_FM_HOME="$(case_home "$dir")" \
     FM_GUARD_GRACE=999 \
     FM_SUPERVISION_MODEL=autoarm \
     "$ROOT/bin/fm-guard.sh" 2>&1
@@ -97,7 +97,7 @@ record_session_lock_pid() {
 run_guard_case_extension() {
   local dir=$1
   FM_ROOT_OVERRIDE="$(case_root "$dir")" \
-    FM_HOME="$(case_home "$dir")" \
+    MY_FM_HOME="$(case_home "$dir")" \
     FM_GUARD_GRACE=999 \
     FM_SUPERVISION_MODEL=extension \
     "$ROOT/bin/fm-guard.sh" 2>&1
@@ -108,7 +108,7 @@ run_guard_case_extension() {
 run_guard_case_extension_as_branch() {
   local dir=$1
   FM_ROOT_OVERRIDE="$(case_root "$dir")" \
-    FM_HOME="$(case_home "$dir")" \
+    MY_FM_HOME="$(case_home "$dir")" \
     FM_GUARD_GRACE=999 \
     FM_SUPERVISION_MODEL=extension \
     FM_SUPERVISION_ACTOR=branch \
@@ -293,7 +293,7 @@ test_home_isolation() {
     || fail "home B first stale call was suppressed by home A: $out_b1"
   assert_contains "$out_a2" "full banner already printed this episode" \
     "home A repeated stale call did not remember its own episode"
-  pass "fm-guard stale banner: deduplication is isolated per FM_HOME"
+  pass "fm-guard stale banner: deduplication is isolated per MY_FM_HOME"
 }
 
 test_queued_wake_warning_stays_independent() {
@@ -768,7 +768,7 @@ test_extension_stale_beacon_alarms_despite_live_session() {
   pid=$!
   record_pi_extension_session "$dir" "$pid" || fail "could not record the Pi extension session"
   out=$(FM_ROOT_OVERRIDE="$(case_root "$dir")" \
-    FM_HOME="$home" \
+    MY_FM_HOME="$home" \
     FM_GUARD_GRACE=1 \
     FM_SUPERVISION_MODEL=extension \
     "$ROOT/bin/fm-guard.sh" 2>&1)
@@ -899,7 +899,7 @@ test_pi_harness_routes_itself_to_the_extension_model() {
       "${pi_env[@]}" \
       PATH="$blind:$PATH" \
       FM_ROOT_OVERRIDE="$(case_root "$dir")" \
-      FM_HOME="$home" \
+      MY_FM_HOME="$home" \
       FM_GUARD_GRACE=999 \
       "$ROOT/bin/fm-guard.sh" 2>&1)
     kill "$pid" 2>/dev/null || true

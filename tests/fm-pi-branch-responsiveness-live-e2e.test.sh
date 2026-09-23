@@ -19,7 +19,7 @@
 # class. Before the asynchronous conversion the loaded arms ran an order of
 # magnitude worse than the floor, which is the regression this guard catches.
 #
-# Nothing global is touched: a scratch FM_HOME, a scratch project holding a
+# Nothing global is touched: a scratch MY_FM_HOME, a scratch project holding a
 # copy of the tracked extension, a private tmux socket, a scratch session
 # directory, --approve (trust for this run only), and --offline. Pi reads the
 # operator's own agent directory because a Pi with no model renders a setup
@@ -59,7 +59,7 @@ OUTCOME_SCRIPT="$ROOT/bin/fm-branch-outcome.sh"
 
 # The store this guard drives is the real one; only the rows are synthetic.
 append_outcome() {
-  FM_HOME="$HOME_DIR" FM_STATE_OVERRIDE="$HOME_DIR/state" FM_ROOT_OVERRIDE="$ROOT" \
+  MY_FM_HOME="$HOME_DIR" FM_STATE_OVERRIDE="$HOME_DIR/state" FM_ROOT_OVERRIDE="$ROOT" \
     bash "$OUTCOME_SCRIPT" append --task lab-task --verdict routine --summary "$1" --silent false >/dev/null \
     || fail "could not seed the outcome store"
 }
@@ -180,7 +180,7 @@ run_arm() {
     pi_args+=(-ne)
   fi
   "$TMUX" -L "$SOCKET" new-session -d -s "$SESSION" -x 200 -y 50 \
-    "FM_HOME='$HOME_DIR' FM_STATE_OVERRIDE='$HOME_DIR/state' FM_CONFIG_OVERRIDE='$HOME_DIR/config' \
+    "MY_FM_HOME='$HOME_DIR' FM_STATE_OVERRIDE='$HOME_DIR/state' FM_CONFIG_OVERRIDE='$HOME_DIR/config' \
      FM_ROOT_OVERRIDE='$ROOT' LAB_PROJECT='$PROJECT' '$LAB/launch.sh' ${pi_args[*]@Q}"
   # The lab project path in Pi's own status line is the readiness signal: it
   # appears only once the TUI has drawn, unlike any prompt character.

@@ -29,9 +29,9 @@ set -eu
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FM_ROOT="${FM_ROOT_OVERRIDE:-$(cd "$SCRIPT_DIR/.." && pwd)}"
-FM_HOME="${FM_HOME:-${FM_ROOT_OVERRIDE:-$FM_ROOT}}"
-STATE="${FM_STATE_OVERRIDE:-$FM_HOME/state}"
-DATA="${FM_DATA_OVERRIDE:-$FM_HOME/data}"
+MY_FM_HOME="${MY_FM_HOME:-${FM_ROOT_OVERRIDE:-$FM_ROOT}}"
+STATE="${FM_STATE_OVERRIDE:-$MY_FM_HOME/state}"
+DATA="${FM_DATA_OVERRIDE:-$MY_FM_HOME/data}"
 
 # shellcheck source=bin/fm-dod-lib.sh
 . "$SCRIPT_DIR/fm-dod-lib.sh"
@@ -276,16 +276,16 @@ BRIEF_ORIGINAL=
 fm_lock_release "$META_LOCK"
 META_LOCK_HELD=0
 
-HOME_Q=$(printf '%q' "$FM_HOME")
+HOME_Q=$(printf '%q' "$MY_FM_HOME")
 INSTRUCTIONS_Q=$(printf '%q' "$INSTRUCTIONS")
 echo "promoted $ID to ship mode=$MODE yolo=$YOLO (teardown protection restored)"
 echo "wrote ship instructions for mode=$MODE: $INSTRUCTIONS"
-echo "next: FM_HOME=$HOME_Q bin/fm-send.sh fm-$ID \"\$(cat $INSTRUCTIONS_Q)\""
+echo "next: MY_FM_HOME=$HOME_Q bin/fm-send.sh fm-$ID \"\$(cat $INSTRUCTIONS_Q)\""
 
 promote_print_rechain_hint() {
   local consent_home=$1 work_home=$2 task_id=$3 id prefix
   prefix=
-  [ "$consent_home" = "$FM_HOME" ] || prefix="FM_HOME=$(printf '%q' "$consent_home") "
+  [ "$consent_home" = "$MY_FM_HOME" ] || prefix="MY_FM_HOME=$(printf '%q' "$consent_home") "
   while IFS= read -r id; do
     [ -n "$id" ] || continue
     [ "$(fm_pf_registry_get "$consent_home/state" "$id" state)" = delivered ] || continue
@@ -323,14 +323,14 @@ promote_warn_parent_unresolved() {
   echo "warning: could not resolve the consent-holding parent home for secondmate $1; promotion succeeded, but any open public loop must be inspected and rechained from the parent." >&2
 }
 
-if [ -f "$FM_HOME/.fm-secondmate-home" ]; then
-  PROMOTE_MATE_ID=$(sed -n '1p' "$FM_HOME/.fm-secondmate-home" 2>/dev/null || true)
+if [ -f "$MY_FM_HOME/.fm-secondmate-home" ]; then
+  PROMOTE_MATE_ID=$(sed -n '1p' "$MY_FM_HOME/.fm-secondmate-home" 2>/dev/null || true)
   PROMOTE_PARENT_RECORD=absent
   PROMOTE_PARENT_ROUTE=
   PROMOTE_DURABLE_PARENT=
-  if [ -e "$FM_HOME/.fm-secondmate-parent" ] || [ -L "$FM_HOME/.fm-secondmate-parent" ]; then
+  if [ -e "$MY_FM_HOME/.fm-secondmate-parent" ] || [ -L "$MY_FM_HOME/.fm-secondmate-parent" ]; then
     PROMOTE_PARENT_RECORD=invalid
-    if fm_secondmate_parent_record_parse "$FM_HOME/.fm-secondmate-parent"; then
+    if fm_secondmate_parent_record_parse "$MY_FM_HOME/.fm-secondmate-parent"; then
       PROMOTE_PARENT_RECORD=valid
       PROMOTE_PARENT_ROUTE=$FM_SECONDMATE_PARENT_ROUTE
       PROMOTE_DURABLE_PARENT=$FM_SECONDMATE_PARENT_HOME
@@ -353,7 +353,7 @@ if [ -f "$FM_HOME/.fm-secondmate-home" ]; then
     fi
     if [ "$PROMOTE_PARENT_BINDINGS_MATCH" = 1 ] \
         && PROMOTE_PARENT=$(promote_resolve_primary_home \
-          "$PROMOTE_PARENT_CANDIDATE" "$FM_HOME" "$PROMOTE_MATE_ID"); then
+          "$PROMOTE_PARENT_CANDIDATE" "$MY_FM_HOME" "$PROMOTE_MATE_ID"); then
       if fm_pf_relay_active "$PROMOTE_PARENT"; then
         promote_print_rechain_hint "$PROMOTE_PARENT" "secondmate:$PROMOTE_MATE_ID" "$ID"
       fi
@@ -362,8 +362,8 @@ if [ -f "$FM_HOME/.fm-secondmate-home" ]; then
     fi
   elif [ "$PROMOTE_PARENT_ROUTE" = remote ]; then
     PROMOTE_HOME_ENV_TOKEN=
-    if [ -f "$FM_HOME/.env" ]; then
-      PROMOTE_HOME_ENV_TOKEN=$(fmx_env_get FMX_PAIRING_TOKEN "$FM_HOME/.env")
+    if [ -f "$MY_FM_HOME/.env" ]; then
+      PROMOTE_HOME_ENV_TOKEN=$(fmx_env_get FMX_PAIRING_TOKEN "$MY_FM_HOME/.env")
     fi
     if [ -n "$PROMOTE_HOME_ENV_TOKEN" ]; then
       promote_warn_parent_unresolved "$PROMOTE_MATE_ID"
@@ -371,15 +371,15 @@ if [ -f "$FM_HOME/.fm-secondmate-home" ]; then
   elif [ -n "${FM_PUBLIC_FOLLOWUP_PRIMARY_HOME:-}" ]; then
     if fm_pf_relay_active "$FM_PUBLIC_FOLLOWUP_PRIMARY_HOME"; then
       if PROMOTE_PARENT=$(promote_resolve_primary_home \
-          "$FM_PUBLIC_FOLLOWUP_PRIMARY_HOME" "$FM_HOME" "$PROMOTE_MATE_ID"); then
+          "$FM_PUBLIC_FOLLOWUP_PRIMARY_HOME" "$MY_FM_HOME" "$PROMOTE_MATE_ID"); then
         promote_print_rechain_hint "$PROMOTE_PARENT" "secondmate:$PROMOTE_MATE_ID" "$ID"
       else
         promote_warn_parent_unresolved "$PROMOTE_MATE_ID"
       fi
     fi
-  elif fm_pf_relay_active "$FM_HOME"; then
+  elif fm_pf_relay_active "$MY_FM_HOME"; then
     promote_warn_parent_unresolved "$PROMOTE_MATE_ID"
   fi
-elif fm_pf_relay_active "$FM_HOME"; then
-  promote_print_rechain_hint "$FM_HOME" main "$ID"
+elif fm_pf_relay_active "$MY_FM_HOME"; then
+  promote_print_rechain_hint "$MY_FM_HOME" main "$ID"
 fi

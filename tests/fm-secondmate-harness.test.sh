@@ -472,7 +472,7 @@ spawn_secondmate() {
   [ -n "$harness" ] && spawn_args+=("$harness")
   spawn_args+=(--secondmate)
   PATH="$fakebin:$BLIND_BIN:$BASE_PATH" TMUX='' CLAUDECODE=1 \
-    FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$world/home" HOME="$world/home/user-home" CLAUDE_CONFIG_DIR='' \
+    FM_ROOT_OVERRIDE="$ROOT" MY_FM_HOME="$world/home" HOME="$world/home/user-home" CLAUDE_CONFIG_DIR='' \
     FM_STATE_OVERRIDE="$world/home/state" FM_DATA_OVERRIDE="$world/home/data" \
     FM_PROJECTS_OVERRIDE="$world/home/projects" FM_CONFIG_OVERRIDE="$world/home/config" \
     FM_SPAWN_NO_GUARD=1 \
@@ -585,7 +585,7 @@ test_spawn_unverified_secondmate_harness_refused() {
   err="$w/spawn.err"
   rc=0
   PATH="$fakebin:$BASE_PATH" TMUX='' CLAUDECODE=1 \
-    FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$w/home" HOME="$w/home/user-home" CLAUDE_CONFIG_DIR='' \
+    FM_ROOT_OVERRIDE="$ROOT" MY_FM_HOME="$w/home" HOME="$w/home/user-home" CLAUDE_CONFIG_DIR='' \
     FM_STATE_OVERRIDE="$w/home/state" FM_DATA_OVERRIDE="$w/home/data" \
     FM_PROJECTS_OVERRIDE="$w/home/projects" FM_CONFIG_OVERRIDE="$w/home/config" \
     FM_SPAWN_NO_GUARD=1 \
@@ -612,7 +612,7 @@ test_spawn_cursor_secondmate_launches_with_its_primary_contract() {
   : > "$launchlog"
   rc=0
   PATH="$fakebin:$BASE_PATH" TMUX='' CLAUDECODE=1 \
-    FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$w/home" HOME="$w/home/user-home" CLAUDE_CONFIG_DIR='' \
+    FM_ROOT_OVERRIDE="$ROOT" MY_FM_HOME="$w/home" HOME="$w/home/user-home" CLAUDE_CONFIG_DIR='' \
     FM_STATE_OVERRIDE="$w/home/state" FM_DATA_OVERRIDE="$w/home/data" \
     FM_PROJECTS_OVERRIDE="$w/home/projects" FM_CONFIG_OVERRIDE="$w/home/config" \
     FM_SPAWN_NO_GUARD=1 FM_FAKE_LAUNCH_LOG="$launchlog" FM_FAKE_PANE_PATH="$sm" \
@@ -698,7 +698,7 @@ spawn_secondmate_capture() {
   fakebin=$(make_launch_capturing_tmux "$world/tmux-$id")
   : > "$launchlog"
   PATH="$fakebin:$BLIND_BIN:$BASE_PATH" TMUX='' CLAUDECODE=1 \
-    FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$world/home" HOME="$world/home/user-home" CLAUDE_CONFIG_DIR='' \
+    FM_ROOT_OVERRIDE="$ROOT" MY_FM_HOME="$world/home" HOME="$world/home/user-home" CLAUDE_CONFIG_DIR='' \
     FM_STATE_OVERRIDE="$world/home/state" FM_DATA_OVERRIDE="$world/home/data" \
     FM_PROJECTS_OVERRIDE="$world/home/projects" FM_CONFIG_OVERRIDE="$world/home/config" \
     FM_SPAWN_NO_GUARD=1 FM_FAKE_LAUNCH_LOG="$launchlog" \
@@ -995,7 +995,7 @@ Verify secondmate harness settings do not affect it.
 EOF
   : > "$launchlog"
   PATH="$fakebin:$BASE_PATH" TMUX="fake,1,0" CLAUDECODE=1 \
-    FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$home" \
+    FM_ROOT_OVERRIDE="$ROOT" MY_FM_HOME="$home" \
     FM_STATE_OVERRIDE="$home/state" FM_DATA_OVERRIDE="$home/data" \
     FM_PROJECTS_OVERRIDE="$home/projects" FM_CONFIG_OVERRIDE="$home/config" \
     FM_SPAWN_NO_GUARD=1 FM_FAKE_PANE_PATH="$wt" FM_FAKE_LAUNCH_LOG="$launchlog" \
@@ -1091,7 +1091,7 @@ if [ -n "${FM_FAKE_TMUX_LOG:-}" ]; then
 fi
 case "$*" in
   list-windows*)
-    sed -n 's/^window=[^:]*://p' "${FM_HOME:?}"/state/*.meta
+    sed -n 's/^window=[^:]*://p' "${MY_FM_HOME:?}"/state/*.meta
     exit 0
     ;;
   *display-message*'#{pane_current_command}'*) printf '%s\n' codex; exit 0 ;;
@@ -1158,11 +1158,11 @@ run_bootstrap() {
   local w=$1 fakebin log=${2:-}
   fakebin=$(make_fake_toolchain "$w")
   if [ -n "$log" ]; then
-    PATH="$fakebin:$BASE_PATH" FM_HOME="$w/home" FM_ROOT_OVERRIDE="$w/main" \
+    PATH="$fakebin:$BASE_PATH" MY_FM_HOME="$w/home" FM_ROOT_OVERRIDE="$w/main" \
       FM_SEND_SETTLE=0 FM_FAKE_TMUX_LOG="$log" \
       "$ROOT/bin/fm-bootstrap.sh" 2>/dev/null
   else
-    PATH="$fakebin:$BASE_PATH" FM_HOME="$w/home" FM_ROOT_OVERRIDE="$w/main" \
+    PATH="$fakebin:$BASE_PATH" MY_FM_HOME="$w/home" FM_ROOT_OVERRIDE="$w/main" \
       FM_SEND_SETTLE=0 "$ROOT/bin/fm-bootstrap.sh" 2>/dev/null
   fi
 }
@@ -1171,11 +1171,11 @@ run_config_push() {
   local w=$1 fakebin log=${2:-}
   fakebin=$(make_fake_toolchain "$w")
   if [ -n "$log" ]; then
-    PATH="$fakebin:$BASE_PATH" FM_HOME="$w/home" FM_ROOT_OVERRIDE="$w/main" \
+    PATH="$fakebin:$BASE_PATH" MY_FM_HOME="$w/home" FM_ROOT_OVERRIDE="$w/main" \
       FM_SEND_SETTLE=0 FM_FAKE_TMUX_LOG="$log" \
       "$ROOT/bin/fm-config-push.sh"
   else
-    PATH="$fakebin:$BASE_PATH" FM_HOME="$w/home" FM_ROOT_OVERRIDE="$w/main" \
+    PATH="$fakebin:$BASE_PATH" MY_FM_HOME="$w/home" FM_ROOT_OVERRIDE="$w/main" \
       FM_SEND_SETTLE=0 \
       "$ROOT/bin/fm-config-push.sh"
   fi
@@ -1961,7 +1961,7 @@ test_config_reread_isolation_and_absent_and_send_failure() {
   printf 'claude\n' > "$w/home/config/crew-harness"
   err="$w/config-reread-send-fail.err"
   out=$(PATH="$(make_fake_toolchain "$w"):$BASE_PATH" \
-    FM_HOME="$w/home" FM_ROOT_OVERRIDE="$w/main" FM_SEND_SETTLE=0 \
+    MY_FM_HOME="$w/home" FM_ROOT_OVERRIDE="$w/main" FM_SEND_SETTLE=0 \
     "$ROOT/bin/fm-config-push.sh" 2>"$err"); status=$?
   expect_code 1 "$status" "send failure should make config-push exit non-zero"
   assert_contains "$out" "CONFIG_REREAD: secondmate" "send failure diagnostic missing"
@@ -1981,7 +1981,7 @@ test_config_reread_isolation_and_absent_and_send_failure() {
   printf 'pi\n' > "$w/home/config/crew-harness"
   err="$w/config-reread-send-fail-second.err"
   out2=$(PATH="$(make_fake_toolchain "$w"):$BASE_PATH" \
-    FM_HOME="$w/home" FM_ROOT_OVERRIDE="$w/main" FM_SEND_SETTLE=0 \
+    MY_FM_HOME="$w/home" FM_ROOT_OVERRIDE="$w/main" FM_SEND_SETTLE=0 \
     "$ROOT/bin/fm-config-push.sh" 2>"$err"); status2=$?
   expect_code 1 "$status2" "second send failure should make config-push exit non-zero"
   assert_not_contains "$out2" "config-reread: sent" \
@@ -2033,7 +2033,7 @@ esac
 exec "$real_mv" "\$@"
 SH
   chmod +x "$fakebin/mv"
-  out=$(PATH="$fakebin:$BASE_PATH" FM_HOME="$w/home" FM_ROOT_OVERRIDE="$w/main" \
+  out=$(PATH="$fakebin:$BASE_PATH" MY_FM_HOME="$w/home" FM_ROOT_OVERRIDE="$w/main" \
     FM_SEND_SETTLE=0 "$ROOT/bin/fm-config-push.sh" 2>&1); status=$?
   expect_code 1 "$status" "publication failure should remain diagnostic"
   assert_contains "$out" "CONFIG_REREAD: secondmate" "publication failure diagnostic missing"
@@ -2090,7 +2090,7 @@ esac
 exec "$real_mv" "\$@"
 SH
   chmod +x "$fakebin/mv"
-  out=$(PATH="$fakebin:$BASE_PATH" FM_HOME="$w/home" FM_ROOT_OVERRIDE="$w/main" \
+  out=$(PATH="$fakebin:$BASE_PATH" MY_FM_HOME="$w/home" FM_ROOT_OVERRIDE="$w/main" \
     FM_SEND_SETTLE=0 "$ROOT/bin/fm-config-push.sh" 2>&1); status=$?
   expect_code 1 "$status" "instruction-write failure should remain diagnostic"
   assert_contains "$out" "retained exact retry generation" \
@@ -2155,7 +2155,7 @@ esac
 exec "$real_cp" "\$@"
 SH
   chmod +x "$fakebin/cp"
-  out=$(PATH="$fakebin:$BASE_PATH" FM_HOME="$w/home" FM_ROOT_OVERRIDE="$w/main" \
+  out=$(PATH="$fakebin:$BASE_PATH" MY_FM_HOME="$w/home" FM_ROOT_OVERRIDE="$w/main" \
     FM_SEND_SETTLE=0 "$ROOT/bin/fm-config-push.sh" 2>&1); status=$?
   expect_code 1 "$status" "exact temporary fallback failure should remain diagnostic"
   assert_contains "$out" "retained exact retry temporary" \
@@ -2220,7 +2220,7 @@ SH
 
   first_out="$w/first-push.out"
   (
-    PATH="$fakebin:$BASE_PATH" FM_HOME="$w/home" FM_ROOT_OVERRIDE="$w/main" \
+    PATH="$fakebin:$BASE_PATH" MY_FM_HOME="$w/home" FM_ROOT_OVERRIDE="$w/main" \
       FM_SEND_SETTLE=0 FM_FAKE_TMUX_LOG="$log" \
       "$ROOT/bin/fm-config-push.sh" > "$first_out" 2>&1
   ) &
@@ -2234,7 +2234,7 @@ SH
     || fail "first concurrent push did not publish its generation"
   printf 'two\n' > "$w/home/config/crew-harness"
   second_out="$w/second-push.out"
-  PATH="$fakebin:$BASE_PATH" FM_HOME="$w/home" FM_ROOT_OVERRIDE="$w/main" \
+  PATH="$fakebin:$BASE_PATH" MY_FM_HOME="$w/home" FM_ROOT_OVERRIDE="$w/main" \
     FM_SEND_SETTLE=0 FM_FAKE_TMUX_LOG="$log" \
     "$ROOT/bin/fm-config-push.sh" > "$second_out" 2>&1
   second_status=$?
@@ -2272,7 +2272,7 @@ test_config_reread_full_retry_queue_drains_before_new_push() {
   done
   fakebin=$(make_fake_toolchain "$w")
   log="$w/config-reread-full-queue.tmux.log"
-  out=$(PATH="$fakebin:$BASE_PATH" FM_HOME="$w/home" FM_ROOT_OVERRIDE="$w/main" \
+  out=$(PATH="$fakebin:$BASE_PATH" MY_FM_HOME="$w/home" FM_ROOT_OVERRIDE="$w/main" \
     FM_SEND_SETTLE=0 FM_FAKE_TMUX_LOG="$log" \
     "$ROOT/bin/fm-config-push.sh" 2>&1); status=$?
   expect_code 0 "$status" "a full retry queue should drain before a new push"
@@ -2322,7 +2322,7 @@ SH
   chmod +x "$fakebin/mv"
   report="$w/empty-reread.report"
   : > "$report"
-  out=$(PATH="$fakebin:$BASE_PATH" FM_HOME="$w/home" FM_ROOT_OVERRIDE="$w/main" \
+  out=$(PATH="$fakebin:$BASE_PATH" MY_FM_HOME="$w/home" FM_ROOT_OVERRIDE="$w/main" \
     FM_SEND_SETTLE=0 fm_config_send_reread_nudge sm "$w/sm" "$report" 2>&1); status=$?
   expect_code 1 "$status" "mixed delivery failure should remain diagnostic"
   assert_contains "$out" "CONFIG_REREAD: secondmate sm: send failed" \
@@ -2368,7 +2368,7 @@ SH
   report="$w/empty-reread.report"
   : > "$report"
   log="$w/config-reread-order.tmux.log"
-  out=$(PATH="$fakebin:$BASE_PATH" FM_HOME="$w/home" FM_ROOT_OVERRIDE="$ROOT" \
+  out=$(PATH="$fakebin:$BASE_PATH" MY_FM_HOME="$w/home" FM_ROOT_OVERRIDE="$ROOT" \
     FM_SEND_SETTLE=0 FM_FAKE_TMUX_LOG="$log" \
     fm_config_send_reread_nudge sm "$w/sm" "$report" 2>&1); status=$?
   expect_code 1 "$status" "an older failed generation should remain diagnostic"
@@ -2386,7 +2386,7 @@ test_bootstrap_detect_only_does_not_create_state() {
   w=$(new_world bootstrap-detect-only)
   detect_state="$w/detect-state"
   fakebin=$(make_fake_toolchain "$w")
-  out=$(PATH="$fakebin:$BASE_PATH" FM_HOME="$w/home" FM_ROOT_OVERRIDE="$w/main" \
+  out=$(PATH="$fakebin:$BASE_PATH" MY_FM_HOME="$w/home" FM_ROOT_OVERRIDE="$w/main" \
     FM_STATE_OVERRIDE="$detect_state" FM_BOOTSTRAP_DETECT_ONLY=1 \
     "$ROOT/bin/fm-bootstrap.sh" 2>&1); status=$?
   expect_code 0 "$status" "detect-only bootstrap should succeed"
@@ -2469,7 +2469,7 @@ test_config_reread_bootstrap_path_and_spawn_flexibility() {
 
   fakebin=$(make_fake_toolchain "$w")
   log="$w/bootstrap-reread.tmux.log"
-  out=$(PATH="$fakebin:$BASE_PATH" FM_HOME="$w/home" FM_ROOT_OVERRIDE="$w/main" \
+  out=$(PATH="$fakebin:$BASE_PATH" MY_FM_HOME="$w/home" FM_ROOT_OVERRIDE="$w/main" \
     FM_SEND_SETTLE=0 FM_FAKE_TMUX_LOG="$log" \
     "$ROOT/bin/fm-bootstrap.sh" 2>/dev/null)
   [ "$(cat "$w/sm/config/crew-harness")" = codex ] || fail "bootstrap did not push harness"
@@ -2545,7 +2545,7 @@ case "\$*" in
 esac
 SH
   chmod +x "$fakebin/tmux"
-  PATH="$fakebin:$BASE_PATH" FM_HOME="$w/home" FM_ROOT_OVERRIDE="$w/main" \
+  PATH="$fakebin:$BASE_PATH" MY_FM_HOME="$w/home" FM_ROOT_OVERRIDE="$w/main" \
     FM_SEND_SETTLE=0 FM_FAKE_TMUX_LOG="$log" \
     "$ROOT/bin/fm-bootstrap.sh" >/dev/null 2>&1
   assert_contains "$(cat "$log")" "spawn" \
@@ -2596,7 +2596,7 @@ SH
   chmod +x "$fakebin/rm"
   launchlog="$w/spawn-quarantine.launch.log"
   out=$(PATH="$fakebin:$BASE_PATH" TMUX='' CLAUDECODE=1 \
-    FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$w/home" HOME="$w/home/user-home" CLAUDE_CONFIG_DIR='' \
+    FM_ROOT_OVERRIDE="$ROOT" MY_FM_HOME="$w/home" HOME="$w/home/user-home" CLAUDE_CONFIG_DIR='' \
     FM_STATE_OVERRIDE="$w/home/state" FM_DATA_OVERRIDE="$w/home/data" \
     FM_PROJECTS_OVERRIDE="$w/home/projects" FM_CONFIG_OVERRIDE="$w/home/config" \
     FM_SPAWN_NO_GUARD=1 FM_FAKE_LAUNCH_LOG="$launchlog" \

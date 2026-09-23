@@ -898,12 +898,12 @@ fm_config_reread_send_pointer() {
     fm_config_reread_send_failure "$id" "$instruction_path" "$pending_path" "fm-send.sh not executable at $send_bin"
     return 1
   fi
-  if [ -z "${FM_HOME:-}" ]; then
-    fm_config_reread_send_failure "$id" "$instruction_path" "$pending_path" "FM_HOME is not set"
+  if [ -z "${MY_FM_HOME:-}" ]; then
+    fm_config_reread_send_failure "$id" "$instruction_path" "$pending_path" "MY_FM_HOME is not set"
     return 1
   fi
   message="CONFIG_REREAD: $instruction_path"
-  out=$(FM_HOME="$FM_HOME" \
+  out=$(MY_FM_HOME="$MY_FM_HOME" \
     FM_ROOT_OVERRIDE="${FM_ROOT_OVERRIDE:-}" \
     FM_STATE_OVERRIDE="${FM_STATE_OVERRIDE:-}" \
     FM_SEND_SETTLE="${FM_SEND_SETTLE:-0}" \
@@ -1088,7 +1088,7 @@ fm_config_send_reread_nudge() {
   retry_report_paths=""
   if [ "${FM_CONFIG_REREAD_SKIP_PENDING:-0}" != 1 ]; then
     pending_paths=$(fm_config_reread_pending_instructions "$state")
-    source_home_abs=$(cd "${FM_HOME:-}" 2>/dev/null && pwd -P || true)
+    source_home_abs=$(cd "${MY_FM_HOME:-}" 2>/dev/null && pwd -P || true)
     if [ -n "$source_home_abs" ]; then
       stage_paths=$(fm_config_reread_pending_stages "$source_home_abs" "$id")
       retry_report_paths=$(fm_config_reread_pending_reports "$source_home_abs" "$id")
@@ -1141,7 +1141,7 @@ EOF
     return 1
   fi
   if [ -n "$changed_items" ]; then
-    source_home_abs=$(cd "${FM_HOME:-}" 2>/dev/null && pwd -P || true)
+    source_home_abs=$(cd "${MY_FM_HOME:-}" 2>/dev/null && pwd -P || true)
     if [ -z "$source_home_abs" ]; then
       printf 'CONFIG_REREAD: secondmate %s: send failed: could not reserve retry instruction\n' "$id"
       return 1

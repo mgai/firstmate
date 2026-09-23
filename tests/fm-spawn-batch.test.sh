@@ -19,7 +19,7 @@ export FM_BACKEND=tmux
 # Clear ambient firstmate overrides so the behavior test owns its environment.
 run_spawn() {
   FM_ROOT_OVERRIDE='' \
-    FM_HOME='' \
+    MY_FM_HOME='' \
     FM_STATE_OVERRIDE='' \
     FM_DATA_OVERRIDE='' \
     FM_PROJECTS_OVERRIDE='' \
@@ -87,13 +87,13 @@ test_projects_path_scoping() {
     git -C "$projects/alpha" init -q || fail "$label: could not initialize project fixture"
     if [ "$use_override" = yes ]; then
       out=$(FM_ROOT_OVERRIDE='' FM_STATE_OVERRIDE='' FM_DATA_OVERRIDE='' FM_CONFIG_OVERRIDE='' \
-        FM_HOME="$home" FM_PROJECTS_OVERRIDE="$projects" FM_SPAWN_NO_GUARD=1 \
+        MY_FM_HOME="$home" FM_PROJECTS_OVERRIDE="$projects" FM_SPAWN_NO_GUARD=1 \
         "$SPAWN" "$id" projects/alpha codex --mode no-mistakes --yolo off 2>&1)
     else
       mkdir -p "$home/projects/alpha"
       git -C "$home/projects/alpha" init -q || fail "$label: could not initialize home project fixture"
       out=$(FM_ROOT_OVERRIDE='' FM_STATE_OVERRIDE='' FM_DATA_OVERRIDE='' FM_PROJECTS_OVERRIDE='' FM_CONFIG_OVERRIDE='' \
-        FM_HOME="$home" FM_SPAWN_NO_GUARD=1 \
+        MY_FM_HOME="$home" FM_SPAWN_NO_GUARD=1 \
         "$SPAWN" "$id" projects/alpha codex --mode no-mistakes --yolo off 2>&1)
     fi
     status=$?
@@ -104,7 +104,7 @@ test_projects_path_scoping() {
     printf '%s\n' "$out" | grep -F 'cd: projects/alpha' >/dev/null \
       && fail "$label: spawn resolved projects/alpha from the caller cwd"
   done <<'ROWS'
-FM_HOME scopes projects/|no|nope-home-z7
+MY_FM_HOME scopes projects/|no|nope-home-z7
 FM_PROJECTS_OVERRIDE scopes projects/|yes|nope-override-z8
 ROWS
   pass "projects/ paths are scoped through the firstmate home for single-task spawn"

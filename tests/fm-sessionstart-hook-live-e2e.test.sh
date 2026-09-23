@@ -201,7 +201,7 @@ probe_process_opens() {  # <harness> <version> <lab> <expect-resume> <cold-argv.
 
   : > "$record"
   rm -f "$marker" "$lab/state/.startup-network."*
-  out=$( cd "$lab" && FM_LIVE_RECORD="$record" FM_LIVE_NONCE="$LIVE_NONCE" FM_ROOT_OVERRIDE="$lab" FM_HOME="$lab" \
+  out=$( cd "$lab" && FM_LIVE_RECORD="$record" FM_LIVE_NONCE="$LIVE_NONCE" FM_ROOT_OVERRIDE="$lab" MY_FM_HOME="$lab" \
     FM_LIVE_DETACH_MARKER="$marker" \
     "${cold[@]}" "$ASK" < /dev/null 2>&1 )
   source=$(head -n 1 "$record")
@@ -225,7 +225,7 @@ probe_process_opens() {  # <harness> <version> <lab> <expect-resume> <cold-argv.
   pass "$harness $version: a worker detached by the session-open hook outlives it, so the deferred network checks still run"
 
   : > "$record"
-  ( cd "$lab" && FM_LIVE_RECORD="$record" FM_LIVE_NONCE="$LIVE_NONCE" FM_ROOT_OVERRIDE="$lab" FM_HOME="$lab" \
+  ( cd "$lab" && FM_LIVE_RECORD="$record" FM_LIVE_NONCE="$LIVE_NONCE" FM_ROOT_OVERRIDE="$lab" MY_FM_HOME="$lab" \
     "${resume[@]}" 'Say only OK.' < /dev/null >/dev/null 2>&1 ) || true
   source=$(head -n 1 "$record")
   [ -n "$source" ] \
@@ -249,7 +249,7 @@ probe_context_reset() {  # <harness> <version> <lab> <clear-command> <launch-arg
   local record="$lab/record" session="fmss-$harness" reset n compact_seed compact_reply
   : > "$record"
   tmux -L "$SOCKET" new-session -d -s "$session" -c "$lab" -x 200 -y 50 \
-    -e FM_LIVE_RECORD="$record" -e FM_ROOT_OVERRIDE="$lab" -e FM_HOME="$lab" \
+    -e FM_LIVE_RECORD="$record" -e FM_ROOT_OVERRIDE="$lab" -e MY_FM_HOME="$lab" \
     -e FM_LIVE_NONCE="$LIVE_NONCE" \
     "$*" \
     || fail "$harness $version: could not start an interactive lab session"
@@ -359,7 +359,7 @@ SH
   cat > "$project/bin/fm-sessionstart-run.sh" <<'SH'
 #!/usr/bin/env bash
 set -u
-state=${FM_HOME:?}/state
+state=${MY_FM_HOME:?}/state
 source_name=
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -382,7 +382,7 @@ SH
   cat > "$project/bin/fm-session-start.sh" <<'SH'
 #!/usr/bin/env bash
 set -u
-state=${FM_HOME:?}/state
+state=${MY_FM_HOME:?}/state
 : > "$state/manual-started"
 printf 'RACE_MANUAL\n'
 SH
@@ -453,7 +453,7 @@ export default function (pi: ExtensionAPI): void {
       const manual = all.includes("RACE_MANUAL");
       if (prompt !== "other") {
         appendFileSync(
-          `${process.env.FM_HOME}/state/provider-calls`,
+          `${process.env.MY_FM_HOME}/state/provider-calls`,
           `prompt=${prompt} native_count=${nativeCount} manual=${manual}\n`,
         );
       }
@@ -500,7 +500,7 @@ TS
   git -C "$project" commit -q -m init
 
   tmux -L "$SOCKET" new-session -d -s "$session" -c "$project" -x 180 -y 50 \
-    "env FM_HOME='$home' FM_ROOT_OVERRIDE='$project' PI_CODING_AGENT_DIR='$config' PI_OFFLINE=1 pi --approve --session-dir '$sessions' --no-context-files --no-skills --no-prompt-templates --tools bash --model race-local/deterministic; rc=\$?; printf '\nPI_EXIT=%s\n' \"\$rc\"; sleep 60" \
+    "env MY_FM_HOME='$home' FM_ROOT_OVERRIDE='$project' PI_CODING_AGENT_DIR='$config' PI_OFFLINE=1 pi --approve --session-dir '$sessions' --no-context-files --no-skills --no-prompt-templates --tools bash --model race-local/deterministic; rc=\$?; printf '\nPI_EXIT=%s\n' \"\$rc\"; sleep 60" \
     || fail "Pi $version: could not start the offline /new lab"
   i=0
   while [ "$i" -lt 200 ]; do

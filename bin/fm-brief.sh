@@ -125,18 +125,18 @@ resolve_directory_input() {
 }
 
 FM_ROOT="${FM_ROOT_OVERRIDE:-$(cd "$SCRIPT_DIR/.." && pwd)}"
-FM_HOME=$(resolve_directory_input FM_HOME "${FM_HOME:-${FM_ROOT_OVERRIDE:-$FM_ROOT}}") || exit 1
+MY_FM_HOME=$(resolve_directory_input MY_FM_HOME "${MY_FM_HOME:-${FM_ROOT_OVERRIDE:-$FM_ROOT}}") || exit 1
 if [ -n "${FM_DATA_OVERRIDE:-}" ]; then
   DATA=$(resolve_directory_input FM_DATA_OVERRIDE "$FM_DATA_OVERRIDE") || exit 1
 else
-  DATA="$FM_HOME/data"
+  DATA="$MY_FM_HOME/data"
 fi
 if [ -n "${FM_STATE_OVERRIDE:-}" ]; then
   STATE=$(resolve_directory_input FM_STATE_OVERRIDE "$FM_STATE_OVERRIDE") || exit 1
 else
-  STATE="$FM_HOME/state"
+  STATE="$MY_FM_HOME/state"
 fi
-CONFIG="${FM_CONFIG_OVERRIDE:-$FM_HOME/config}"
+CONFIG="${FM_CONFIG_OVERRIDE:-$MY_FM_HOME/config}"
 KIND=ship
 HERDR_LAB=0
 NO_PROJECTS=0

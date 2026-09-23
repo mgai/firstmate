@@ -84,7 +84,7 @@ EOF
 printf 'blocked: fixture needs a decision\n' > "$HOME_DIR/state/probe.status"
 
 "$REAL_TMUX" -L "$SOCKET" new-session -d -s primary -x 220 -y 60 -c "$HOME_DIR" \
-  "cd '$HOME_DIR' && FM_HOME='$HOME_DIR' FM_HEARTBEAT=30 FM_HEARTBEAT_MAX=30 exec '$CURSOR_BIN' --trust --yolo --workspace '$HOME_DIR'" \
+  "cd '$HOME_DIR' && MY_FM_HOME='$HOME_DIR' FM_HEARTBEAT=30 FM_HEARTBEAT_MAX=30 exec '$CURSOR_BIN' --trust --yolo --workspace '$HOME_DIR'" \
   || harness_fail "could not start the private tmux server"
 
 pane_text() {

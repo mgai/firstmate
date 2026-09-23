@@ -4,7 +4,7 @@
 # inside a REMOTE second-mate home refused forever with "cannot resolve the
 # primary home ... durable parent binding", because the remote launch hands the
 # child the remote code checkout as its parent home (bin/fm-spawn.sh's sole
-# writer of FM_PUBLIC_FOLLOWUP_PRIMARY_HOME receives FM_HOME=$FM_ROOT from
+# writer of FM_PUBLIC_FOLLOWUP_PRIMARY_HOME receives MY_FM_HOME=$FM_ROOT from
 # bin/fm-remote-secondmate-control.sh's host-local launch), and that path can
 # never carry the parent's real state or registry.
 #
@@ -56,7 +56,7 @@ cleanup() {
     kill "$PUBLISH_PID" 2>/dev/null || true
     wait "$PUBLISH_PID" 2>/dev/null || true
   fi
-  FM_HOME="$PARENT" FM_PROCEVENT_CLAIM_ROOT="$CLAIMS" \
+  MY_FM_HOME="$PARENT" FM_PROCEVENT_CLAIM_ROOT="$CLAIMS" \
     "$ROOT/bin/fm-procevent.sh" sweep-home >/dev/null 2>&1 || true
   if [ -f "$TMP_ROOT/remote-jobs/worker.pid" ]; then
     worker_pid=$(cat "$TMP_ROOT/remote-jobs/worker.pid")
@@ -88,7 +88,7 @@ printf 'schema=fm-remote-home-provision.v1\nid_b64=%s\ncharter_b64=%s\nparent_ho
   "$(printf publication | base64 | tr -d '\n')" \
   "$(printf 'Publication-order regression charter.\n' | base64 | tr -d '\n')" \
   "$(printf publish-host | base64 | tr -d '\n')" > "$PUBLISH_MANIFEST"
-PATH="$PUBLISH_FAKEBIN:$PATH" FM_HOME="$PUBLISH_HOME" FM_ROOT_OVERRIDE="$ROOT" \
+PATH="$PUBLISH_FAKEBIN:$PATH" MY_FM_HOME="$PUBLISH_HOME" FM_ROOT_OVERRIDE="$ROOT" \
   FM_TEST_REAL_MV="$REAL_MV" FM_TEST_PUBLISH_ENTERED="$PUBLISH_ENTERED" \
   FM_TEST_PUBLISH_RELEASE="$PUBLISH_RELEASE" \
   "$ROOT/bin/fm-remote-home-provision.sh" < "$PUBLISH_MANIFEST" >/dev/null 2>&1 &
@@ -190,7 +190,7 @@ SH
 chmod +x "$FAKEBIN/fake-ssh"
 
 remote_env() {
-  FM_HOME="$PARENT" \
+  MY_FM_HOME="$PARENT" \
   FM_ROOT_OVERRIDE="$REMOTE_ROOT" \
   FM_PROCEVENT_CLAIM_ROOT="$CLAIMS" \
   FM_SSH_BIN="$FAKEBIN/fake-ssh" \
@@ -254,7 +254,7 @@ run_child_teardown() { # <extra env assignments...>
   local out rc=0
   write_child_meta
   out=$(env "$@" PATH="$TMP_ROOT/childfake:$PATH" \
-    FM_HOME="$REMOTE_HOME" FM_STATE_OVERRIDE="$REMOTE_HOME/state" \
+    MY_FM_HOME="$REMOTE_HOME" FM_STATE_OVERRIDE="$REMOTE_HOME/state" \
     FM_DATA_OVERRIDE="$REMOTE_HOME/data" FM_CONFIG_OVERRIDE="$REMOTE_HOME/config" \
     "$REMOTE_ROOT/bin/fm-teardown.sh" work-child 2>&1) || rc=$?
   CHILD_TEARDOWN_OUT=$out
@@ -278,7 +278,7 @@ pass "a remote secondmate's finished worker cleans up when the remote code root'
 # environment, simulating the remote host's own login-shell export reaching the
 # agent's pane. fm_pf_relay_active's environment-wins rule would make this look
 # identical to a genuine same-home commitment; the fix must tell them apart by
-# reading only $FM_HOME/.env, never the process environment, once the durable
+# reading only $MY_FM_HOME/.env, never the process environment, once the durable
 # record says the parent is remote.
 run_child_teardown FM_PUBLIC_FOLLOWUP_PRIMARY_HOME="$DELIVERED" FMX_PAIRING_TOKEN=ambient-login-token
 [ "$CHILD_TEARDOWN_RC" -eq 0 ] \

@@ -32,7 +32,7 @@ test_conditional_stanzas() {
   home="$TMP_ROOT/conditional-home"
   config="$TMP_ROOT/conditional-config"
   mkdir -p "$home/state" "$home/config" "$config"
-  out=$(FM_HOME="$home" FM_CONFIG_OVERRIDE="$config" "$RENDER" --harness codex --read-only 1 --afk 1 --x-mode 1)
+  out=$(MY_FM_HOME="$home" FM_CONFIG_OVERRIDE="$config" "$RENDER" --harness codex --read-only 1 --afk 1 --x-mode 1)
   assert_contains "$out" "- Lock: read-only" "read-only stanza missing"
   assert_contains "$out" "- Away mode: active" "afk stanza missing"
   assert_contains "$out" "- X mode: active" "x-mode stanza missing"
@@ -47,22 +47,22 @@ test_quiet_mode_stanzas() {
   home="$TMP_ROOT/quiet-home"
   config="$TMP_ROOT/quiet-config"
   mkdir -p "$home/state" "$config"
-  out=$(FM_HOME="$home" FM_CONFIG_OVERRIDE="$config" "$RENDER" --harness codex --afk 1 --afk-mode quiet)
+  out=$(MY_FM_HOME="$home" FM_CONFIG_OVERRIDE="$config" "$RENDER" --harness codex --afk 1 --afk-mode quiet)
   assert_contains "$out" "- Quiet mode: active" "quiet stanza missing"
   assert_contains "$out" "load /quiet" "quiet stanza did not name the /quiet skill"
   assert_contains "$out" "Ordinary captain chat does NOT exit it" "quiet stanza lost the explicit-only exit rule"
   assert_not_contains "$out" "- Away mode: active" "quiet mode incorrectly rendered as away mode"
-  out=$(FM_HOME="$home" "$RENDER" --harness codex --afk 1 --afk-mode quiet --repair-line)
+  out=$(MY_FM_HOME="$home" "$RENDER" --harness codex --afk 1 --afk-mode quiet --repair-line)
   assert_contains "$out" "Quiet mode owns watcher supervision; load /quiet" "quiet repair line did not name /quiet"
 
-  out=$(FM_HOME="$home" "$RENDER" --harness codex --afk 1)
+  out=$(MY_FM_HOME="$home" "$RENDER" --harness codex --afk 1)
   assert_contains "$out" "- Away mode: active" "omitting --afk-mode did not default to away (regression)"
   assert_not_contains "$out" "Quiet mode" "omitting --afk-mode leaked quiet-mode text"
 
-  out=$(FM_HOME="$home" "$RENDER" --harness codex --afk 1 --afk-mode not-a-real-mode)
+  out=$(MY_FM_HOME="$home" "$RENDER" --harness codex --afk 1 --afk-mode not-a-real-mode)
   assert_contains "$out" "- Away mode: active" "unrecognized --afk-mode value did not fall back to away"
 
-  out=$(FM_HOME="$home" "$RENDER" --harness codex --afk 0)
+  out=$(MY_FM_HOME="$home" "$RENDER" --harness codex --afk 0)
   assert_contains "$out" "- Away/quiet mode: inactive" "inactive stanza missing"
   pass "renderer's away/quiet stanzas are mode-aware, default to away, and fall back safely on garbage input"
 }
@@ -71,10 +71,10 @@ test_repair_lines() {
   local home out
   home="$TMP_ROOT/repair-home"
   mkdir -p "$home/state" "$home/config"
-  out=$(FM_HOME="$home" FM_CODEX_WATCH_CHECKPOINT=7 "$RENDER" --harness codex --repair-line)
+  out=$(MY_FM_HOME="$home" FM_CODEX_WATCH_CHECKPOINT=7 "$RENDER" --harness codex --repair-line)
   assert_contains "$out" "bin/fm-watch-checkpoint.sh --seconds 7" "codex repair line did not use checkpoint helper and env override"
 
-  out=$(FM_HOME="$home" "$RENDER" --harness claude --queue-pending 1 --repair-line)
+  out=$(MY_FM_HOME="$home" "$RENDER" --harness claude --queue-pending 1 --repair-line)
   assert_contains "$out" "After draining queued wakes" "queue-pending prefix missing"
   assert_contains "$out" "watcher supervision needs Stop-owned automatic recovery" "claude pre-verification repair line is not neutral"
   assert_not_contains "$out" "is broken" "claude pre-verification repair line claimed a verified mechanism failure"
@@ -83,17 +83,17 @@ test_repair_lines() {
   assert_not_contains "$out" "bin/fm-watch-arm.sh" "claude pre-verification repair line directed an arm command"
 
   : > "$home/config/x-mode.env"
-  out=$(FM_HOME="$home" FM_CODEX_WATCH_CHECKPOINT=7 "$RENDER" --harness codex --x-mode 1 --repair-line)
+  out=$(MY_FM_HOME="$home" FM_CODEX_WATCH_CHECKPOINT=7 "$RENDER" --harness codex --x-mode 1 --repair-line)
   assert_contains "$out" "source '$home/config/x-mode.env' first" "x-mode repair line did not source the effective cadence config"
   assert_contains "$out" "bin/fm-watch-checkpoint.sh --seconds 7" "x-mode codex repair line lost the checkpoint helper"
 
-  out=$(FM_HOME="$home" "$RENDER" --harness opencode --read-only 1 --repair-line)
+  out=$(MY_FM_HOME="$home" "$RENDER" --harness opencode --read-only 1 --repair-line)
   assert_contains "$out" "session holding the fleet lock" "read-only repair line missing"
 
-  out=$(FM_HOME="$home" "$RENDER" --harness pi --repair-line)
+  out=$(MY_FM_HOME="$home" "$RENDER" --harness pi --repair-line)
   assert_contains "$out" "Pi tool fm_watch_arm_pi" "pi repair line does not direct the model to the extension-owned tool"
   assert_not_contains "$out" "extension command /fm-watch-arm-pi" "pi repair line still directs the model to the human slash command"
-  out=$(FM_HOME="$home" "$RENDER" --harness omp --repair-line)
+  out=$(MY_FM_HOME="$home" "$RENDER" --harness omp --repair-line)
   assert_contains "$out" "omp tool fm_watch_arm_omp" "omp repair line does not direct the model to the extension-owned tool"
   assert_contains "$out" ".omp/extensions/fm-primary-turnend-guard.ts" "omp repair line does not name its own turn-end extension"
   assert_not_contains "$out" "fm_watch_arm_pi" "omp repair line must not borrow the Pi tool"
@@ -195,7 +195,7 @@ test_grok_command_sources_effective_config() {
   home="$TMP_ROOT/grok-home"
   config="$TMP_ROOT/grok-config"
   mkdir -p "$home/state" "$config"
-  out=$(FM_HOME="$home" FM_CONFIG_OVERRIDE="$config" "$RENDER" --harness grok --x-mode 1)
+  out=$(MY_FM_HOME="$home" FM_CONFIG_OVERRIDE="$config" "$RENDER" --harness grok --x-mode 1)
   assert_contains "$out" "[ -f '$config/x-mode.env' ] && . '$config/x-mode.env'; exec bin/fm-watch-arm.sh" "grok arm command did not use the effective x-mode config path"
   pass "grok rendered command sources the effective x-mode config"
 }
@@ -206,7 +206,7 @@ test_pi_snippet_uses_effective_extension_path() {
   turnend="$ROOT/.pi/extensions/fm-primary-turnend-guard.ts"
   watch="$ROOT/.pi/extensions/fm-primary-pi-watch.ts"
   mkdir -p "$home/state" "$home/config"
-  out=$(FM_HOME="$home" "$RENDER" --harness pi)
+  out=$(MY_FM_HOME="$home" "$RENDER" --harness pi)
   assert_contains "$out" "-e $turnend -e $watch" "pi snippet did not render both effective extension launch paths"
   assert_contains "$out" "The turn-end guard extension lives at \`$turnend\`" "pi snippet did not render the turn-end guard extension path"
   assert_contains "$out" "The watcher extension lives at \`$watch\`" "pi snippet did not render the watcher extension path"

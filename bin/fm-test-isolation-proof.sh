@@ -36,7 +36,7 @@
 # Isolation contract for each concurrent worker:
 #   - distinct mode-0700 temporary root under a proof-owned parent
 #   - TMPDIR/TMP point only at that root so mktemp/fm_test_tmproot stay private
-#   - ambient FM_HOME / FM_*_OVERRIDE cleared so no shared home is reused
+#   - ambient MY_FM_HOME / FM_*_OVERRIDE cleared so no shared home is reused
 #   - no global git config mutation (snapshot before/after)
 #   - no production sharding and no retry-until-green
 #
@@ -509,7 +509,7 @@ for script in "${CANDIDATES[@]}"; do
     export TMPDIR="$work/tmp"
     export TMP="$work/tmp"
     # Clear ambient fleet overrides so candidates cannot share a live home.
-    unset FM_HOME FM_STATE_OVERRIDE FM_DATA_OVERRIDE FM_ROOT_OVERRIDE \
+    unset MY_FM_HOME FM_STATE_OVERRIDE FM_DATA_OVERRIDE FM_ROOT_OVERRIDE \
       FM_PROJECTS_OVERRIDE FM_CONFIG_OVERRIDE FM_BACKEND 2>/dev/null || true
     cd "$ROOT" || exit 1
     begin_ms=$(now_ms)

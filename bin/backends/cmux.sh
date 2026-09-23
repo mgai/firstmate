@@ -103,13 +103,13 @@
 # fm_backend_required_tools only when cmux is the resolved backend; this adapter
 # also gates them again before spawning.
 
-# FM_HOME fallback: every real caller already sets FM_HOME as a global before
+# MY_FM_HOME fallback: every real caller already sets MY_FM_HOME as a global before
 # sourcing fm-backend.sh (which sources this file); this exists only so this
 # file's own unit tests, which source it directly, resolve sanely. Mirrors
 # bin/backends/zellij.sh's identical fallback.
 FM_BACKEND_CMUX_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 FM_ROOT="${FM_ROOT_OVERRIDE:-${FM_ROOT:-$FM_BACKEND_CMUX_ROOT}}"
-FM_HOME="${FM_HOME:-${FM_ROOT_OVERRIDE:-$FM_ROOT}}"
+MY_FM_HOME="${MY_FM_HOME:-${FM_ROOT_OVERRIDE:-$FM_ROOT}}"
 
 # shellcheck source=bin/fm-backend-hometag-lib.sh
 . "$FM_BACKEND_CMUX_ROOT/bin/fm-backend-hometag-lib.sh"
@@ -156,7 +156,7 @@ fm_backend_cmux_tool_check() {
 # Never overrides an operator's own ambient CMUX_SOCKET_PASSWORD when the file
 # is absent - fm_backend_cmux_cli only exports this when it resolves non-empty.
 fm_backend_cmux_password() {
-  local config_dir="${FM_CONFIG_OVERRIDE:-$FM_HOME/config}" f line
+  local config_dir="${FM_CONFIG_OVERRIDE:-$MY_FM_HOME/config}" f line
   f="$config_dir/cmux-socket-password"
   [ -f "$f" ] || return 0
   while IFS= read -r line || [ -n "$line" ]; do

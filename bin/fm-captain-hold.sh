@@ -207,9 +207,9 @@ set -eu
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FM_ROOT="${FM_ROOT_OVERRIDE:-$(cd "$SCRIPT_DIR/.." && pwd)}"
-FM_HOME="${FM_HOME:-${FM_ROOT_OVERRIDE:-$FM_ROOT}}"
-STATE="${FM_STATE_OVERRIDE:-$FM_HOME/state}"
-DATA="${FM_DATA_OVERRIDE:-$FM_HOME/data}"
+MY_FM_HOME="${MY_FM_HOME:-${FM_ROOT_OVERRIDE:-$FM_ROOT}}"
+STATE="${FM_STATE_OVERRIDE:-$MY_FM_HOME/state}"
+DATA="${FM_DATA_OVERRIDE:-$MY_FM_HOME/data}"
 
 # shellcheck source=bin/fm-classify-lib.sh
 # shellcheck disable=SC1091
@@ -231,7 +231,7 @@ PARENT_HOLD_PUBLISHED=0
 publish_parent_hold() {  # <task-id> <occurrence> <verb> <note>
   local id=$1 occurrence=$2 verb=$3 note=$4 rc=0
   PARENT_HOLD_PUBLISHED=0
-  fm_parent_channel_report "$FM_HOME" "$STATE" \
+  fm_parent_channel_report "$MY_FM_HOME" "$STATE" \
     "$verb [key=captain-hold-$id-$occurrence]: captain hold $id: $(fm_parent_channel_clean_note "$note")" || rc=$?
   case "$rc" in
     0|1) PARENT_HOLD_PUBLISHED=1 ;;
@@ -1635,7 +1635,7 @@ command_complete() {
     [ -f "$meta" ] || fail "task metadata disappeared while recording completion"
   fi
   require_tasks_axi
-  origin_exists_here "$origin" || fail "origin $origin is not owned by the active home $FM_HOME"
+  origin_exists_here "$origin" || fail "origin $origin is not owned by the active home $MY_FM_HOME"
   if [ "$#" -eq 1 ] && [ "$1" = --none ]; then
     supplied=''
   else
@@ -1803,11 +1803,11 @@ command_diverged() {
   local ids resolve f origin tokens id keys key show title
   [ "$#" -eq 0 ] || { usage >&2; exit 2; }
   # Both records must belong to the SAME home or the comparison is meaningless:
-  # tasks-axi reads $FM_HOME's backlog, so a state dir pointed somewhere else
+  # tasks-axi reads $MY_FM_HOME's backlog, so a state dir pointed somewhere else
   # would report one home's status logs against another home's tasks. Every
   # production caller pairs the two; a mismatch stays silent rather than
   # inventing a cross-home divergence.
-  [ "$STATE" = "$FM_HOME/state" ] || return 0
+  [ "$STATE" = "$MY_FM_HOME/state" ] || return 0
   # A read-only listing on a per-wake path, so it skips the mutation-oriented
   # compatibility floor and its extra probes: a listing this parser cannot read
   # simply yields no candidates and the report stays silent.

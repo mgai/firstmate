@@ -39,7 +39,7 @@ HOME_N=0
 
 # --- fixtures ---------------------------------------------------------------
 
-# new_home: fresh isolated FM_HOME with an empty projects/ dir. Each test gets its
+# new_home: fresh isolated MY_FM_HOME with an empty projects/ dir. Each test gets its
 # own so the whole-fleet form never sees another test's clones.
 new_home() {
   HOME_N=$((HOME_N + 1))
@@ -93,10 +93,10 @@ head_sha() { git -C "$1" rev-parse HEAD; }
 run_sync() {
   local home=$1
   shift
-  FM_HOME="$home" FM_ROOT_OVERRIDE="$ROOT" "$ROOT/bin/fm-fleet-sync.sh" "$@" 2>/dev/null
+  MY_FM_HOME="$home" FM_ROOT_OVERRIDE="$ROOT" "$ROOT/bin/fm-fleet-sync.sh" "$@" 2>/dev/null
 }
 
-# build_enclosing_home <name>: an FM_HOME that is itself nested inside another git
+# build_enclosing_home <name>: an MY_FM_HOME that is itself nested inside another git
 # repository - firstmate's own layout, where projects/ sits inside the firstmate
 # checkout. The enclosing repo is a clean clone of a bare origin that is one commit
 # ahead, so a sync that walked git discovery UP out of projects/<dir> would find a
@@ -230,7 +230,7 @@ run_sync_guarded() {
   shift 4
   realgit=$(command -v git)
   PATH="$fakebin:$PATH" REAL_GIT_FOR_TEST="$realgit" \
-  FM_HOME="$home" FM_ROOT_OVERRIDE="$ROOT" \
+  MY_FM_HOME="$home" FM_ROOT_OVERRIDE="$ROOT" \
     "$ROOT/bin/fm-fleet-sync.sh" "$@" >"$outf" 2>"$errf"
 }
 
@@ -503,7 +503,7 @@ test_bootstrap_relays_recovered_and_stuck() {
 
   # Full bootstrap: no state/ dir -> secondmate sync no-ops; no .env -> X mode off.
   # We only assert the fleet-sync relay lines; other detect lines are irrelevant.
-  out=$(FM_HOME="$home" FM_ROOT_OVERRIDE="$ROOT" "$ROOT/bin/fm-bootstrap.sh" 2>/dev/null)
+  out=$(MY_FM_HOME="$home" FM_ROOT_OVERRIDE="$ROOT" "$ROOT/bin/fm-bootstrap.sh" 2>/dev/null)
 
   assert_contains "$out" "FLEET_SYNC: stuck-clone: STUCK:" "bootstrap relays the STUCK outcome"
   assert_contains "$out" "FLEET_SYNC: rec-clone: recovered:" "bootstrap relays the recovered outcome"

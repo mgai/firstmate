@@ -270,7 +270,7 @@ make_secondmate_linked_home_dir() {
 run_hook() {
   local dir=$1 stop_active=$2 home
   home=$(cd "$dir" && pwd)
-  printf '{"stop_hook_active":%s}' "$stop_active" | PATH="$BLIND_BIN:$PATH" CLAUDECODE=1 FM_HOME="$home" bash "$dir/bin/fm-turnend-guard.sh" 2>&1
+  printf '{"stop_hook_active":%s}' "$stop_active" | PATH="$BLIND_BIN:$PATH" CLAUDECODE=1 MY_FM_HOME="$home" bash "$dir/bin/fm-turnend-guard.sh" 2>&1
 }
 
 nonexistent_pid() {
@@ -384,7 +384,7 @@ test_hook_non_claude_health_ignores_claude_budget_contention() {
   mkdir -p "$dir/state/.turnend-claude-blocks.lock"
   printf '%s\n' "$holder" > "$dir/state/.turnend-claude-blocks.lock/pid"
   while IFS='|' read -r harness payload; do
-    out=$(printf '%s' "$payload" | FM_HOME="$home" bash "$dir/bin/fm-turnend-guard.sh" 2>&1); status=$?
+    out=$(printf '%s' "$payload" | MY_FM_HOME="$home" bash "$dir/bin/fm-turnend-guard.sh" 2>&1); status=$?
     expect_code 0 "$status" "$harness healthy path must ignore Claude budget-lock contention"
     [ -z "$out" ] || fail "$harness healthy path produced output: $out"
     [ "$(cat "$dir/state/.turnend-claude-blocks")" = $'session=claude-episode\ncount=3\nepoch=9' ] \
@@ -448,10 +448,10 @@ test_hook_blocks_from_fm_home_state() {
   home="$TMP_ROOT/hook-fm-home-op"
   mkdir -p "$home/state"
   : > "$home/state/task1.meta"
-  out=$(printf '{"stop_hook_active":false}' | PATH="$BLIND_BIN:$PATH" CLAUDECODE=1 FM_HOME="$home" bash "$dir/bin/fm-turnend-guard.sh" 2>&1); status=$?
-  expect_code 2 "$status" "hook must inspect the active FM_HOME state dir"
+  out=$(printf '{"stop_hook_active":false}' | PATH="$BLIND_BIN:$PATH" CLAUDECODE=1 MY_FM_HOME="$home" bash "$dir/bin/fm-turnend-guard.sh" 2>&1); status=$?
+  expect_code 2 "$status" "hook must inspect the active MY_FM_HOME state dir"
   assert_contains "$out" "$REQUIRED_REASON" "block reason must contain the exact required instruction"
-  pass "fm-turnend-guard: blocks from active FM_HOME state, not only repo-root state"
+  pass "fm-turnend-guard: blocks from active MY_FM_HOME state, not only repo-root state"
 }
 
 test_hook_x_mode_reason_sources_cadence() {
@@ -494,10 +494,10 @@ test_hook_ignores_repo_state_when_fm_home_set() {
   home="$TMP_ROOT/hook-fm-home-quiet"
   mkdir -p "$home/state"
   : > "$dir/state/task1.meta"
-  out=$(printf '{"stop_hook_active":false}' | FM_HOME="$home" bash "$dir/bin/fm-turnend-guard.sh" 2>&1); status=$?
-  expect_code 0 "$status" "hook must ignore repo-root state when FM_HOME selects another state dir"
-  [ -z "$out" ] || fail "hook produced output from stale repo-root state despite FM_HOME: $out"
-  pass "fm-turnend-guard: ignores stale repo-root state when FM_HOME is set"
+  out=$(printf '{"stop_hook_active":false}' | MY_FM_HOME="$home" bash "$dir/bin/fm-turnend-guard.sh" 2>&1); status=$?
+  expect_code 0 "$status" "hook must ignore repo-root state when MY_FM_HOME selects another state dir"
+  [ -z "$out" ] || fail "hook produced output from stale repo-root state despite MY_FM_HOME: $out"
+  pass "fm-turnend-guard: ignores stale repo-root state when MY_FM_HOME is set"
 }
 
 test_hook_uses_state_override() {
@@ -507,10 +507,10 @@ test_hook_uses_state_override() {
   state="$TMP_ROOT/hook-state-override-active"
   mkdir -p "$home/state" "$state"
   : > "$state/task1.meta"
-  out=$(printf '{"stop_hook_active":false}' | PATH="$BLIND_BIN:$PATH" CLAUDECODE=1 FM_HOME="$home" FM_STATE_OVERRIDE="$state" bash "$dir/bin/fm-turnend-guard.sh" 2>&1); status=$?
-  expect_code 2 "$status" "hook must let FM_STATE_OVERRIDE win over FM_HOME/state"
+  out=$(printf '{"stop_hook_active":false}' | PATH="$BLIND_BIN:$PATH" CLAUDECODE=1 MY_FM_HOME="$home" FM_STATE_OVERRIDE="$state" bash "$dir/bin/fm-turnend-guard.sh" 2>&1); status=$?
+  expect_code 2 "$status" "hook must let FM_STATE_OVERRIDE win over MY_FM_HOME/state"
   assert_contains "$out" "$REQUIRED_REASON" "block reason must contain the exact required instruction"
-  pass "fm-turnend-guard: uses FM_STATE_OVERRIDE ahead of FM_HOME/state"
+  pass "fm-turnend-guard: uses FM_STATE_OVERRIDE ahead of MY_FM_HOME/state"
 }
 
 test_hook_loop_guard_allows_retry() {
@@ -1080,7 +1080,7 @@ SH
 exit 0
 SH
   chmod +x "$repo/bin/fm-turnend-guard.sh" "$repo/bin/fm-arm-pretool-check.sh"
-  out=$(PLUGIN="$ext" FM_HOME="$home" FM_GUARD_LOG="$log" node --input-type=module 2>&1 <<'EOF'
+  out=$(PLUGIN="$ext" MY_FM_HOME="$home" FM_GUARD_LOG="$log" node --input-type=module 2>&1 <<'EOF'
 import { readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
@@ -1145,7 +1145,7 @@ SH
 exit 0
 SH
   chmod +x "$repo/bin/fm-turnend-guard.sh" "$repo/bin/fm-arm-pretool-check.sh"
-  out=$(PLUGIN="$ext" FM_HOME="$home" node --input-type=module 2>&1 <<'EOF'
+  out=$(PLUGIN="$ext" MY_FM_HOME="$home" node --input-type=module 2>&1 <<'EOF'
 import { pathToFileURL } from "node:url";
 
 const handlers = new Map();
@@ -1183,7 +1183,7 @@ EOF
 run_hook_claude() {
   local dir=$1 stop_active=$2 home
   home=$(cd "$dir" && pwd)
-  printf '{"stop_hook_active":%s,"session_id":"sess-claude-mode"}' "$stop_active" | CLAUDECODE=1 FM_HOME="$home" bash "$dir/bin/fm-turnend-guard.sh" --claude 2>&1
+  printf '{"stop_hook_active":%s,"session_id":"sess-claude-mode"}' "$stop_active" | CLAUDECODE=1 MY_FM_HOME="$home" bash "$dir/bin/fm-turnend-guard.sh" --claude 2>&1
 }
 
 seed_claude_failure() {
@@ -1222,11 +1222,11 @@ install_integrated_autoarm() {
 run_integrated_autoarm() {
   local dir=$1 home
   home=$(cd "$dir" && pwd)
-  # shellcheck disable=SC2016 # the fake harness expands FM_HOME inside its child shell.
+  # shellcheck disable=SC2016 # the fake harness expands MY_FM_HOME inside its child shell.
   printf '{"session_id":"sess-claude-mode","stop_hook_active":false}\n' \
-    | FM_HOME="$home" "$dir/fake-claude" -c '
-        printf "%s\n" "$$" > "$FM_HOME/state/.lock"
-        "$FM_HOME/bin/fm-claude-stop-autoarm.sh"
+    | MY_FM_HOME="$home" "$dir/fake-claude" -c '
+        printf "%s\n" "$$" > "$MY_FM_HOME/state/.lock"
+        "$MY_FM_HOME/bin/fm-claude-stop-autoarm.sh"
       ' 2>&1
 }
 
@@ -1236,9 +1236,9 @@ run_integrated_autoarm() {
 run_integrated_autoarm_unowned() {
   local dir=$1 home
   home=$(cd "$dir" && pwd)
-  # shellcheck disable=SC2016 # the fake harness expands FM_HOME inside its child shell.
+  # shellcheck disable=SC2016 # the fake harness expands MY_FM_HOME inside its child shell.
   printf '{"session_id":"sess-claude-mode","stop_hook_active":false}\n' \
-    | FM_HOME="$home" "$dir/fake-claude" -c '"$FM_HOME/bin/fm-claude-stop-autoarm.sh"' 2>&1
+    | MY_FM_HOME="$home" "$dir/fake-claude" -c '"$MY_FM_HOME/bin/fm-claude-stop-autoarm.sh"' 2>&1
 }
 
 write_integrated_failed_arm() {
@@ -1371,7 +1371,7 @@ SH
         FM_TERMINAL_READY="$ready" \
         FM_TERMINAL_RELEASE="$release" \
         FM_TERMINAL_ONCE="$once" \
-        CLAUDECODE=1 FM_HOME="$dir" bash "$dir/bin/fm-turnend-guard.sh" --claude \
+        CLAUDECODE=1 MY_FM_HOME="$dir" bash "$dir/bin/fm-turnend-guard.sh" --claude \
           > "$guard_out" 2>&1
     printf '%s\n' "$?" > "$guard_status"
   ) &

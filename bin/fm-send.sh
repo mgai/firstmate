@@ -226,18 +226,18 @@ FM_ROOT="${FM_ROOT_OVERRIDE:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 # a crewmate (see bin/fm-gate-refuse-lib.sh).
 fm_refuse_if_gate_agent
 
-if [ -z "${FM_HOME+x}" ] || [ -z "${FM_HOME:-}" ]; then
-  echo "error: FM_HOME is not set; fm-send refuses to resolve targets without an explicit firstmate home" >&2
+if [ -z "${MY_FM_HOME+x}" ] || [ -z "${MY_FM_HOME:-}" ]; then
+  echo "error: MY_FM_HOME is not set; fm-send refuses to resolve targets without an explicit firstmate home" >&2
   exit 1
 fi
 
-STATE="${FM_STATE_OVERRIDE:-$FM_HOME/state}"
-if [ ! -d "$FM_HOME" ]; then
-  echo "error: FM_HOME '$FM_HOME' is not a directory; fm-send cannot resolve this home's state" >&2
+STATE="${FM_STATE_OVERRIDE:-$MY_FM_HOME/state}"
+if [ ! -d "$MY_FM_HOME" ]; then
+  echo "error: MY_FM_HOME '$MY_FM_HOME' is not a directory; fm-send cannot resolve this home's state" >&2
   exit 1
 fi
 if [ ! -d "$STATE" ]; then
-  echo "error: state dir '$STATE' is missing; fm-send cannot resolve targets for FM_HOME '$FM_HOME'" >&2
+  echo "error: state dir '$STATE' is missing; fm-send cannot resolve targets for MY_FM_HOME '$MY_FM_HOME'" >&2
   exit 1
 fi
 
@@ -572,7 +572,7 @@ fm_send_hold_resolved_id() { # <task-id> <decision-key>
   local show id state hold_kind
   command -v tasks-axi >/dev/null 2>&1 || return 1
   for id in "$2" "$1-decision-$2"; do
-    show=$(FM_HOME="$FM_HOME" FM_DATA_OVERRIDE='' "$SCRIPT_DIR/fm-tasks-axi.sh" show "$id" --full 2>/dev/null) || continue
+    show=$(MY_FM_HOME="$MY_FM_HOME" FM_DATA_OVERRIDE='' "$SCRIPT_DIR/fm-tasks-axi.sh" show "$id" --full 2>/dev/null) || continue
     state=$(printf '%s\n' "$show" | sed -n 's/^  state: //p' | head -1)
     hold_kind=$(printf '%s\n' "$show" | sed -n 's/^  hold_kind: //p' | head -1)
     [ "$state" != "done" ] || continue
@@ -835,7 +835,7 @@ else
         echo "error: cannot create pending-reply expectation without a resolvable secondmate task id" >&2
         exit 1
       fi
-      PENDING_REPLY_CORR=$(fm_pending_reply_create "$FM_HOME" "$STATE" "$TARGET_TASK_ID" "$MESSAGE") ||
+      PENDING_REPLY_CORR=$(fm_pending_reply_create "$MY_FM_HOME" "$STATE" "$TARGET_TASK_ID" "$MESSAGE") ||
         {
           echo "error: failed to create parent pending-reply expectation for $TARGET_TASK_ID" >&2
           exit 1
@@ -966,8 +966,8 @@ else
       else
         echo "error: steer to remote secondmate $TARGET_REMOTE_ID is unconfirmed (the first transport attempt had unknown completion and the retry failed). Only the correlation-reusing resend below is idempotent and lands on the same remote inbox record:" >&2
       fi
-      resend_home=$(cd "$FM_HOME" 2>/dev/null && pwd) || resend_home=$FM_HOME
-      printf 'FM_HOME=%q ' "$resend_home" >&2
+      resend_home=$(cd "$MY_FM_HOME" 2>/dev/null && pwd) || resend_home=$MY_FM_HOME
+      printf 'MY_FM_HOME=%q ' "$resend_home" >&2
       if [ "${FM_STATE_OVERRIDE+x}" = x ]; then
         resend_state=$(cd "$STATE" 2>/dev/null && pwd) || resend_state=$STATE
         printf 'FM_STATE_OVERRIDE=%q ' "$resend_state" >&2

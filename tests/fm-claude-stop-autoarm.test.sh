@@ -8,7 +8,7 @@
 # Stale-owner cases instead leave a dead recorded pid for the hook to reclaim
 # through the real fm-lock.sh path. The arm wrapper is a per-test fixture, so no
 # real watcher, model, or fleet state is touched.
-# shellcheck disable=SC2016 # single quotes are deliberate: $FM_HOME expands inside the fake harness child, and grep needles are literal strings
+# shellcheck disable=SC2016 # single quotes are deliberate: $MY_FM_HOME expands inside the fake harness child, and grep needles are literal strings
 set -u
 
 # shellcheck source=tests/lib.sh
@@ -71,9 +71,9 @@ make_crewmate_worktree_dir() {
 run_autoarm() {
   local dir=$1 rc=0
   printf '%s\n' '{"session_id":"sess-autoarm","stop_hook_active":false}' \
-    | FM_HOME="$dir" "$FAKE_CLAUDE" -c '
-        printf "%s\n" "$$" > "$FM_HOME/state/.lock"
-        "$FM_HOME/bin/fm-claude-stop-autoarm.sh"
+    | MY_FM_HOME="$dir" "$FAKE_CLAUDE" -c '
+        printf "%s\n" "$$" > "$MY_FM_HOME/state/.lock"
+        "$MY_FM_HOME/bin/fm-claude-stop-autoarm.sh"
       ' 2>&1 || rc=$?
   printf 'RC=%s\n' "$rc" >&2
   return "$rc"
@@ -86,9 +86,9 @@ write_arm_fixture() {
     actionable)
       cat > "$dir/bin/fm-watch-arm.sh" <<'SH'
 #!/usr/bin/env bash
-echo "$$" >> "$FM_HOME/state/arm-ran"
-printf 'pending:downtime:fixture-generation\n' > "$FM_HOME/state/.watcher-down"
-touch "$FM_HOME/state/.last-watcher-beat"
+echo "$$" >> "$MY_FM_HOME/state/arm-ran"
+printf 'pending:downtime:fixture-generation\n' > "$MY_FM_HOME/state/.watcher-down"
+touch "$MY_FM_HOME/state/.last-watcher-beat"
 printf 'watcher: started pid=%s (beacon fresh)\n' "$$"
 printf 'stale: fixture-win actionable\n'
 exit 0
@@ -97,7 +97,7 @@ SH
     failed)
       cat > "$dir/bin/fm-watch-arm.sh" <<'SH'
 #!/usr/bin/env bash
-echo "$$" >> "$FM_HOME/state/arm-ran"
+echo "$$" >> "$MY_FM_HOME/state/arm-ran"
 printf 'watcher: FAILED - no live watcher with a fresh beacon\n'
 exit 1
 SH
@@ -105,7 +105,7 @@ SH
     clean)
       cat > "$dir/bin/fm-watch-arm.sh" <<'SH'
 #!/usr/bin/env bash
-echo "$$" >> "$FM_HOME/state/arm-ran"
+echo "$$" >> "$MY_FM_HOME/state/arm-ran"
 printf 'watcher: attached pid=%s (beacon 2s)\n' "$$"
 exit 0
 SH
@@ -113,7 +113,7 @@ SH
     benign-live)
       cat > "$dir/bin/fm-watch-arm.sh" <<'SH'
 #!/usr/bin/env bash
-echo "$$" >> "$FM_HOME/state/arm-ran"
+echo "$$" >> "$MY_FM_HOME/state/arm-ran"
 printf 'watcher: FAILED - cycle ended without an actionable reason\n'
 exit 1
 SH
@@ -121,9 +121,9 @@ SH
     reset-boundary)
       cat > "$dir/bin/fm-watch-arm.sh" <<'SH'
 #!/usr/bin/env bash
-echo "$$" >> "$FM_HOME/state/arm-ran"
-: > "$FM_HOME/state/arm-waiting"
-while [ ! -e "$FM_HOME/state/arm-release" ]; do sleep 0.02; done
+echo "$$" >> "$MY_FM_HOME/state/arm-ran"
+: > "$MY_FM_HOME/state/arm-waiting"
+while [ ! -e "$MY_FM_HOME/state/arm-release" ]; do sleep 0.02; done
 printf 'watcher: FAILED - cycle ended without an actionable reason\n'
 exit 1
 SH
@@ -131,10 +131,10 @@ SH
     slow-actionable)
       cat > "$dir/bin/fm-watch-arm.sh" <<'SH'
 #!/usr/bin/env bash
-echo "$$" >> "$FM_HOME/state/arm-ran"
+echo "$$" >> "$MY_FM_HOME/state/arm-ran"
 sleep 2
-printf 'pending:downtime:fixture-generation\n' > "$FM_HOME/state/.watcher-down"
-touch "$FM_HOME/state/.last-watcher-beat"
+printf 'pending:downtime:fixture-generation\n' > "$MY_FM_HOME/state/.watcher-down"
+touch "$MY_FM_HOME/state/.last-watcher-beat"
 printf 'watcher: started pid=%s (beacon fresh)\n' "$$"
 printf 'signal: task.status done: slow fixture\n'
 exit 0
@@ -143,10 +143,10 @@ SH
     blocking-actionable)
       cat > "$dir/bin/fm-watch-arm.sh" <<'SH'
 #!/usr/bin/env bash
-echo "$$" >> "$FM_HOME/state/arm-ran"
+echo "$$" >> "$MY_FM_HOME/state/arm-ran"
 sleep 6
-printf 'pending:downtime:fixture-generation\n' > "$FM_HOME/state/.watcher-down"
-touch "$FM_HOME/state/.last-watcher-beat"
+printf 'pending:downtime:fixture-generation\n' > "$MY_FM_HOME/state/.watcher-down"
+touch "$MY_FM_HOME/state/.last-watcher-beat"
 printf 'watcher: started pid=%s (beacon fresh)\n' "$$"
 printf 'stale: fixture-win actionable\n'
 exit 0
@@ -155,9 +155,9 @@ SH
     supersede-then-fail)
       cat > "$dir/bin/fm-watch-arm.sh" <<'SH'
 #!/usr/bin/env bash
-echo "$$" >> "$FM_HOME/state/arm-ran"
+echo "$$" >> "$MY_FM_HOME/state/arm-ran"
 printf 'epoch=999 owner_pid=1 outcome=arming updated_at=%s\nfixture-superseder-identity\n' "$(date +%s)" \
-  > "$FM_HOME/state/.claude-autoarm-epoch"
+  > "$MY_FM_HOME/state/.claude-autoarm-epoch"
 printf 'watcher: FAILED - no live watcher with a fresh beacon\n'
 exit 1
 SH
@@ -165,10 +165,10 @@ SH
     meta-vanishes)
       cat > "$dir/bin/fm-watch-arm.sh" <<'SH'
 #!/usr/bin/env bash
-echo "$$" >> "$FM_HOME/state/arm-ran"
-rm -f "$FM_HOME/state/task.meta"
-printf 'pending:downtime:fixture-generation\n' > "$FM_HOME/state/.watcher-down"
-touch "$FM_HOME/state/.last-watcher-beat"
+echo "$$" >> "$MY_FM_HOME/state/arm-ran"
+rm -f "$MY_FM_HOME/state/task.meta"
+printf 'pending:downtime:fixture-generation\n' > "$MY_FM_HOME/state/.watcher-down"
+touch "$MY_FM_HOME/state/.last-watcher-beat"
 printf 'watcher: started pid=%s (beacon fresh)\n' "$$"
 printf 'signal: task.status done: fixture\n'
 exit 0
@@ -177,10 +177,10 @@ SH
     afk-appears)
       cat > "$dir/bin/fm-watch-arm.sh" <<'SH'
 #!/usr/bin/env bash
-echo "$$" >> "$FM_HOME/state/arm-ran"
-: > "$FM_HOME/state/.afk"
-printf 'pending:downtime:fixture-generation\n' > "$FM_HOME/state/.watcher-down"
-touch "$FM_HOME/state/.last-watcher-beat"
+echo "$$" >> "$MY_FM_HOME/state/arm-ran"
+: > "$MY_FM_HOME/state/.afk"
+printf 'pending:downtime:fixture-generation\n' > "$MY_FM_HOME/state/.watcher-down"
+touch "$MY_FM_HOME/state/.last-watcher-beat"
 printf 'watcher: started pid=%s (beacon fresh)\n' "$$"
 printf 'stale: fixture-win actionable\n'
 exit 0
@@ -189,8 +189,8 @@ SH
     records-grace)
       cat > "$dir/bin/fm-watch-arm.sh" <<'SH'
 #!/usr/bin/env bash
-echo "$$" >> "$FM_HOME/state/arm-ran"
-printf '%s\n' "${FM_GUARD_GRACE:-unset}" > "$FM_HOME/state/arm-received-grace"
+echo "$$" >> "$MY_FM_HOME/state/arm-ran"
+printf '%s\n' "${FM_GUARD_GRACE:-unset}" > "$MY_FM_HOME/state/arm-received-grace"
 printf 'watcher: attached pid=%s (beacon 2s)\n' "$$"
 exit 0
 SH
@@ -214,9 +214,9 @@ RUN_AUTOARM_BG_PID=
 run_autoarm_bg() {
   local dir=$1 out=$2
   printf '%s\n' '{"session_id":"sess-autoarm","stop_hook_active":false}' \
-    | FM_HOME="$dir" "$FAKE_CLAUDE" -c '
-        printf "%s\n" "$$" > "$FM_HOME/state/.lock"
-        "$FM_HOME/bin/fm-claude-stop-autoarm.sh"
+    | MY_FM_HOME="$dir" "$FAKE_CLAUDE" -c '
+        printf "%s\n" "$$" > "$MY_FM_HOME/state/.lock"
+        "$MY_FM_HOME/bin/fm-claude-stop-autoarm.sh"
       ' > "$out" 2>&1 &
   RUN_AUTOARM_BG_PID=$!
 }
@@ -261,7 +261,7 @@ test_inert_without_session_lock() {
   : > "$dir/state/task.meta"
   write_arm_fixture "$dir" actionable
   # No state/.lock: run the hook directly (no fake harness, no lock file).
-  out=$(printf '%s\n' '{"session_id":"s"}' | FM_HOME="$dir" bash "$dir/bin/fm-claude-stop-autoarm.sh" 2>&1); status=$?
+  out=$(printf '%s\n' '{"session_id":"s"}' | MY_FM_HOME="$dir" bash "$dir/bin/fm-claude-stop-autoarm.sh" 2>&1); status=$?
   expect_code 0 "$status" "hook must stay inert when no session holds the home lock"
   [ ! -e "$dir/state/arm-ran" ] || fail "hook armed without a session lock"
   pass "auto-arm: inert with no session lock"
@@ -274,9 +274,9 @@ test_reclaims_stale_session_lock_before_arming() {
   printf '9999999\n' > "$dir/state/.lock"
   write_arm_fixture "$dir" actionable
   out=$(printf '%s\n' '{"session_id":"stale"}' \
-    | FM_HOME="$dir" "$FAKE_CLAUDE" -c '
-        printf "%s\n" "$$" > "$FM_HOME/state/expected-owner"
-        "$FM_HOME/bin/fm-claude-stop-autoarm.sh"
+    | MY_FM_HOME="$dir" "$FAKE_CLAUDE" -c '
+        printf "%s\n" "$$" > "$MY_FM_HOME/state/expected-owner"
+        "$MY_FM_HOME/bin/fm-claude-stop-autoarm.sh"
       ' 2>&1); status=$?
   expect_code 2 "$status" "a dead recorded session owner must be reclaimed before the actionable rewake"
   expected_owner=$(cat "$dir/state/expected-owner")
@@ -297,7 +297,7 @@ test_inert_when_lock_held_by_other_harness() {
   "$FAKE_CLAUDE" -c 'sleep 60; :' &
   other=$!
   printf '%s\n' "$other" > "$dir/state/.lock"
-  out=$(printf '%s\n' '{"session_id":"s"}' | FM_HOME="$dir" "$FAKE_CLAUDE" -c '"$FM_HOME/bin/fm-claude-stop-autoarm.sh"' 2>&1); status=$?
+  out=$(printf '%s\n' '{"session_id":"s"}' | MY_FM_HOME="$dir" "$FAKE_CLAUDE" -c '"$MY_FM_HOME/bin/fm-claude-stop-autoarm.sh"' 2>&1); status=$?
   owner_after=$(cat "$dir/state/.lock")
   kill "$other" 2>/dev/null || true
   wait "$other" 2>/dev/null || true
@@ -331,7 +331,7 @@ test_stale_lock_recovery_preserves_afk_and_need_gates() {
   : > "$afk_dir/state/.afk"
   printf '9999999\n' > "$afk_dir/state/.lock"
   write_arm_fixture "$afk_dir" actionable
-  out=$(printf '%s\n' '{"session_id":"stale-afk"}' | FM_HOME="$afk_dir" "$FAKE_CLAUDE" -c '"$FM_HOME/bin/fm-claude-stop-autoarm.sh"' 2>&1); status=$?
+  out=$(printf '%s\n' '{"session_id":"stale-afk"}' | MY_FM_HOME="$afk_dir" "$FAKE_CLAUDE" -c '"$MY_FM_HOME/bin/fm-claude-stop-autoarm.sh"' 2>&1); status=$?
   expect_code 0 "$status" "a stale owner must not widen the AFK gate"
   [ "$(cat "$afk_dir/state/.lock")" = 9999999 ] || fail "AFK stale lock was reclaimed despite away ownership"
   [ ! -e "$afk_dir/state/arm-ran" ] || fail "stale AFK home armed"
@@ -339,7 +339,7 @@ test_stale_lock_recovery_preserves_afk_and_need_gates() {
   idle_dir=$(make_primary_dir "$TMP_ROOT/stale-idle")
   printf '9999999\n' > "$idle_dir/state/.lock"
   write_arm_fixture "$idle_dir" actionable
-  out=$(printf '%s\n' '{"session_id":"stale-idle"}' | FM_HOME="$idle_dir" "$FAKE_CLAUDE" -c '"$FM_HOME/bin/fm-claude-stop-autoarm.sh"' 2>&1); status=$?
+  out=$(printf '%s\n' '{"session_id":"stale-idle"}' | MY_FM_HOME="$idle_dir" "$FAKE_CLAUDE" -c '"$MY_FM_HOME/bin/fm-claude-stop-autoarm.sh"' 2>&1); status=$?
   expect_code 0 "$status" "a stale owner must not widen the supervision-need gate"
   [ "$(cat "$idle_dir/state/.lock")" = 9999999 ] || fail "idle stale lock was reclaimed without supervision need"
   [ ! -e "$idle_dir/state/arm-ran" ] || fail "stale idle home armed"
@@ -360,11 +360,11 @@ test_resolves_outermost_claude_pid_in_nested_bgspare_chain() {
   # so bash cannot tail-exec-collapse it into the outer pid, which would
   # collapse the two-hop chain this test depends on down to one hop.
   out=$(printf '%s\n' '{"session_id":"nested"}' \
-    | FM_HOME="$dir" "$FAKE_CLAUDE" -c '
-        printf "%s\n" "$$" > "$FM_HOME/state/.lock"
+    | MY_FM_HOME="$dir" "$FAKE_CLAUDE" -c '
+        printf "%s\n" "$$" > "$MY_FM_HOME/state/.lock"
         "$FAKE_CLAUDE" -c "
-          printf \"%s\n\" \"\$\$\" > \"\$FM_HOME/state/inner-pid\"
-          \"\$FM_HOME/bin/fm-claude-stop-autoarm.sh\"
+          printf \"%s\n\" \"\$\$\" > \"\$MY_FM_HOME/state/inner-pid\"
+          \"\$MY_FM_HOME/bin/fm-claude-stop-autoarm.sh\"
         "
       ' 2>&1); status=$?
   inner_pid=$(cat "$dir/state/inner-pid" 2>/dev/null || true)
@@ -665,14 +665,14 @@ test_single_flight_admits_exactly_one_owner() {
   dir=$(make_primary_dir "$TMP_ROOT/single-flight")
   : > "$dir/state/task.meta"
   write_arm_fixture "$dir" slow-actionable
-  FM_HOME="$dir" "$FAKE_CLAUDE" -c '
-    printf "%s\n" "$$" > "$FM_HOME/state/.lock"
-    printf "%s\n" "{\"session_id\":\"s\"}" | "$FM_HOME/bin/fm-claude-stop-autoarm.sh" >/dev/null 2>"$FM_HOME/state/err1" &
+  MY_FM_HOME="$dir" "$FAKE_CLAUDE" -c '
+    printf "%s\n" "$$" > "$MY_FM_HOME/state/.lock"
+    printf "%s\n" "{\"session_id\":\"s\"}" | "$MY_FM_HOME/bin/fm-claude-stop-autoarm.sh" >/dev/null 2>"$MY_FM_HOME/state/err1" &
     p1=$!
-    printf "%s\n" "{\"session_id\":\"s\"}" | "$FM_HOME/bin/fm-claude-stop-autoarm.sh" >/dev/null 2>"$FM_HOME/state/err2" &
+    printf "%s\n" "{\"session_id\":\"s\"}" | "$MY_FM_HOME/bin/fm-claude-stop-autoarm.sh" >/dev/null 2>"$MY_FM_HOME/state/err2" &
     p2=$!
-    wait "$p1"; echo $? > "$FM_HOME/state/rc1"
-    wait "$p2"; echo $? > "$FM_HOME/state/rc2"
+    wait "$p1"; echo $? > "$MY_FM_HOME/state/rc1"
+    wait "$p2"; echo $? > "$MY_FM_HOME/state/rc2"
   '
   rc1=$(cat "$dir/state/rc1")
   rc2=$(cat "$dir/state/rc2")
@@ -1228,7 +1228,7 @@ test_long_poll_grace_reaches_arm_wrapper() {
 
 test_fm_lock_status_still_works_with_shared_lib() {
   local out
-  out=$(FM_HOME="$TMP_ROOT/lock-status-home" bash "$ROOT/bin/fm-lock.sh" status 2>&1)
+  out=$(MY_FM_HOME="$TMP_ROOT/lock-status-home" bash "$ROOT/bin/fm-lock.sh" status 2>&1)
   assert_contains "$out" "lock: free" "fm-lock.sh status must keep working after the session-lock lib extraction"
   pass "fm-lock: shared session-lock lib preserves the status path"
 }

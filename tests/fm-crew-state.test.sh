@@ -2629,7 +2629,7 @@ SH
 }
 
 run_remote_crew_state() {  # <case-dir> <id>
-  PATH="$1/fakebin:$PATH" FM_HOME="$1" FM_STATE_OVERRIDE="$1/state" \
+  PATH="$1/fakebin:$PATH" MY_FM_HOME="$1" FM_STATE_OVERRIDE="$1/state" \
     FM_SSH_BIN="$1/fakebin/fake-ssh" "$CREW_STATE" "$2"
 }
 

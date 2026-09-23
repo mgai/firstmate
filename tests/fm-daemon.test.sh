@@ -85,13 +85,13 @@ test_daemon_state_root_uses_fm_home() {
   override="$dir/override-state"
   mkdir -p "$home" "$override"
 
-  out=$(FM_HOME="$home" FM_STATE_OVERRIDE='' _state_root)
-  [ "$out" = "$home/state" ] || fail "daemon state root ignored FM_HOME: $out"
+  out=$(MY_FM_HOME="$home" FM_STATE_OVERRIDE='' _state_root)
+  [ "$out" = "$home/state" ] || fail "daemon state root ignored MY_FM_HOME: $out"
 
-  out=$(FM_HOME="$home" FM_STATE_OVERRIDE="$override" _state_root)
+  out=$(MY_FM_HOME="$home" FM_STATE_OVERRIDE="$override" _state_root)
   [ "$out" = "$override" ] || fail "daemon state root ignored FM_STATE_OVERRIDE: $out"
 
-  pass "supervise daemon state root is scoped by FM_HOME"
+  pass "supervise daemon state root is scoped by MY_FM_HOME"
 }
 
 # Byte size of a status log: the daemon records escalation progress as a
@@ -2516,14 +2516,14 @@ test_fm_send_reports_delivered_unconfirmed_submit() {
   dir=$(make_bordered_case send-swallow)
   fakebin="$dir/fakebin"; err="$dir/send.err"
   # Clean submit -> exit 0.
-  PATH="$fakebin:$PATH" FM_HOME="$dir" FM_STATE_OVERRIDE="$dir/state" FM_FAKE_COMPOSER="$dir/composer" \
+  PATH="$fakebin:$PATH" MY_FM_HOME="$dir" FM_STATE_OVERRIDE="$dir/state" FM_FAKE_COMPOSER="$dir/composer" \
     FM_SEND_SLEEP=0.05 "$ROOT/bin/fm-send.sh" sess:win 'route this work' >/dev/null 2>"$err" \
     || fail "fm-send exited non-zero on a clean submit: $(cat "$err")"
   # Persistent composer text after Enter -> delivered-unconfirmed exit 3 with
   # a non-error warning that explicitly tells the operator not to resend.
   printf '╭─────╮\n│ >   │\n╰─────╯\n' > "$dir/composer"
   touch "$dir/.swallow"
-  if PATH="$fakebin:$PATH" FM_HOME="$dir" FM_STATE_OVERRIDE="$dir/state" FM_FAKE_COMPOSER="$dir/composer" \
+  if PATH="$fakebin:$PATH" MY_FM_HOME="$dir" FM_STATE_OVERRIDE="$dir/state" FM_FAKE_COMPOSER="$dir/composer" \
     FM_FAKE_SWALLOW="$dir/.swallow" FM_FAKE_PERSIST_SWALLOW=1 FM_SEND_SLEEP=0.05 \
     "$ROOT/bin/fm-send.sh" sess:win 'fix findings 1 and 3, skip 2' >/dev/null 2>"$err"; then
     rc=0
@@ -2545,7 +2545,7 @@ test_fm_send_exits_nonzero_on_initial_send_failure() {
   local dir fakebin err
   dir=$(make_bordered_case send-type-failure)
   fakebin="$dir/fakebin"; err="$dir/send.err"
-  if PATH="$fakebin:$PATH" FM_HOME="$dir" FM_STATE_OVERRIDE="$dir/state" FM_FAKE_COMPOSER="$dir/composer" \
+  if PATH="$fakebin:$PATH" MY_FM_HOME="$dir" FM_STATE_OVERRIDE="$dir/state" FM_FAKE_COMPOSER="$dir/composer" \
     FM_FAKE_SEND_FAIL=1 FM_SEND_SLEEP=0.05 \
     "$ROOT/bin/fm-send.sh" sess:win 'route this work' >/dev/null 2>"$err"; then
     fail "fm-send exited zero despite initial tmux send-keys failure"
@@ -2559,7 +2559,7 @@ test_fm_send_exits_nonzero_on_unproven_submit() {
   dir=$(make_bordered_case send-unproven)
   fakebin="$dir/fakebin"; err="$dir/send.err"
   touch "$dir/.swallow"
-  if PATH="$fakebin:$PATH" FM_HOME="$dir" FM_STATE_OVERRIDE="$dir/state" FM_FAKE_COMPOSER="$dir/composer" \
+  if PATH="$fakebin:$PATH" MY_FM_HOME="$dir" FM_STATE_OVERRIDE="$dir/state" FM_FAKE_COMPOSER="$dir/composer" \
     FM_FAKE_SWALLOW="$dir/.swallow" FM_FAKE_PERSIST_SWALLOW=1 FM_SEND_SLEEP=0.05 \
     "$ROOT/bin/fm-send.sh" sess:win '修复' >/dev/null 2>"$err"; then
     fail "fm-send exited zero when submit proof remained pending-unproven"

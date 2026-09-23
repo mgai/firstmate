@@ -108,7 +108,7 @@ run_send() { # <case-dir> <err-file> [env...] -- <fm-send args...>
   shift
   : >"$dir/send.log"
   env PATH="$dir/fakebin:$PATH" \
-    FM_ROOT_OVERRIDE="$dir/home" FM_HOME="$dir/home" FM_SEND_LOG="$dir/send.log" \
+    FM_ROOT_OVERRIDE="$dir/home" MY_FM_HOME="$dir/home" FM_SEND_LOG="$dir/send.log" \
     FM_SEND_SETTLE=0 ${envs[@]+"${envs[@]}"} \
     "$SEND" "$@" >/dev/null 2>"$err"
 }

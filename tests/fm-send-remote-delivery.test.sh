@@ -130,7 +130,7 @@ while IFS= read -r -d '' a; do rargs+=("$a"); done \
   < <(perl -MMIME::Base64=decode_base64 -e 'print decode_base64($ARGV[0])' "$argv_b64")
 cmd=${rargs[0]}
 rc=0
-env FM_HOME="$remote_home" FM_ROOT_OVERRIDE="$FM_REMOTE_CODE_ROOT" \
+env MY_FM_HOME="$remote_home" FM_ROOT_OVERRIDE="$FM_REMOTE_CODE_ROOT" \
   "$FM_REMOTE_CODE_ROOT/bin/$cmd" "${rargs[@]:1}" || rc=$?
 if [ "${FM_FAKE_SSH_AMBIGUOUS:-0}" = 1 ] \
   || { [ "${FM_FAKE_SSH_AFTER_AMBIGUOUS_RC:-0}" -ne 0 ] && [ "$count" -eq 1 ]; }; then
@@ -211,7 +211,7 @@ send_env() {  # <fakebin> <parent-home> <ssh-log> [extra env...] -- <cmd...>
   local fb=$1 home=$2 ssh_log=$3
   shift 3
   env PATH="$fb:$PATH" \
-    FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$home" FM_SEND_SETTLE=0 \
+    FM_ROOT_OVERRIDE="$ROOT" MY_FM_HOME="$home" FM_SEND_SETTLE=0 \
     FM_SSH_BIN="$fb/fake-ssh" FM_SSH_LOG="$ssh_log" \
     FM_SSH_COUNT="$ssh_log.count" FM_REMOTE_CODE_ROOT="$ROOT" \
     "$@"
@@ -291,7 +291,7 @@ test_remote_rerun_is_idempotent() {
     || fail "the preserved expectation must record unknown delivery: $(cat "$pend")"
   corr=$(fm_pending_reply_get "$pend" corr_id)
   printf -v quoted '%q' "$home"
-  expected_cmd="FM_HOME=$quoted FM_PENDING_REPLY_EXISTING_CORR=$corr"
+  expected_cmd="MY_FM_HOME=$quoted FM_PENDING_REPLY_EXISTING_CORR=$corr"
   for arg in "$SEND" rsm "please rename the metric"; do
     printf -v quoted '%q' "$arg"
     expected_cmd="$expected_cmd $quoted"
@@ -329,13 +329,13 @@ test_remote_rerun_is_idempotent() {
   resend_cmd=$(tail -1 "$dir/err")
   rc=0
   (
-    unset FM_HOME
+    unset MY_FM_HOME
     env PATH="$fb:$PATH" FM_ROOT_OVERRIDE="$ROOT" FM_SEND_SETTLE=0 \
       FM_SSH_BIN="$fb/fake-ssh" FM_SSH_LOG="$ssh_log" \
       FM_SSH_COUNT="$ssh_log.count" FM_REMOTE_CODE_ROOT="$ROOT" \
       bash -c "$resend_cmd"
   ) >"$dir/resend.out" 2>"$dir/resend.err" || rc=$?
-  expect_code 0 "$rc" "the printed correlation-reusing resend must succeed without an inherited FM_HOME"
+  expect_code 0 "$rc" "the printed correlation-reusing resend must succeed without an inherited MY_FM_HOME"
   count=$(find "$rhome/state/parent-route/rsm.inbox" -name '*.msg' | wc -l | tr -d ' ')
   [ "$count" = 1 ] || fail "the correlation-reusing resend must leave exactly one remote record, found $count"
   rec=$(find "$rhome/state/parent-route/rsm.inbox" -name '*.msg' | head -1)
@@ -423,7 +423,7 @@ test_remote_send_revalidates_after_retirement_lock() {
   while [ ! -e "$ready" ]; do kill -0 "$holder_pid" 2>/dev/null || fail "metadata-lock holder exited early"; sleep 0.05; done
 
   rc=0
-  env FM_HOME="$rhome" FM_ROOT_OVERRIDE="$ROOT" \
+  env MY_FM_HOME="$rhome" FM_ROOT_OVERRIDE="$ROOT" \
     "$ROOT/bin/fm-remote-secondmate-control.sh" send rsm "retirement-race steer" \
     >"$dir/out" 2>"$dir/err" &
   sender_pid=$!
@@ -720,7 +720,7 @@ test_local_secondmate_pending_keeps_expectation_armed() {
   : > "$log"
   rc=0
   env PATH="$fb:$PATH" FM_FAKE_TMUX_PENDING=1 \
-    FM_ROOT_OVERRIDE="$home" FM_HOME="$home" FM_SEND_LOG="$log" FM_SEND_SETTLE=0 \
+    FM_ROOT_OVERRIDE="$home" MY_FM_HOME="$home" FM_SEND_LOG="$log" FM_SEND_SETTLE=0 \
     "$SEND" lsm "/audit the ledger" >/dev/null 2>&1 || rc=$?
   expect_code 3 "$rc" "an unconfirmed local secondmate submit must exit delivered-unconfirmed"
   rec=$(pending_record "$home")
@@ -747,7 +747,7 @@ test_local_pending_reports_delivered_unconfirmed() {
   : > "$log"
   rc=0
   env PATH="$fb:$PATH" FM_FAKE_TMUX_PENDING=1 \
-    FM_ROOT_OVERRIDE="$home" FM_HOME="$home" FM_SEND_LOG="$log" FM_SEND_SETTLE=0 \
+    FM_ROOT_OVERRIDE="$home" MY_FM_HOME="$home" FM_SEND_LOG="$log" FM_SEND_SETTLE=0 \
     "$SEND" sess:win "steer text" >"$dir/out" 2>"$dir/err" || rc=$?
   err=$(cat "$dir/err")
   expect_code 3 "$rc" "an unconfirmed local submit must exit with the delivered-unconfirmed status"
@@ -773,7 +773,7 @@ test_local_pending_does_not_close_resolve_key() {
   : > "$log"
   rc=0
   env PATH="$fb:$PATH" FM_FAKE_TMUX_PENDING=1 \
-    FM_ROOT_OVERRIDE="$home" FM_HOME="$home" FM_SEND_LOG="$log" FM_SEND_SETTLE=0 \
+    FM_ROOT_OVERRIDE="$home" MY_FM_HOME="$home" FM_SEND_LOG="$log" FM_SEND_SETTLE=0 \
     "$SEND" t2 --resolve-key creds "/vault fetch deploy-token" >/dev/null 2>&1 || rc=$?
   expect_code 3 "$rc" "an unconfirmed local answer must exit with the delivered-unconfirmed status"
   if grep -F 'resolved' "$home/state/t2.status" >/dev/null; then

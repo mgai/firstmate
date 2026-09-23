@@ -79,7 +79,7 @@
 # browser_disconnected. A waiting result from this no-timeout poll means a
 # second poller was present; it is not a normal idle round. browser_disconnected
 # means the session remains open and is handled as a silent reconnect wait.
-# The poll reads config/lavish-axi-host from FM_HOME before every lavish-axi
+# The poll reads config/lavish-axi-host from MY_FM_HOME before every lavish-axi
 # invocation so firstmate and workers reach the same server.
 #
 # `answers` is this adapter's half of the generic keyed-answer contract in
@@ -130,7 +130,7 @@ set -u
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FM_ROOT="${FM_ROOT_OVERRIDE:-$(cd "$SCRIPT_DIR/.." && pwd)}"
-FM_HOME="${FM_HOME:-${FM_ROOT_OVERRIDE:-$FM_ROOT}}"
+MY_FM_HOME="${MY_FM_HOME:-${FM_ROOT_OVERRIDE:-$FM_ROOT}}"
 
 # shellcheck source=bin/fm-pr-lib.sh
 . "$SCRIPT_DIR/fm-pr-lib.sh"
@@ -144,7 +144,7 @@ usage() { sed -n '2,/^set -u$/p' "${BASH_SOURCE[0]}" | sed '$d; s/^# \{0,1\}//';
 
 apply_configured_lavish_host() {
   local original_present=$1 original_host=$2 host_file host rc
-  host_file="${FM_HOME%/}/config/lavish-axi-host"
+  host_file="${MY_FM_HOME%/}/config/lavish-axi-host"
   host=$(perl -MFcntl=:mode -e '
     use strict;
     use warnings;
@@ -235,13 +235,13 @@ cmd_arm() {
   listener=("$SCRIPT_DIR/fm-procevent-lavish.sh" poll "$real")
   [ -z "$reply_file" ] || listener+=(--agent-reply-file "$reply_file")
   if [ -n "$task" ]; then
-    FM_HOME="$FM_HOME" "$SCRIPT_DIR/fm-procevent.sh" register-task lavish "$id" "$task" -- \
+    MY_FM_HOME="$MY_FM_HOME" "$SCRIPT_DIR/fm-procevent.sh" register-task lavish "$id" "$task" -- \
       "${listener[@]}" || exit 1
   else
     # This adapter's own listener command, which runs the plain blocking form
     # with no --timeout-ms so completion is a server event, and absorbs only
     # the exact transient interruption.
-    FM_HOME="$FM_HOME" "$SCRIPT_DIR/fm-procevent.sh" register lavish "$id" \
+    MY_FM_HOME="$MY_FM_HOME" "$SCRIPT_DIR/fm-procevent.sh" register lavish "$id" \
       -- "${listener[@]}" || exit 1
   fi
   printf 'armed: %s\n' "$id"

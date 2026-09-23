@@ -5,7 +5,7 @@
 #
 # The caller must already own this Firstmate home's session lock. This script is
 # home-local and considers only the current named Herdr session and ordinary
-# state/*.herdr-presentation journals in the effective FM_HOME. Each candidate
+# state/*.herdr-presentation journals in the effective MY_FM_HOME. Each candidate
 # is additionally serialized by the existing state/.spawn-<task>.lock and the
 # shared named-session Herdr presentation lock, in that order.
 #
@@ -25,8 +25,8 @@ set -u
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FM_ROOT="${FM_ROOT_OVERRIDE:-$(cd "$SCRIPT_DIR/.." && pwd)}"
-FM_HOME="${FM_HOME:-${FM_ROOT_OVERRIDE:-$FM_ROOT}}"
-STATE="${FM_STATE_OVERRIDE:-$FM_HOME/state}"
+MY_FM_HOME="${MY_FM_HOME:-${FM_ROOT_OVERRIDE:-$FM_ROOT}}"
+STATE="${FM_STATE_OVERRIDE:-$MY_FM_HOME/state}"
 
 # shellcheck source=bin/fm-wake-lib.sh
 . "$SCRIPT_DIR/fm-wake-lib.sh"
@@ -58,8 +58,8 @@ fm_herdr_cleanup_title_token() { # <workspace-title>
 }
 
 fm_herdr_cleanup_home_identity() {
-  [ -d "$FM_HOME" ] && [ ! -L "$FM_HOME" ] || return 1
-  (cd "$FM_HOME" 2>/dev/null && pwd -P)
+  [ -d "$MY_FM_HOME" ] && [ ! -L "$MY_FM_HOME" ] || return 1
+  (cd "$MY_FM_HOME" 2>/dev/null && pwd -P)
 }
 
 fm_herdr_cleanup_journal_matches() { # <title> <session> <home-real>

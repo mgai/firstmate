@@ -159,7 +159,7 @@ for i in $(seq 1 1000); do fm_pf_relay_active "$HOME_DIR" || true; done
 total_ns=22305959 per_call_us=22
 ```
 
-Roughly 0.02 ms per session start, from a single `[ -f "$FM_HOME/.env" ]` test that returns false before anything else runs.
+Roughly 0.02 ms per session start, from a single `[ -f "$MY_FM_HOME/.env" ]` test that returns false before anything else runs.
 
 ## Compatibility axes reviewed
 

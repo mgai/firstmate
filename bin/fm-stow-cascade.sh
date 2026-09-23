@@ -60,9 +60,9 @@ esac
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FM_ROOT="${FM_ROOT_OVERRIDE:-$(cd "$SCRIPT_DIR/.." && pwd)}"
-FM_HOME="${FM_HOME:-${FM_ROOT_OVERRIDE:-$FM_ROOT}}"
-DATA="${FM_DATA_OVERRIDE:-$FM_HOME/data}"
-STATE="${FM_STATE_OVERRIDE:-$FM_HOME/state}"
+MY_FM_HOME="${MY_FM_HOME:-${FM_ROOT_OVERRIDE:-$FM_ROOT}}"
+DATA="${FM_DATA_OVERRIDE:-$MY_FM_HOME/data}"
+STATE="${FM_STATE_OVERRIDE:-$MY_FM_HOME/state}"
 REGISTRY="$DATA/secondmates.md"
 BUDGET_CMD=fm-startup-memory-budget.sh
 SUB_HOME_MARKER="${SUB_HOME_MARKER:-.fm-secondmate-home}"
@@ -159,7 +159,7 @@ resolve_remote_transport() { # <id>
   esac
 }
 
-if [ -e "$FM_HOME/$SUB_HOME_MARKER" ] || [ -L "$FM_HOME/$SUB_HOME_MARKER" ]; then
+if [ -e "$MY_FM_HOME/$SUB_HOME_MARKER" ] || [ -L "$MY_FM_HOME/$SUB_HOME_MARKER" ]; then
   emit 'role=secondmate'
   emit 'secondmates=0'
   emit 'reason=a secondmate home stows its own memory only and never cascades'
@@ -212,7 +212,7 @@ while IFS= read -r line || [ -n "$line" ]; do
     # this home's memory files into the accounting of another home.
     run_step env \
       FM_ROOT_OVERRIDE="$FM_ROOT" \
-      FM_HOME="$resolved" \
+      MY_FM_HOME="$resolved" \
       FM_STATE_OVERRIDE="$resolved/state" \
       FM_DATA_OVERRIDE="$resolved/data" \
       FM_CONFIG_OVERRIDE="$resolved/config" \

@@ -7,7 +7,7 @@
 # the caller's working directory, and tasks-axi writes by renaming a temp file
 # over its target, so a bare tasks-axi run from the code root turns a code-root
 # symlink into the home's backlog into a private regular copy. The suite proves
-# that every write through bin/fm-tasks-axi.sh lands in $FM_HOME/data from the
+# that every write through bin/fm-tasks-axi.sh lands in $MY_FM_HOME/data from the
 # code root (including archiving and relative --body-file arguments),
 # that the command refuses addressing it cannot keep correct, and that bootstrap
 # reports any code-root copy that is not this home's own file while staying
@@ -23,7 +23,7 @@ TMP_ROOT=$(fm_test_tmproot fm-tasks-axi)
 BASE_PATH=${FM_TEST_BASE_PATH:-/usr/bin:/bin:/usr/sbin:/sbin}
 
 # The developer shell may pin any of these; each case states its own layout.
-unset TASKS_AXI_FILE TASKS_AXI_BACKEND FM_HOME FM_ROOT_OVERRIDE \
+unset TASKS_AXI_FILE TASKS_AXI_BACKEND MY_FM_HOME FM_ROOT_OVERRIDE \
   FM_DATA_OVERRIDE FM_STATE_OVERRIDE FM_CONFIG_OVERRIDE FM_PROJECTS_OVERRIDE
 
 HAVE_TASKS_AXI=0
@@ -49,7 +49,7 @@ make_split() {  # <name>; prints the case directory
 wrapper_from_code() {  # <case-dir> <tasks-axi args...>
   local dir=$1
   shift
-  (cd "$dir/code" && FM_HOME="$dir/home" FM_ROOT_OVERRIDE="$dir/code" "$WRAPPER" "$@")
+  (cd "$dir/code" && MY_FM_HOME="$dir/home" FM_ROOT_OVERRIDE="$dir/code" "$WRAPPER" "$@")
 }
 
 # Only the shadow-backlog lines matter here; the rest of a detect-only local
@@ -58,7 +58,7 @@ wrapper_from_code() {  # <case-dir> <tasks-axi args...>
 bootstrap_backlog_lines() {  # <code-root> [<home>]
   local code=$1 home=${2:-}
   if [ -n "$home" ]; then
-    PATH="$BASE_PATH" FM_HOME="$home" FM_ROOT_OVERRIDE="$code" FM_BOOTSTRAP_DETECT_ONLY=1 \
+    PATH="$BASE_PATH" MY_FM_HOME="$home" FM_ROOT_OVERRIDE="$code" FM_BOOTSTRAP_DETECT_ONLY=1 \
       FM_BOOTSTRAP_NETWORK=skip "$BOOTSTRAP" 2>&1 | grep '^BACKLOG_RECONCILE: code-root' || true
   else
     PATH="$BASE_PATH" FM_ROOT_OVERRIDE="$code" FM_BOOTSTRAP_DETECT_ONLY=1 \
@@ -110,7 +110,7 @@ test_guard_silent_for_single_home() {
   out=$(bootstrap_backlog_lines "$dir")
   assert_equals "" "$out" "the single-home layout's own backlog was reported as a fork"
   out=$(bootstrap_backlog_lines "$dir" "$dir")
-  assert_equals "" "$out" "FM_HOME naming the code root was reported as a fork"
+  assert_equals "" "$out" "MY_FM_HOME naming the code root was reported as a fork"
   pass "bootstrap stays silent when the code root is the home"
 }
 
@@ -169,7 +169,7 @@ test_wrapper_overrides_ambient_file() {
   local dir
   dir=$(make_split wrapper-ambient)
   empty_backlog "$dir/decoy.md"
-  (cd "$dir/code" && TASKS_AXI_FILE="$dir/decoy.md" FM_HOME="$dir/home" "$WRAPPER" add amb-1 "ambient" >/dev/null) \
+  (cd "$dir/code" && TASKS_AXI_FILE="$dir/decoy.md" MY_FM_HOME="$dir/home" "$WRAPPER" add amb-1 "ambient" >/dev/null) \
     || fail "add under an ambient TASKS_AXI_FILE failed"
   assert_grep "amb-1" "$dir/home/data/backlog.md" "an ambient TASKS_AXI_FILE diverted the write from the home"
   assert_no_grep "amb-1" "$dir/decoy.md" "an ambient TASKS_AXI_FILE received the write"
@@ -198,7 +198,7 @@ test_wrapper_refusals() {
   [ -L "$dir/home/data/backlog.md" ] || fail "a refused call still replaced the home link"
   assert_equals "$before" "$(cat "$dir/home/real-backlog.md")" "a refused call changed the backlog"
 
-  out=$(cd "$dir/code" && FM_HOME="$dir/missing-home" "$WRAPPER" list 2>&1)
+  out=$(cd "$dir/code" && MY_FM_HOME="$dir/missing-home" "$WRAPPER" list 2>&1)
   rc=$?
   expect_code 2 "$rc" "missing data directory"
   pass "fm-tasks-axi.sh refuses caller --file, a symlinked home backlog, and an unresolvable home"

@@ -11,9 +11,9 @@ TMP_ROOT=$(fm_test_tmproot fm-herdr-session-cleanup)
 FM_TEST_CLEANUP_DIRS+=("$TMP_ROOT")
 trap fm_test_cleanup EXIT
 
-export FM_HOME="$TMP_ROOT/home"
-export FM_STATE_OVERRIDE="$FM_HOME/state"
-export FM_CONFIG_OVERRIDE="$FM_HOME/config"
+export MY_FM_HOME="$TMP_ROOT/home"
+export FM_STATE_OVERRIDE="$MY_FM_HOME/state"
+export FM_CONFIG_OVERRIDE="$MY_FM_HOME/config"
 mkdir -p "$FM_STATE_OVERRIDE" "$FM_CONFIG_OVERRIDE"
 touch "$FM_CONFIG_OVERRIDE/herdr-presentation-spaces"
 printf '%s\n' herdr > "$FM_CONFIG_OVERRIDE/backend"
@@ -261,10 +261,10 @@ reset_fixture; printf '%s\n' "└ task · p:$TOKEN p:$TOKEN" > "$FIXTURE_DIR/tit
 reset_fixture; rm -f "$FM_STATE_OVERRIDE/$ID.herdr-presentation"; assert_preserved "zero journal match"
 reset_fixture; write_v1 fm-task; assert_preserved "multiple journal matches"
 reset_fixture; rm -f "$FM_STATE_OVERRIDE/$ID.herdr-presentation"; write_cross_home_v2; assert_preserved "cross-home journal"
-reset_fixture; write_v2 "$FM_HOME" w9 "$TAB" "$PANE"; assert_preserved "v2 workspace binding mismatch"
-reset_fixture; write_v2 "$FM_HOME" "$WS" w9:t1 "$PANE"; assert_preserved "v2 tab binding mismatch"
-reset_fixture; write_v2 "$FM_HOME" "$WS" "$TAB" w9:p1; assert_preserved "v2 pane binding mismatch"
-reset_fixture; write_v2 "$FM_HOME" "$WS" "$TAB" "$PANE"
+reset_fixture; write_v2 "$MY_FM_HOME" w9 "$TAB" "$PANE"; assert_preserved "v2 workspace binding mismatch"
+reset_fixture; write_v2 "$MY_FM_HOME" "$WS" w9:t1 "$PANE"; assert_preserved "v2 tab binding mismatch"
+reset_fixture; write_v2 "$MY_FM_HOME" "$WS" "$TAB" w9:p1; assert_preserved "v2 pane binding mismatch"
+reset_fixture; write_v2 "$MY_FM_HOME" "$WS" "$TAB" "$PANE"
 fm_herdr_session_cleanup >/dev/null 2>&1
 [ ! -e "$FM_STATE_OVERRIDE/$ID.herdr-presentation" ] || fail "matching v2 cleanup kept the journal"
 [ "$(wc -l < "$CLOSE_LOG" | tr -d ' ')" = 1 ] || fail "matching v2 cleanup did not close exactly once"
@@ -288,14 +288,14 @@ cp -R "$ROOT/bin" "$INTEGRATION_ROOT/bin"
 TRACE="$INTEGRATION_ROOT/cleanup.trace"
 cat > "$INTEGRATION_ROOT/bin/fm-herdr-session-cleanup.sh" <<'SH'
 #!/usr/bin/env bash
-printf '%s\n' "${FM_HOME:?}" >> "${FM_HERDR_CLEANUP_TRACE:?}"
+printf '%s\n' "${MY_FM_HOME:?}" >> "${FM_HERDR_CLEANUP_TRACE:?}"
 SH
 chmod +x "$INTEGRATION_ROOT/bin/fm-herdr-session-cleanup.sh"
 printf '%s\n' manual > "$INTEGRATION_ROOT/home/config/backlog-backend"
-FM_HOME="$INTEGRATION_ROOT/home" FM_HERDR_CLEANUP_TRACE="$TRACE" FM_BOOTSTRAP_DETECT_ONLY=1 \
+MY_FM_HOME="$INTEGRATION_ROOT/home" FM_HERDR_CLEANUP_TRACE="$TRACE" FM_BOOTSTRAP_DETECT_ONLY=1 \
   "$INTEGRATION_ROOT/bin/fm-bootstrap.sh" >/dev/null 2>&1
 [ ! -e "$TRACE" ] || fail "detect-only bootstrap ran stale projection cleanup"
-FM_HOME="$INTEGRATION_ROOT/home" FM_HERDR_CLEANUP_TRACE="$TRACE" \
+MY_FM_HOME="$INTEGRATION_ROOT/home" FM_HERDR_CLEANUP_TRACE="$TRACE" \
   "$INTEGRATION_ROOT/bin/fm-bootstrap.sh" >/dev/null 2>&1
 [ ! -e "$TRACE" ] || fail "standalone bootstrap ran lock-owned stale projection cleanup"
 pass "standalone bootstrap cannot run lock-owned stale projection cleanup"
@@ -305,7 +305,7 @@ cat > "$INTEGRATION_ROOT/bin/fm-lock.sh" <<'SH'
 printf '%s\n' 'lock acquired'
 SH
 chmod +x "$INTEGRATION_ROOT/bin/fm-lock.sh"
-FM_HOME="$INTEGRATION_ROOT/home" FM_ROOT_OVERRIDE="$INTEGRATION_ROOT" \
+MY_FM_HOME="$INTEGRATION_ROOT/home" FM_ROOT_OVERRIDE="$INTEGRATION_ROOT" \
   FM_HERDR_CLEANUP_TRACE="$TRACE" \
   "$INTEGRATION_ROOT/bin/fm-session-start.sh" >/dev/null 2>&1 \
   || fail "lock-owning session start failed"
@@ -319,7 +319,7 @@ printf '%s\n' 'error: another live firstmate session holds the lock' >&2
 exit 1
 SH
 chmod +x "$INTEGRATION_ROOT/bin/fm-lock.sh"
-FM_HOME="$INTEGRATION_ROOT/home" FM_ROOT_OVERRIDE="$INTEGRATION_ROOT" \
+MY_FM_HOME="$INTEGRATION_ROOT/home" FM_ROOT_OVERRIDE="$INTEGRATION_ROOT" \
   FM_HERDR_CLEANUP_TRACE="$TRACE" \
   "$INTEGRATION_ROOT/bin/fm-session-start.sh" >/dev/null 2>&1 \
   || fail "read-only session start failed"

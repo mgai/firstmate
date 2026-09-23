@@ -157,7 +157,7 @@ if [ "$COMMAND" = fm-remote-doctor.sh ]; then
     /usr/bin/env -i
     "PATH=$FM_REMOTE_JOB_CHILD_PATH"
     "HOME=$ACCOUNT_HOME"
-    "FM_HOME=$HOME_PATH"
+    "MY_FM_HOME=$HOME_PATH"
     "FM_ROOT_OVERRIDE=$ROOT"
     FM_REMOTE_DOCTOR_BOOTSTRAP=1
   )

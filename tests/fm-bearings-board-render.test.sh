@@ -36,8 +36,8 @@ case "${1-}" in
   --version) printf '0.1.61\n' ;;
   '')
     printf 'sessions[1]{file,status,url,pending_prompts}:\n'
-    [ ! -s "$FM_HOME/lavish-open" ] \
-      || printf '  %s,open,"http://127.0.0.1/session/render",0\n' "$(cat "$FM_HOME/lavish-open")"
+    [ ! -s "$MY_FM_HOME/lavish-open" ] \
+      || printf '  %s,open,"http://127.0.0.1/session/render",0\n' "$(cat "$MY_FM_HOME/lavish-open")"
     ;;
   poll)
     # Bounded, so a listener that escapes its test stops on its own.
@@ -46,7 +46,7 @@ case "${1-}" in
     ;;
   *)
     real=$(cd "$(dirname "$1")" && pwd -P)/$(basename "$1")
-    printf '%s\n' "$real" > "$FM_HOME/lavish-open"
+    printf '%s\n' "$real" > "$MY_FM_HOME/lavish-open"
     printf 'session:\n  status: opened\n'
     ;;
 esac
@@ -65,7 +65,7 @@ render_board() {  # <home> <underway-json> <charted-json> [charted_more] [charte
     schema:"fm-bearings-board.v1", home:"render-home", generated:"2026-08-26T00:00Z",
     prs_live:false, captains_call:[], underway:$underway, landed:[],
     charted:$charted, charted_more:$more, charted_warning_more:$warning_more}' > "$data"
-  PATH="$home/fakebin:$PATH" FM_HOME="$home" \
+  PATH="$home/fakebin:$PATH" MY_FM_HOME="$home" \
     FM_STATE_OVERRIDE="$home/state" FM_DATA_OVERRIDE="$home/data" \
     FM_PROCEVENT_CLAIM_ROOT="$home/procevent-claims" \
     "$BOARD" build "$data" >/dev/null || fail "the board did not build"

@@ -172,8 +172,8 @@ done
 
 SCRIPT_DIR=$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")" 2>/dev/null && pwd -P) || exit 0
 FM_ROOT=${FM_ROOT_OVERRIDE:-$(CDPATH='' cd -- "$SCRIPT_DIR/.." 2>/dev/null && pwd -P)} || exit 0
-FM_HOME=${FM_HOME:-${FM_ROOT_OVERRIDE:-$FM_ROOT}}
-STATE=${FM_STATE_OVERRIDE:-$FM_HOME/state}
+MY_FM_HOME=${MY_FM_HOME:-${FM_ROOT_OVERRIDE:-$FM_ROOT}}
+STATE=${FM_STATE_OVERRIDE:-$MY_FM_HOME/state}
 
 # Scope to a genuine primary home, exactly as the session-start nudge and the
 # turn-end guard do. fm_primary_scope_matches accepts a plain checkout or a

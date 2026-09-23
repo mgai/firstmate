@@ -103,7 +103,7 @@ end_session_as_captain() { : > "$1/lavish-state/user-ended"; : > "$1/lavish-stat
 run_board() {  # <home> <args...>
   local home=$1
   shift
-  PATH="$home/fakebin:$PATH" FM_HOME="$home" \
+  PATH="$home/fakebin:$PATH" MY_FM_HOME="$home" \
     FM_STATE_OVERRIDE="$home/state" FM_DATA_OVERRIDE="$home/data" \
     FM_PROCEVENT_CLAIM_ROOT="$home/procevent-claims" \
     LAVISH_FAKE_STATE="$home/lavish-state" \
@@ -113,7 +113,7 @@ run_board() {  # <home> <args...>
 run_procevent() {  # <home> <command args...>
   local home=$1
   shift
-  PATH="$home/fakebin:$PATH" FM_HOME="$home" \
+  PATH="$home/fakebin:$PATH" MY_FM_HOME="$home" \
     FM_STATE_OVERRIDE="$home/state" FM_DATA_OVERRIDE="$home/data" \
     FM_PROCEVENT_CLAIM_ROOT="$home/procevent-claims" \
     "$ROOT/bin/fm-procevent.sh" "$@"
@@ -122,7 +122,7 @@ run_procevent() {  # <home> <command args...>
 run_decisions() {  # <home> <command args...>
   local home=$1
   shift
-  PATH="$home/fakebin:$PATH" FM_HOME="$home" \
+  PATH="$home/fakebin:$PATH" MY_FM_HOME="$home" \
     FM_STATE_OVERRIDE="$home/state" FM_DATA_OVERRIDE="$home/data" \
     "$ROOT/bin/fm-decision-hold.sh" "$@"
 }
@@ -393,13 +393,13 @@ SH
 #!/usr/bin/env bash
 if [ -z "${1:-}" ]; then
   printf 'sessions[1]{file,status,url,pending_prompts}:\n'
-  [ ! -s "$FM_HOME/order-open" ] \
-    || printf '  %s,open,"http://127.0.0.1/session/order",0\n' "$(cat "$FM_HOME/order-open")"
+  [ ! -s "$MY_FM_HOME/order-open" ] \
+    || printf '  %s,open,"http://127.0.0.1/session/order",0\n' "$(cat "$MY_FM_HOME/order-open")"
   exit 0
 fi
 if [ "${1:-}" != poll ]; then
   real=$(cd "$(dirname "$1")" && pwd -P)/$(basename "$1")
-  printf '%s\n' "$real" > "$FM_HOME/order-open"
+  printf '%s\n' "$real" > "$MY_FM_HOME/order-open"
   printf 'session:\n  status: opened\n'
   exit 0
 fi
@@ -413,7 +413,7 @@ EOF
 SH
   chmod +x "$home/fakebin/lavish-axi"
 
-  PATH="$home/fakebin:$PATH" FM_ROOT_OVERRIDE="$runtime" FM_HOME="$home" \
+  PATH="$home/fakebin:$PATH" FM_ROOT_OVERRIDE="$runtime" MY_FM_HOME="$home" \
     FM_STATE_OVERRIDE="$home/state" FM_DATA_OVERRIDE="$home/data" \
     FM_PROCEVENT_CLAIM_ROOT="$home/procevent-claims" \
     FM_BEARINGS_BOARD_TEMPLATE="$ROOT/.agents/skills/bearings/assets/board-template.html" \
@@ -460,7 +460,7 @@ SH
 
 run_lavish_source_id() {  # <home> <artifact>
   local home=$1
-  PATH="$home/fakebin:$PATH" FM_HOME="$home" \
+  PATH="$home/fakebin:$PATH" MY_FM_HOME="$home" \
     FM_STATE_OVERRIDE="$home/state" FM_DATA_OVERRIDE="$home/data" \
     FM_PROCEVENT_CLAIM_ROOT="$home/procevent-claims" \
     "$ROOT/bin/fm-procevent-lavish.sh" source-id "$2"

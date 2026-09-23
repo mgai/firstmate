@@ -127,7 +127,7 @@ SH
 chmod +x "$FAKEBIN/fake-ssh"
 
 handoff_env() {
-  FM_HOME="$PARENT" \
+  MY_FM_HOME="$PARENT" \
   FM_ROOT_OVERRIDE="$ROOT" \
   FM_SSH_BIN="$FAKEBIN/fake-ssh" \
   FM_FAKE_SSH_COUNT="$SSH_COUNT" \
@@ -149,18 +149,18 @@ sha256_file() {
 printf 'complete handoff payload\n' > "$TMP_ROOT/complete-payload"
 complete_bytes=$(LC_ALL=C wc -c < "$TMP_ROOT/complete-payload" | tr -d ' ')
 complete_hash=$(sha256_file "$TMP_ROOT/complete-payload")
-if printf 'complete' | FM_HOME="$REMOTE" "$REMOTE_ROOT/bin/fm-remote-file.sh" \
+if printf 'complete' | MY_FM_HOME="$REMOTE" "$REMOTE_ROOT/bin/fm-remote-file.sh" \
   put state/handoff/integrity.outbox.md 1024 "$complete_bytes" "$complete_hash" 1 >/dev/null 2>&1; then
   fail "confined put published a truncated payload"
 fi
 assert_absent "$REMOTE/state/handoff/integrity.outbox.md" "truncated confined put published a destination"
-FM_HOME="$REMOTE" "$REMOTE_ROOT/bin/fm-remote-file.sh" \
+MY_FM_HOME="$REMOTE" "$REMOTE_ROOT/bin/fm-remote-file.sh" \
   put state/handoff/integrity.outbox.md 1024 "$complete_bytes" "$complete_hash" 2 \
   < "$TMP_ROOT/complete-payload" >/dev/null
 printf 'stale handoff payload\n' > "$TMP_ROOT/stale-payload"
 stale_bytes=$(LC_ALL=C wc -c < "$TMP_ROOT/stale-payload" | tr -d ' ')
 stale_hash=$(sha256_file "$TMP_ROOT/stale-payload")
-if FM_HOME="$REMOTE" "$REMOTE_ROOT/bin/fm-remote-file.sh" \
+if MY_FM_HOME="$REMOTE" "$REMOTE_ROOT/bin/fm-remote-file.sh" \
   put state/handoff/integrity.outbox.md 1024 "$stale_bytes" "$stale_hash" 1 \
   < "$TMP_ROOT/stale-payload" >/dev/null 2>&1; then
   fail "confined put accepted a superseded payload generation"
@@ -179,7 +179,7 @@ race_hash=$(sha256_file "$TMP_ROOT/race-payload")
   (
     while [ ! -f "$TMP_ROOT/put.release" ]; do sleep 0.02; done
     cat "$TMP_ROOT/race-payload"
-  ) | FM_HOME="$REMOTE" "$REMOTE_ROOT/bin/fm-remote-file.sh" \
+  ) | MY_FM_HOME="$REMOTE" "$REMOTE_ROOT/bin/fm-remote-file.sh" \
     put state/handoff/race.outbox.md 1024 "$race_bytes" "$race_hash" 1
 ) > "$TMP_ROOT/put-race.out" 2>&1 &
 put_race_pid=$!
@@ -326,7 +326,7 @@ FM_FAKE_SSH_MODE=unreachable handoff_env "$ROOT/bin/fm-backlog-handoff.sh" ios p
 rc=$?
 set -e
 [ "$rc" -ne 0 ] || fail "offline handoff claimed success"
-bootstrap_out=$(FM_HOME="$PARENT" FM_ROOT_OVERRIDE="$ROOT" FM_BACKEND=tmux \
+bootstrap_out=$(MY_FM_HOME="$PARENT" FM_ROOT_OVERRIDE="$ROOT" FM_BACKEND=tmux \
   FM_BOOTSTRAP_DETECT_ONLY=1 "$ROOT/bin/fm-bootstrap.sh" 2>&1)
 assert_contains "$bootstrap_out" 'SECONDMATE_HANDOFF: secondmate ios: pending delivery: 1 item(s)' \
   "bootstrap did not surface the pending outbox count"
@@ -644,7 +644,7 @@ pass "undeletable invalid wake state cannot block remote handoffs"
 write_backlog '- [ ] route-race - remains dispatchable through retirement (repo: alpha)'
 registry_lock="$PARENT/state/.secondmate-registry.lock"
 handoff_lock="$PARENT/state/.backlog-handoff-ios.lock"
-FM_HOME="$PARENT" /bin/bash -c '
+MY_FM_HOME="$PARENT" /bin/bash -c '
   . "$1"
   fm_lock_acquire_wait "$2"
   fm_lock_acquire_wait "$3"
@@ -684,7 +684,7 @@ pass "route classification serializes with retirement before staging"
 FRESH="$TMP_ROOT/fresh"
 mkdir -p "$FRESH/data" "$FRESH/state"
 : > "$SSH_COUNT"
-fresh_out=$(FM_HOME="$FRESH" FM_ROOT_OVERRIDE="$ROOT" FM_BACKEND=tmux \
+fresh_out=$(MY_FM_HOME="$FRESH" FM_ROOT_OVERRIDE="$ROOT" FM_BACKEND=tmux \
   FM_BOOTSTRAP_DETECT_ONLY=1 "$ROOT/bin/fm-bootstrap.sh" 2>&1)
 assert_not_contains "$fresh_out" 'SECONDMATE_HANDOFF:' "unconfigured bootstrap emitted a remote handoff diagnostic"
 [ ! -s "$SSH_COUNT" ] || fail "unconfigured bootstrap touched SSH"

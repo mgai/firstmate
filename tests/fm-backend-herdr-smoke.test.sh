@@ -194,7 +194,7 @@ SM_HOME="$SM_SCRATCH/secondmate-home"
 mkdir -p "$SM_HOME"
 printf 'smoketest-sm1\n' > "$SM_HOME/.fm-secondmate-home"
 
-SM_CONTAINER_RAW=$(FM_HOME="$SM_HOME" fm_backend_herdr_container_ensure /tmp) || fail "secondmate-shaped container_ensure failed"
+SM_CONTAINER_RAW=$(MY_FM_HOME="$SM_HOME" fm_backend_herdr_container_ensure /tmp) || fail "secondmate-shaped container_ensure failed"
 SM_CONTAINER=${SM_CONTAINER_RAW%%$'\t'*}
 SM_SEEDED_TAB_ID=${SM_CONTAINER_RAW#*$'\t'}
 case "$SM_CONTAINER" in
@@ -211,7 +211,7 @@ SM_LABEL_REAL=$(herdr workspace list --session "$SESSION" 2>&1 | jq -r --arg id 
 pass "real herdr: the secondmate-shaped home's workspace is labeled 2ndmate-<secondmate-id> in herdr itself"
 
 SM_TASK_LABEL="fm-smtask1"
-SM_TASK_IDS=$(FM_HOME="$SM_HOME" fm_backend_herdr_create_task "$SM_CONTAINER" "$SM_TASK_LABEL" /tmp "$SM_SEEDED_TAB_ID") || fail "secondmate create_task failed"
+SM_TASK_IDS=$(MY_FM_HOME="$SM_HOME" fm_backend_herdr_create_task "$SM_CONTAINER" "$SM_TASK_LABEL" /tmp "$SM_SEEDED_TAB_ID") || fail "secondmate create_task failed"
 read -r SM_TAB_ID SM_PANE_ID <<EOF
 $SM_TASK_IDS
 EOF
@@ -225,7 +225,7 @@ PRIMARY_LIVE=$(fm_backend_herdr_list_live "$SESSION")
 case "$PRIMARY_LIVE" in
   *"$SM_TASK_LABEL"*) fail "the primary home's list_live must not see a secondmate-shaped home's task"$'\n'"$PRIMARY_LIVE" ;;
 esac
-SM_LIVE=$(FM_HOME="$SM_HOME" fm_backend_herdr_list_live "$SESSION")
+SM_LIVE=$(MY_FM_HOME="$SM_HOME" fm_backend_herdr_list_live "$SESSION")
 case "$SM_LIVE" in
   *"$SM_TASK_LABEL"*) : ;;
   *) fail "the secondmate-shaped home's list_live did not see its own task"$'\n'"$SM_LIVE" ;;

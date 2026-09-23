@@ -381,7 +381,7 @@ glab_merge_line() {
 run_pr_merge() {
   local case_dir=$1 rc; shift
   FM_ROOT_OVERRIDE="$ROOT" \
-  FM_HOME="${FM_TEST_HOME:-$case_dir/home}" \
+  MY_FM_HOME="${FM_TEST_HOME:-$case_dir/home}" \
   FM_STATE_OVERRIDE="$case_dir/state" \
   FM_TEST_GH_AXI_LOG="$case_dir/gh-axi.log" \
   FM_TEST_GH_LOG="$case_dir/gh.log" \
@@ -427,9 +427,9 @@ write_github_outcome() {
 write_away_record() {
   local case_dir=$1
   shift
-  FM_HOME="$case_dir/home" FM_STATE_OVERRIDE="$case_dir/state" \
+  MY_FM_HOME="$case_dir/home" FM_STATE_OVERRIDE="$case_dir/state" \
     "$ROOT/bin/fm-afk-contract.sh" propose "$@" >/dev/null
-  FM_HOME="$case_dir/home" FM_STATE_OVERRIDE="$case_dir/state" \
+  MY_FM_HOME="$case_dir/home" FM_STATE_OVERRIDE="$case_dir/state" \
     "$ROOT/bin/fm-afk-contract.sh" confirm >/dev/null
 }
 
@@ -3098,7 +3098,7 @@ SH
     "away-archive-at-merge: the landed merge was not recorded under the away authority it read"
   # The lock goes with the merge rather than leaking: the captain's return
   # archives the record on its first try once the merge is done.
-  FM_HOME="$case_dir/home" FM_STATE_OVERRIDE="$case_dir/state" \
+  MY_FM_HOME="$case_dir/home" FM_STATE_OVERRIDE="$case_dir/state" \
     "$ROOT/bin/fm-afk-contract.sh" archive >/dev/null \
     || fail "away-archive-at-merge: the record stayed locked after the merge"
 

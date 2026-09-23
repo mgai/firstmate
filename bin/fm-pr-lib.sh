@@ -1111,13 +1111,13 @@ FIELDS
 fm_pr_gitea_read_view_json() {  # <host> <path> <number>
   local host=$1 path=$2 number=$3
   command -v gitea-axi >/dev/null 2>&1 || return 1
-  gitea-axi pr view "$number" --repo "$path" --host "https://$host" --json 2>/dev/null
+  gitea-axi pr view "$number" --repo "$path" --host "$host" --json 2>/dev/null
 }
 
 fm_pr_gitea_read_checks_json() {  # <host> <path> <number>
   local host=$1 path=$2 number=$3
   command -v gitea-axi >/dev/null 2>&1 || return 1
-  gitea-axi pr checks "$number" --repo "$path" --host "https://$host" --json 2>/dev/null
+  gitea-axi pr checks "$number" --repo "$path" --host "$host" --json 2>/dev/null
 }
 
 fm_pr_gitea_read_head() {  # <host> <path> <number>

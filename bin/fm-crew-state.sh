@@ -346,24 +346,6 @@ pr_read_record_bounded() {  # <owner> <repo> <number>
   FM_PR_RECORD_MERGED=$merged
 }
 
-gitea_pr_read_record_bounded() {  # <host> <owner> <repo> <number>
-  local record state merged
-  # shellcheck disable=SC2016  # The inner script expands after bash -c receives positional args.
-  if ! record=$(fm_run_timed 5 bash -c '
-    . "$1"
-    fm_pr_gitea_read_record "$2" "$3" "$4" "$5" || exit 1
-    printf "state=%s\nmerged=%s\n" "$FM_PR_RECORD_STATE" "$FM_PR_RECORD_MERGED"
-  ' _ "$SCRIPT_DIR/fm-pr-lib.sh" "$1" "$2" "$3" "$4" 2>/dev/null); then
-    return 1
-  fi
-  state=$(printf '%s\n' "$record" | sed -n 's/^state=//p' | head -1)
-  merged=$(printf '%s\n' "$record" | sed -n 's/^merged=//p' | head -1)
-  [ -n "$state" ] || return 1
-  [ "$merged" = true ] || [ "$merged" = false ] || return 1
-  FM_PR_RECORD_STATE=$state
-  FM_PR_RECORD_MERGED=$merged
-}
-
 mr_read_record_bounded() {  # <host> <path> <number>
   local record state merged
   # shellcheck disable=SC2016  # The inner script expands after bash -c receives positional args.
@@ -438,24 +420,6 @@ passed_pr_detail() {
       owner=${path%%/*}
       repo=${path#*/}
       if ! pr_read_record_bounded "$owner" "$repo" "$number"; then
-        printf 'run passed: PR state unknown (unreadable)'
-        return
-      fi
-      if [ "$FM_PR_RECORD_MERGED" = true ]; then
-        printf 'run passed: PR merged'
-        return
-      fi
-      state_lc=$(printf '%s' "$FM_PR_RECORD_STATE" | tr '[:upper:]' '[:lower:]')
-      case "$state_lc" in
-        open)   printf 'run passed: PR open' ;;
-        closed) printf 'run passed: PR closed' ;;
-        *)      printf 'run passed: PR state %s' "$state_lc" ;;
-      esac
-      ;;
-    gitea)
-      owner=${path%%/*}
-      repo=${path#*/}
-      if ! gitea_pr_read_record_bounded "$host" "$owner" "$repo" "$number"; then
         printf 'run passed: PR state unknown (unreadable)'
         return
       fi

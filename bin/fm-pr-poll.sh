@@ -4,8 +4,9 @@
 # otherwise, including on every error, so a failed lookup can never be read as
 # a merge. The provider-tagged identity is data in the sidecar and is never
 # interpolated into this source: these bytes are identical for every task.
-# Each provider is read through its own standard CLI, gh for GitHub and glab
-# for GitLab, so an upstream checkout needs no extra tooling to follow either.
+# Each provider is read through its own standard CLI, gh for GitHub,
+# gitea-axi for Gitea, and glab for GitLab, so an upstream checkout needs no
+# extra tooling beyond the provider it follows.
 set -u
 LC_ALL=C
 export LC_ALL
@@ -64,6 +65,30 @@ case "$provider" in
     [ "$url" = "https://github.com/$owner/$repo/pull/$number" ] || exit 0
     state=$(gh pr view "$url" --json state -q .state 2>/dev/null) || exit 0
     [ "$state" = MERGED ] && printf '%s\n' merged
+    ;;
+  gitea)
+    case "$host" in
+      http://*|https://*) ;;
+      *) exit 0 ;;
+    esac
+    authority=${host#*://}
+    case "$authority" in
+      ''|*/|*/*|*@*|*[!A-Za-z0-9.:-]*) exit 0 ;;
+    esac
+    [ "$authority" != github.com ] || exit 0
+    owner=${path%%/*}
+    repo=${path#*/}
+    [ -n "$owner" ] && [ -n "$repo" ] && [ "$owner" != "$path" ] || exit 0
+    case "$owner" in
+      .|..|*[!A-Za-z0-9._-]*) exit 0 ;;
+    esac
+    case "$repo" in
+      .|..|*[!A-Za-z0-9._-]*) exit 0 ;;
+    esac
+    [ "$url" = "$host/$owner/$repo/pulls/$number" ] || exit 0
+    raw=$(gitea-axi pr view "$number" --repo "$owner/$repo" --host "$host" 2>/dev/null) || exit 0
+    merged=$(printf '%s\n' "$raw" | sed -n 's/^merged:[[:space:]]*//p' | head -1) || exit 0
+    [ "$merged" = yes ] && printf '%s\n' merged
     ;;
   gitlab)
     [ "${#host}" -ge 1 ] && [ "${#host}" -le 253 ] || exit 0

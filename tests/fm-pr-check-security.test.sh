@@ -150,6 +150,10 @@ case "${1:-} ${2:-}" in
         printf '%s\n' "{\"state\":\"OPEN\",\"isDraft\":false,\"mergeable\":\"MERGEABLE\",\"mergeStateStatus\":\"CLEAN\",\"headRefOid\":\"${FM_TEST_GH_HEAD:-0123456789abcdef0123456789abcdef01234567}\",\"baseRefName\":\"main\",\"statusCheckRollup\":[{\"__typename\":\"CheckRun\",\"name\":\"ci\",\"status\":\"COMPLETED\",\"conclusion\":\"SUCCESS\"}]}"
         exit 0
         ;;
+      *" --json isDraft "*)
+        printf '%s\n' "{\"isDraft\":${FM_TEST_GH_DRAFT:-false}}"
+        exit 0
+        ;;
       *headRefOid,reviewDecision*)
         printf '%s\n' "{\"headRefOid\":\"${FM_TEST_GH_HEAD:-0123456789abcdef0123456789abcdef01234567}\",\"reviewDecision\":\"APPROVED\"}"
         exit 0
@@ -206,10 +210,47 @@ printf '%s\n' "$*" >> "$FM_TEST_GLAB_LOG"
 [ "${FM_TEST_GLAB_SLEEP:-0}" = 0 ] || sleep "$FM_TEST_GLAB_SLEEP"
 printf 'title:\tfixture merge request\nstate:\t%s\nauthor:\tsomeone\n' "${FM_TEST_GLAB_STATE:-opened}"
 SH
-  chmod +x "$fakebin/gh" "$fakebin/gh-axi" "$fakebin/glab"
+  cat > "$fakebin/gitea-axi" <<'SH'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$FM_TEST_GITEA_LOG"
+[ "${FM_TEST_GITEA_FAIL:-0}" = 0 ] || exit 1
+[ "${FM_TEST_GITEA_SLEEP:-0}" = 0 ] || sleep "$FM_TEST_GITEA_SLEEP"
+case "${1:-} ${2:-}" in
+  "pr view")
+    number=${3:-1}
+    state=${FM_TEST_GITEA_STATE:-open}
+    merged_word=${FM_TEST_GITEA_MERGED_WORD:-no}
+    mergeable_word=${FM_TEST_GITEA_MERGEABLE_WORD:-yes}
+    head=${FM_TEST_GITEA_HEAD:-0123456789abcdef0123456789abcdef01234567}
+    if [ "${8:-}" = --json ] || [ "${7:-}" = --json ] || [ "${6:-}" = --json ] || [ "${5:-}" = --json ] || [ "${4:-}" = --json ]; then
+      merged_bool=false
+      [ "$merged_word" = yes ] && merged_bool=true
+      mergeable_bool=false
+      [ "$mergeable_word" = yes ] && mergeable_bool=true
+      printf '{"number":%s,"state":"%s","mergeable":%s,"merged":%s,"sha":"%s"}\n' \
+        "$number" "$state" "$mergeable_bool" "$merged_bool" "$head"
+    else
+      printf 'number: %s\nstate: %s\nmergeable: %s\nmerged: %s\nsha: %s\n' \
+        "$number" "$state" "$mergeable_word" "$merged_word" "$head"
+    fi
+    ;;
+  "pr checks")
+    if [ "${8:-}" = --json ] || [ "${7:-}" = --json ] || [ "${6:-}" = --json ] || [ "${5:-}" = --json ] || [ "${4:-}" = --json ]; then
+      printf '{"summary":"%s","checks":[]}\n' "${FM_TEST_GITEA_SUMMARY:-passing (1 pass / 0 fail / 0 pending) }"
+    else
+      printf 'summary: %s\n' "${FM_TEST_GITEA_SUMMARY:-passing (1 pass / 0 fail / 0 pending) }"
+    fi
+    ;;
+  "pr merge")
+    exit "${FM_TEST_GITEA_MERGE_RC:-0}"
+    ;;
+esac
+SH
+  chmod +x "$fakebin/gh" "$fakebin/gh-axi" "$fakebin/glab" "$fakebin/gitea-axi"
   : > "$dir/gh.log"
   : > "$dir/gh-axi.log"
   : > "$dir/glab.log"
+  : > "$dir/gitea.log"
   : > "$dir/guard.log"
   printf '%s\n' "$dir"
 }
@@ -243,6 +284,7 @@ run_check_entry() {
   FM_ROOT_OVERRIDE="$dir/root" FM_HOME="$dir/home" \
     FM_TEST_GUARD_LOG="$dir/guard.log" FM_TEST_GH_LOG="$dir/gh.log" \
     FM_TEST_GH_AXI_LOG="$dir/gh-axi.log" FM_TEST_GLAB_LOG="$dir/glab.log" \
+    FM_TEST_GITEA_LOG="$dir/gitea.log" \
     PATH="$dir/fakebin:$BASE_PATH" \
     "$PR_CHECK" "$@"
 }
@@ -253,6 +295,7 @@ run_merge_entry() {
   FM_ROOT_OVERRIDE="$dir/root" FM_HOME="$dir/home" \
     FM_TEST_GUARD_LOG="$dir/guard.log" FM_TEST_GH_LOG="$dir/gh.log" \
     FM_TEST_GH_AXI_LOG="$dir/gh-axi.log" FM_TEST_GLAB_LOG="$dir/glab.log" \
+    FM_TEST_GITEA_LOG="$dir/gitea.log" \
     PATH="$dir/fakebin:$BASE_PATH" \
     "$PR_MERGE" "$@"
 }
@@ -398,6 +441,21 @@ https://github.com/Owner/repo-name_with.parts/pull/123456|Owner|repo-name_with.p
 EOF
   while IFS='|' read -r url host path number; do
     [ -n "$url" ] || continue
+    fm_pr_url_parse "$url" || fail "parser rejected a canonical Gitea pull request URL"
+    [ "$FM_PR_PROVIDER" = gitea ] || fail "parser did not tag a pull request URL as gitea"
+    [ "$FM_PR_URL" = "$url" ] || fail "parser changed a canonical Gitea pull request URL"
+    [ "$FM_PR_HOST" = "$host" ] || fail "parser returned wrong Gitea host"
+    [ "$FM_PR_PATH" = "$path" ] || fail "parser returned wrong Gitea project path"
+    [ "$FM_PR_OWNER" = "${path%%/*}" ] || fail "parser returned wrong Gitea owner"
+    [ "$FM_PR_REPO" = "${path#*/}" ] || fail "parser returned wrong Gitea repository"
+    [ "$FM_PR_NUMBER" = "$number" ] || fail "parser returned wrong Gitea pull request number"
+  done <<'EOF'
+https://gitea.example/acme/widgets/pulls/1|https://gitea.example|acme/widgets|1
+https://codeberg.org/foo/bar-baz/pulls/42|https://codeberg.org|foo/bar-baz|42
+http://localhost:3000/acme/widgets/pulls/77|http://localhost:3000|acme/widgets|77
+EOF
+  while IFS='|' read -r url host path number; do
+    [ -n "$url" ] || continue
     fm_pr_url_parse "$url" || fail "parser rejected a canonical merge request URL"
     [ "$FM_PR_PROVIDER" = gitlab ] || fail "parser did not tag a merge request URL as gitlab"
     [ "$FM_PR_URL" = "$url" ] || fail "parser changed a canonical merge request URL"
@@ -516,6 +574,42 @@ test_invalid_entrypoints_have_zero_side_effects() {
   [ ! -s "$dir/guard.log" ] || fail "invalid direct or merge data called the guard"
   [ ! -e "$TMP_ROOT/escape.check.sh" ] || fail "task traversal wrote outside state"
   pass "PR and teardown entrypoints reject invalid arguments before every side effect"
+}
+
+# A draft cannot be merged, so arming a merge poll on one would wait for an event
+# that cannot occur. Only a positive draft reading refuses, and it refuses before
+# anything is recorded or armed; a ready or unreadable one arms as before.
+test_draft_pull_request_is_not_armed() {
+  local dir rc
+  dir=$(make_case draft-refused)
+  write_task_meta "$dir"
+  cp "$dir/home/state/task-a.meta" "$dir/meta.before"
+  set +e
+  FM_TEST_GH_DRAFT=true run_check_entry "$dir" task-a https://github.com/o/r/pull/9 \
+    > "$dir/stdout" 2> "$dir/stderr"; rc=$?
+  set -e
+  [ "$rc" -ne 0 ] || fail "arming accepted a draft pull request"
+  grep -qi 'draft' "$dir/stderr" || fail "the refusal did not name the draft state"
+  grep -qF 'https://github.com/o/r/pull/9' "$dir/stderr" || fail "the refusal did not name the pull request"
+  cmp -s "$dir/meta.before" "$dir/home/state/task-a.meta" || fail "a refused draft changed the task metadata"
+  [ ! -e "$dir/home/state/task-a.check.sh" ] || fail "a refused draft armed a poll"
+  [ ! -e "$dir/home/state/task-a.pr-poll" ] || fail "a refused draft wrote a poll sidecar"
+  [ ! -s "$dir/guard.log" ] || fail "a refused draft reached the guard"
+
+  dir=$(make_case draft-cleared)
+  write_task_meta "$dir"
+  FM_TEST_GH_DRAFT=false run_check_entry "$dir" task-a https://github.com/o/r/pull/9 \
+    > "$dir/stdout" 2> "$dir/stderr" || fail "arming refused a pull request that is not a draft"
+  grep -qxF 'pr=https://github.com/o/r/pull/9' "$dir/home/state/task-a.meta" \
+    || fail "a non-draft pull request was not recorded"
+  [ -f "$dir/home/state/task-a.check.sh" ] || fail "a non-draft pull request was not armed"
+
+  dir=$(make_case draft-unreadable)
+  write_task_meta "$dir"
+  FM_TEST_GH_DRAFT=null run_check_entry "$dir" task-a https://github.com/o/r/pull/9 \
+    > "$dir/stdout" 2> "$dir/stderr" || fail "an unreadable draft state blocked arming"
+  [ -f "$dir/home/state/task-a.check.sh" ] || fail "an unreadable draft state was not armed"
+  pass "arming refuses a draft pull request, naming it, and arms a ready or unreadable one"
 }
 
 test_valid_recording_and_merge_derivation() {
@@ -715,6 +809,7 @@ make_poll_fixture() {
 run_poll() {
   local dir=$1
   FM_TEST_GH_LOG="$dir/gh.log" FM_TEST_GLAB_LOG="$dir/glab.log" \
+    FM_TEST_GITEA_LOG="$dir/gitea.log" \
     PATH="$dir/fakebin:$BASE_PATH" \
     bash "$dir/home/state/task-a.check.sh"
 }
@@ -1433,6 +1528,84 @@ EOF
   pass "GitLab merge requests are followed on any instance and never wake falsely"
 }
 
+test_gitea_merge_watch() {
+  local dir state out url value nogitea bindir entry name
+  dir=$(make_case gitea-merge-watch)
+  state="$dir/home/state"
+  url=https://gitea.example/acme/widgets/pulls/7
+
+  write_poll_meta "$state" task-a "$url"
+  fm_pr_poll_prepare "$state" task-a gitea "$url" https://gitea.example acme/widgets 7 "$POLL" \
+    || fail "could not prepare a Gitea poll"
+  fm_pr_poll_publish_prepared || fail "could not publish a Gitea poll"
+  fm_pr_poll_artifacts_valid "$state" task-a "$POLL" \
+    || fail "published Gitea poll provenance or metadata binding was invalid"
+  [ "$(cat "$state/task-a.pr-poll")" = "gitea
+$url
+https://gitea.example
+acme/widgets
+7" ] || fail "published Gitea sidecar bytes were not exact"
+
+  for value in open closed '' no maybe; do
+    out=$(FM_TEST_GITEA_MERGED_WORD=no FM_TEST_GITEA_STATE="$value" run_poll "$dir")
+    [ -z "$out" ] || fail "Gitea poll emitted for a non-merged state"
+  done
+  out=$(FM_TEST_GITEA_MERGED_WORD=yes FM_TEST_GITEA_STATE=closed run_poll "$dir")
+  [ "$out" = merged ] || fail "Gitea poll did not emit exactly one merged line"
+  out=$(FM_TEST_GITEA_FAIL=1 run_poll "$dir")
+  [ -z "$out" ] || fail "Gitea poll emitted after a gitea-axi failure"
+
+  grep -qF -- "pr view 7 --repo acme/widgets --host https://gitea.example" "$dir/gitea.log" \
+    || fail "Gitea poll did not address gitea-axi by host, repo, and pull request number"
+  ! grep -qF -- "$url" "$dir/gitea.log" \
+    || fail "Gitea poll passed the pull request URL to gitea-axi"
+
+  nogitea="$dir/nogitea"
+  mkdir -p "$nogitea"
+  while IFS= read -r bindir; do
+    [ -d "$bindir" ] || continue
+    for entry in "$bindir"/*; do
+      [ -e "$entry" ] || continue
+      name=$(basename "$entry")
+      [ "$name" = gitea-axi ] && continue
+      [ -e "$nogitea/$name" ] || ln -s "$entry" "$nogitea/$name" 2>/dev/null
+    done
+  done <<EOF
+$dir/fakebin
+$(printf '%s\n' "$BASE_PATH" | tr ':' '\n')
+EOF
+  ! PATH="$nogitea" command -v gitea-axi >/dev/null 2>&1 \
+    || fail "the gitea-axi-free search path still resolved gitea-axi"
+  out=$(FM_TEST_GITEA_MERGED_WORD=yes FM_TEST_GITEA_LOG="$dir/gitea.log" PATH="$nogitea" \
+    bash "$state/task-a.check.sh")
+  [ -z "$out" ] || fail "Gitea poll emitted with gitea-axi absent from PATH"
+
+  printf '%s\n%s\n%s\n%s\n%s\n' gitea "$url" http://elsewhere.example:3000 acme/widgets 7 \
+    > "$state/task-a.pr-poll"
+  out=$(FM_TEST_GITEA_MERGED_WORD=yes run_poll "$dir")
+  [ -z "$out" ] || fail "Gitea poll emitted for a sidecar whose host was swapped"
+  printf '%s\n%s\n%s\n%s\n%s\n' gitea "$url" https://gitea.example acme/other 7 \
+    > "$state/task-a.pr-poll"
+  out=$(FM_TEST_GITEA_MERGED_WORD=yes run_poll "$dir")
+  [ -z "$out" ] || fail "Gitea poll emitted for a sidecar whose project was swapped"
+
+  write_task_meta "$dir" task-b
+  set +e
+  out=$(FM_ROOT_OVERRIDE="$dir/root" FM_HOME="$dir/home" \
+    FM_TEST_GUARD_LOG="$dir/guard.log" FM_TEST_GITEA_LOG="$dir/gitea.log" PATH="$nogitea" \
+    "$PR_CHECK" task-b "$url" 2>&1)
+  rc=$?
+  set -e
+  [ "$rc" -ne 0 ] || fail "arming a Gitea watch succeeded with gitea-axi absent"
+  case "$out" in
+    *"requires gitea-axi on PATH"*) ;;
+    *) fail "arming a Gitea watch with gitea-axi absent did not report the missing CLI" ;;
+  esac
+  [ ! -e "$state/task-b.check.sh" ] || fail "refused Gitea arming left a poll armed"
+
+  pass "Gitea pull requests are followed on any instance and never wake falsely"
+}
+
 seed_canonical_poll() {
   local dir=$1 id=$2 url=$3 template=${4:-$POLL} state provider host path number
   state="$dir/home/state"
@@ -1619,7 +1792,7 @@ test_merged_poll_retries_a_failed_upward_report() {
     set -e
     [ "$rc" -eq 0 ] || fail "merged-poll-upward-retry: post-recovery retry failed: $(cat "$dir/watch-3.err")"
   fi
-  assert_grep "done [key=merged-task-a]: merged task-a $url" "$replies" \
+  assert_grep "done [key=merged-task-a]: merged task-a $url" <(sed -E 's/ \[at=[0-9]+\]//' "$replies") \
     "merged-poll-upward-retry: repaired binding did not receive the retry"
   assert_poll_absent "$state" task-a
   pass "a failed upward merge report keeps its poll armed for repair and retry"
@@ -1648,7 +1821,7 @@ test_self_merge_and_poll_publish_one_outcome() {
   set -e
   [ "$rc" -eq 0 ] \
     || fail "merge-outcome-committed: watcher failed: $(cat "$dir/watch.err")"
-  [ "$(grep -c -F "done [key=merged-task-a]: merged task-a $url" "$replies")" -eq 1 ] \
+  [ "$(sed -E 's/ \[at=[0-9]+\]//' "$replies" | grep -c -F "done [key=merged-task-a]: merged task-a $url")" -eq 1 ] \
     || fail "merge-outcome-committed: self and poll reports produced duplicate merge outcomes"
   assert_no_grep "check: $state/task-a.check.sh: merged" "$state/.wake-queue" \
     "merge-outcome-committed: absorbed poll published a second outcome"
@@ -1726,7 +1899,7 @@ test_merged_poll_reports_upward_from_a_secondmate_home_once() {
     check:*task-a.check.sh:*merged) ;;
     *) fail "merged-poll-upward: the poll's own row was lost: $(cat "$dir/watch-1.out")" ;;
   esac
-  assert_grep "done [key=merged-task-a]: merged task-a $url" "$replies" \
+  assert_grep "done [key=merged-task-a]: merged task-a $url" <(sed -E 's/ \[at=[0-9]+\]//' "$replies") \
     "merged-poll-upward: a merge this home did not perform was never reported upward"
   [ "$(grep -c -F "$url" "$replies")" -eq 1 ] \
     || fail "merged-poll-upward: one detected merge produced more than one upward line"
@@ -2218,18 +2391,19 @@ test_merged_poll_row_carries_the_merge_authority() {
   local dir state url expected posture
   url=https://github.com/o/r/pull/1
 
-  for posture in yolo grant; do
+  # Both a yolo=on task and an ordinary one merge under the record's away
+  # authority; the words model retired the per-task grant and the yolo tag.
+  for posture in yolo words; do
     dir=$(make_case "queued-merge-authority-$posture")
     state="$dir/home/state"
     write_task_meta "$dir" task-a
     if [ "$posture" = yolo ]; then
       printf 'yolo=on\n' >> "$state/task-a.meta"
       write_away_record "$dir"
-      expected=yolo
     else
-      write_away_record "$dir" --grant task-a
-      expected=away-grant
+      write_away_record "$dir" --words 'merge task-a when green'
     fi
+    expected=away
     run_check_entry "$dir" task-a "$url" >/dev/null 2> "$dir/seed.err" \
       || fail "$posture: could not arm the merge poll"
     queue_merge "$dir" "$url"
@@ -2241,7 +2415,7 @@ test_merged_poll_row_carries_the_merge_authority() {
       || fail "$posture: published merge left its authority record behind"
   done
 
-  pass "queued merges retain yolo and away-grant after captain return"
+  pass "queued merges retain their away authority after captain return"
 }
 
 test_merged_poll_row_names_no_authority_when_no_record_grants_one() {
@@ -2367,7 +2541,7 @@ test_teardown_cannot_race_authority_consumption() {
   rc=0
   wait "$watcher_pid" || rc=$?
   [ "$rc" -eq 0 ] || fail "teardown race: watcher failed with $rc: $(cat "$dir/watch.err")"
-  [ "$(merged_ledger_row "$state" task-a)" = "check: merge landed: task-a $url yolo" ] \
+  [ "$(merged_ledger_row "$state" task-a)" = "check: merge landed: task-a $url away" ] \
     || fail "teardown race: concurrent cleanup downgraded the merge authority"
   pass "teardown cannot race merged-poll authority consumption"
 }
@@ -2754,6 +2928,7 @@ SH
 
 test_parser_matrix
 test_gitlab_merge_watch
+test_gitea_merge_watch
 test_merged_poll_retires_once
 test_merged_poll_reregistration_after_notification_is_absorbed
 test_merged_poll_retries_a_failed_upward_report
@@ -2773,6 +2948,7 @@ test_retirement_refuses_replacement_and_nonterminal_results
 test_retirement_queue_failure_and_receipt_tampering
 test_gitlab_merged_poll_retires
 test_invalid_entrypoints_have_zero_side_effects
+test_draft_pull_request_is_not_armed
 test_valid_recording_and_merge_derivation
 test_rejected_metacharacter_bytes_are_inert
 test_static_poll_contract

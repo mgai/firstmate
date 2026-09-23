@@ -2,9 +2,11 @@
 # Merge a task's PR or MR after recording pr= and any available pr_head= through
 # bin/fm-pr-check.sh, so teardown can verify landed work after squash merges.
 # The full canonical URL is parsed by bin/fm-pr-lib.sh. A GitHub pull request is
-# addressed through gh by the derived owner and repository; a GitLab merge
-# request is addressed through glab by the project URL rebuilt from the parsed
-# host and path, so any instance works and no host is hardcoded.
+# addressed through gh by the derived owner and repository, a Gitea pull
+# request is addressed through gitea-axi by the parsed host plus owner and
+# repository, and a GitLab merge request is addressed through glab by the
+# project URL rebuilt from the parsed host and path, so any instance works and
+# no host is hardcoded.
 #
 # Merge method on GitHub defaults to --squash when the caller passes none of
 # --squash, --merge, --rebase, or --method after the optional -- separator.
@@ -70,11 +72,12 @@
 # serializes the captain-hold check through the forge command. A still-held or
 # unreadable row refuses before that command, so a captain approval must be
 # recorded as an `answer --release` before this entrypoint is invoked. While
-# state/.afk-contract exists, a merge for this task also proceeds only if its
-# meta yolo=on or its id is in that record's merge-grant list; otherwise it is
-# held for the captain return. An unreadable record refuses rather than being
-# skipped. Neither posture releases a captain hold, and the grant lapses when
-# the record is archived.
+# state/.afk-contract exists any green merge may proceed under away authority:
+# the record's presence is the whole mechanical fact, and which merge the
+# captain's away words meant is the supervision session's reading
+# (bin/fm-branch-prompt.sh "Postures"). An unreadable record refuses rather
+# than being skipped, neither posture releases a captain hold, and away
+# authority lapses when the record is archived.
 # The authority read and synchronous forge command share the away record's
 # cross-subsystem lock, which bin/fm-afk-contract.sh owns, closing the common
 # live-owner TOCTOU; failure to take it refuses before the forge call. Async and
@@ -97,7 +100,7 @@
 # --remove-source-branch) are refused by default; --attended-override, parsed
 # before the optional -- separator, re-enables those forge flags for an
 # explicit captain instruction and never skips the live green check, the
-# away-grant check, or a captain hold.
+# away-record read, or a captain hold.
 #
 # Usage: fm-pr-merge.sh <task-id> <pr-url> [--attended-override] [--allow-red <check-name>] [-- <extra forge merge args>]
 #
@@ -172,8 +175,8 @@ while [ "$#" -gt 0 ]; do
     *) break ;;
   esac
 done
-if [ "${#ALLOW_RED[@]}" -gt 0 ] && [ "$PROVIDER" = gitlab ]; then
-  echo "error: --allow-red does not apply to GitLab, where a merge already requires the head pipeline to have succeeded" >&2
+if [ "${#ALLOW_RED[@]}" -gt 0 ] && { [ "$PROVIDER" = gitlab ] || [ "$PROVIDER" = gitea ]; }; then
+  echo "error: --allow-red does not apply to GitLab or Gitea, where this merge path requires the live head checks to have succeeded" >&2
   exit 2
 fi
 
@@ -301,6 +304,10 @@ if [ "$PROVIDER" = gitlab ]; then
     esac
   done
 fi
+if [ "$PROVIDER" = gitea ] && caller_requested_auto_merge "$@"; then
+  echo "error: Gitea auto-merge is not supported by this merge path; run an immediate merge instead" >&2
+  exit 2
+fi
 FM_PR_AWAY_POSTURE=false
 
 fm_backlog_directory_present "$STATE" "state directory" || {
@@ -315,8 +322,8 @@ META="$STATE/$ID.meta"
 # branch reports the green PR and never merges (contract: bin/fm-lease-lib.sh;
 # no-op in homes without a branch actor). While the away-posture record exists
 # main is parked and this one action relocates to the branch, which then meets
-# exactly the same gates below as main would: a granted or yolo=on task only,
-# green at its live head, synchronous, under the record lock. This precedes
+# exactly the same gates below as main would: green at its live head,
+# synchronous, under the record lock. This precedes
 # reading the task record, because the wrong actor is refused for its role
 # whatever that record says.
 # shellcheck source=bin/fm-lease-lib.sh
@@ -352,9 +359,10 @@ if [ "$FM_BACKLOG_META_SPAWN_GEN" != "$MERGE_EXPECTED_SPAWN_GEN" ]; then
   exit 1
 fi
 
-# Reading the merge request state needs both tools. Report them together and
-# before anything is recorded, so a missing tool is a named prerequisite rather
-# than a merge that is armed and then refused for an unexplained reason.
+# Reading the provider state needs its provider CLI and, for the merge paths
+# that parse structured JSON locally, jq. Report missing prerequisites before
+# anything is recorded, so a missing tool is named as a prerequisite rather than
+# a merge that is armed and then refused for an unexplained reason.
 GITLAB_MISSING=
 if [ "$PROVIDER" = gitlab ]; then
   command -v glab >/dev/null 2>&1 || GITLAB_MISSING="glab"
@@ -377,18 +385,129 @@ if [ "$PROVIDER" = github ]; then
     exit 1
   fi
 fi
+GITEA_MISSING=
+if [ "$PROVIDER" = gitea ]; then
+  command -v gitea-axi >/dev/null 2>&1 || GITEA_MISSING="gitea-axi"
+  if ! command -v jq >/dev/null 2>&1; then
+    GITEA_MISSING="${GITEA_MISSING:+$GITEA_MISSING and }jq"
+  fi
+  if [ -n "$GITEA_MISSING" ]; then
+    echo "error: merging a Gitea pull request requires $GITEA_MISSING on PATH" >&2
+    exit 1
+  fi
+fi
 
 # The recorded head is read before bin/fm-pr-check.sh rewrites the metadata,
-# because that script re-records pr= and drops a pr_head= it cannot resolve.
+# because that script re-records pr= and may refresh or drop pr_head= depending
+# on what the forge CLI could resolve at arming time.
 RECORDED_HEAD=
-if [ "$PROVIDER" = gitlab ]; then
+if [ "$PROVIDER" = gitlab ] || [ "$PROVIDER" = gitea ]; then
   RECORDED_HEAD=$(grep '^pr_head=' "$META" | tail -1 | cut -d= -f2- || true)
 fi
+
+gitea_host_url() {
+  printf '%s' "$FM_PR_HOST"
+}
+
+gitea_repo_arg() {
+  printf '%s' "$PR_OWNER/$PR_REPO"
+}
+
+# Pre-merge conditions for a Gitea pull request, read from one live view of the
+# pull request plus its current commit statuses. Sets FM_PR_MERGE_HEAD to the
+# verified head on success and returns non-zero after reporting every condition
+# that failed.
+FM_PR_MERGE_HEAD=
+gitea_verify_mergeable() {
+  local pr_json checks_json fields line total=0 named=0 refusals=''
+  local state='' merged='' mergeable='' live_head='' summary=''
+
+  if ! pr_json=$(gitea-axi pr view "$PR_NUMBER" --repo "$(gitea_repo_arg)" \
+    --host "$(gitea_host_url)" --json 2>/dev/null) || [ -z "$pr_json" ]; then
+    echo "error: could not read the Gitea pull request state before merging" >&2
+    return 1
+  fi
+  if ! fields=$(printf '%s' "$pr_json" | jq -r '
+      if type == "object" then
+        "state=" + ((.state // "") | tostring),
+        "merged=" + ((.merged // "") | tostring),
+        "mergeable=" + ((.mergeable // "") | tostring),
+        "head=" + ((.sha // "") | tostring)
+      else
+        error("pull request payload is not an object")
+      end' 2>/dev/null); then
+    echo "error: could not read the Gitea pull request state before merging" >&2
+    return 1
+  fi
+  while IFS= read -r line; do
+    total=$((total + 1))
+    case "$line" in
+      state=*) state=${line#state=} ;;
+      merged=*) merged=${line#merged=} ;;
+      mergeable=*) mergeable=${line#mergeable=} ;;
+      head=*) live_head=${line#head=} ;;
+      *) continue ;;
+    esac
+    named=$((named + 1))
+  done <<FIELDS
+$fields
+FIELDS
+  if [ "$named" -ne 4 ] || [ "$total" -ne 4 ]; then
+    echo "error: could not read the Gitea pull request state before merging" >&2
+    return 1
+  fi
+  if ! fm_pr_head_valid "$live_head"; then
+    echo "error: could not read the Gitea pull request head commit before merging" >&2
+    return 1
+  fi
+  if [ -n "$RECORDED_HEAD" ] && [ "$RECORDED_HEAD" != "$live_head" ]; then
+    printf 'notice: recorded head %s disagrees with the live head %s; verifying the live head\n' \
+      "$RECORDED_HEAD" "$live_head" >&2
+  fi
+
+  [ "$state" = open ] \
+    || refusals="$refusals  - state is \"${state:-unreadable}\", not open
+"
+  [ "$merged" = no ] \
+    || refusals="$refusals  - merged is \"${merged:-unreadable}\", not no
+"
+  [ "$mergeable" = yes ] \
+    || refusals="$refusals  - mergeable is \"${mergeable:-unreadable}\", not yes
+"
+
+  if ! checks_json=$(gitea-axi pr checks "$PR_NUMBER" --repo "$(gitea_repo_arg)" \
+    --host "$(gitea_host_url)" --json 2>/dev/null) || [ -z "$checks_json" ]; then
+    echo "error: could not read the Gitea pull request checks before merging" >&2
+    return 1
+  fi
+  if ! summary=$(printf '%s' "$checks_json" | jq -r '
+      if type == "object" and (.summary | type) == "string" then .summary
+      else error("invalid checks summary") end' 2>/dev/null); then
+    echo "error: could not read the Gitea pull request checks before merging" >&2
+    return 1
+  fi
+  case "$summary" in
+    failing*)
+      refusals="$refusals  - the pull request checks are failing
+"
+      ;;
+    pending*)
+      refusals="$refusals  - the pull request checks are still pending
+"
+      ;;
+  esac
+
+  if [ -n "$refusals" ]; then
+    printf 'error: refusing to merge %s because:\n%s' "$URL" "$refusals" >&2
+    return 1
+  fi
+
+  FM_PR_MERGE_HEAD=$live_head
+}
 
 # Pre-merge conditions for a GitLab merge request, read from one live view of
 # the merge request. Sets FM_PR_MERGE_HEAD to the verified head on success and
 # returns non-zero after reporting every condition that failed.
-FM_PR_MERGE_HEAD=
 FM_PR_GITLAB_ASYNC_CONFIGURED=false
 gitlab_verify_mergeable() {
   local json fields line
@@ -583,7 +702,6 @@ github_verify_mergeable() {
   if ! fields=$(printf '%s' "$json" | jq -r '
       if type == "object" then
         "state=" + ((.state // "") | tostring),
-        "draft=" + (if (.isDraft | type) == "boolean" then (.isDraft | tostring) else "" end),
         "mergeable=" + ((.mergeable // "") | tostring),
         "merge_state=" + ((.mergeStateStatus // "") | tostring),
         "head=" + ((.headRefOid // "") | tostring),
@@ -598,7 +716,6 @@ github_verify_mergeable() {
     total=$((total + 1))
     case "$line" in
       state=*) state=${line#state=} ;;
-      draft=*) draft=${line#draft=} ;;
       mergeable=*) mergeable=${line#mergeable=} ;;
       merge_state=*) merge_state=${line#merge_state=} ;;
       head=*) live_head=${line#head=} ;;
@@ -609,11 +726,12 @@ github_verify_mergeable() {
   done <<FIELDS
 $fields
 FIELDS
-  if [ "$named" -ne 6 ] || [ "$total" -ne 6 ] || [ -z "$base" ]; then
+  if [ "$named" -ne 5 ] || [ "$total" -ne 5 ] || [ -z "$base" ]; then
     echo "error: could not read the GitHub pull request state before merging" >&2
     return 1
   fi
 
+  draft=$(fm_pr_json_draft_state "$json")
   if ! fm_pr_head_valid "$live_head"; then
     echo "error: could not read the GitHub pull request head commit before merging" >&2
     return 1
@@ -863,7 +981,7 @@ METHODS
 }
 
 record_pr_metadata() {
-  if ! "$SCRIPT_DIR/fm-pr-check.sh" "$ID" "$URL"; then
+  if ! FM_PR_CHECK_MERGE=1 "$SCRIPT_DIR/fm-pr-check.sh" "$ID" "$URL"; then
     return 1
   fi
   grep -qxF "pr=$URL" "$META" || {
@@ -890,27 +1008,17 @@ require_released_captain_hold() {
 }
 
 FM_PR_MERGE_AUTHORITY=
-# The gate on top of the shared authority read. bin/fm-merge-authority-lib.sh
-# owns what the away-posture record and the task's recorded yolo posture say;
-# this function owns what a merge run may do about it, so the answer the merge
-# poll later tags its ledger row with is the same answer gated here.
-require_away_merge_grant() {
+# The authority read. bin/fm-merge-authority-lib.sh owns what the away-posture
+# record's presence means; this function owns what a merge run may do about it,
+# so the answer the merge poll later tags its ledger row with is the same answer
+# resolved here. An unreadable record refuses rather than being skipped.
+resolve_merge_authority() {
   FM_PR_MERGE_AUTHORITY=
   if fm_merge_authority_resolve "$FM_HOME" "$STATE" "$META" "$ID"; then
     FM_PR_MERGE_AUTHORITY=$FM_MERGE_AUTHORITY
     return 0
   fi
-  case "$FM_MERGE_AUTHORITY_REASON" in
-    record-unreadable)
-      echo "error: PR merge refused - the away-posture record could not be read; nothing was merged" >&2
-      ;;
-    grants-unreadable)
-      echo "error: PR merge refused - the away-posture record's grants could not be read; nothing was merged" >&2
-      ;;
-    *)
-      echo "error: task $ID is held for the captain return" >&2
-      ;;
-  esac
+  echo "error: PR merge refused - the away-posture record could not be read; nothing was merged" >&2
   return 1
 }
 
@@ -942,7 +1050,7 @@ require_current_away_authority() {
     fi
   fi
   fm_lease_forbid_branch "PR merge (fm-pr-merge)" --away-relocated
-  require_away_merge_grant || return 1
+  resolve_merge_authority || return 1
   if [ "$FM_PR_AWAY_POSTURE" = true ] && [ "${#ALLOW_RED[@]}" -gt 0 ]; then
     echo "error: --allow-red is attended-only; while the away-posture record exists the green check is absolute" >&2
     return 2
@@ -968,8 +1076,7 @@ persist_accepted_merge_authority() {
 
 # While away, a merge proceeds only when the base branch's rules prove no
 # merge queue, because a queued merge can land after its away authority
-# lapses; this holds regardless of which away authority (a named merge grant
-# or a standing yolo=on posture) let the merge run at all. A repository whose
+# lapses with the record's archive. A repository whose
 # plan does not expose branch rules at all (GitHub's "Upgrade to GitHub Pro or
 # make this repository public" 403) proves that on its own, since such a
 # repository cannot have a merge_queue rule either; see
@@ -982,7 +1089,7 @@ refuse_github_queue_while_away() {
   [ "$FM_PR_AWAY_POSTURE" = true ] || return 0
   # Accepted confused-agent-grade limitation, as in bin/fm-lease-lib.sh, not an
   # oversight: a queue rule or PR base change after this preflight can still
-  # enqueue the merge, which can land after its away grant lapses.
+  # enqueue the merge, which can land after its away authority lapses.
   github_read_queue_method
   [ "$FM_PR_GITHUB_QUEUE_STATUS" = none ] && return 0
   echo "error: GitHub merge refused while away because the base branch's merge-queue state does not prove an immediate merge; nothing was handed to the forge" >&2
@@ -1108,6 +1215,61 @@ github_report_unmerged_outcome() {
   github_report_queue_rules
 }
 
+gitea_confirm_merged() {
+  local pr_json fields line total=0 named=0 state='' merged='' live_head=''
+  if ! pr_json=$(gitea-axi pr view "$PR_NUMBER" --repo "$(gitea_repo_arg)" \
+    --host "$(gitea_host_url)" --json 2>/dev/null) || [ -z "$pr_json" ]; then
+    printf 'actionable: Gitea accepted the pull request for %s but its landed state could not be confirmed; the merge poll remains armed\n' \
+      "$URL" >&2
+    return 2
+  fi
+  if ! fields=$(printf '%s' "$pr_json" | jq -r '
+      if type == "object" then
+        "state=" + ((.state // "") | tostring),
+        "merged=" + ((.merged // "") | tostring),
+        "head=" + ((.sha // "") | tostring)
+      else
+        error("pull request payload is not an object")
+      end' 2>/dev/null); then
+    printf 'actionable: Gitea accepted the pull request for %s but its landed state could not be confirmed; the merge poll remains armed\n' \
+      "$URL" >&2
+    return 2
+  fi
+  while IFS= read -r line; do
+    total=$((total + 1))
+    case "$line" in
+      state=*) state=${line#state=} ;;
+      merged=*) merged=${line#merged=} ;;
+      head=*) live_head=${line#head=} ;;
+      *) continue ;;
+    esac
+    named=$((named + 1))
+  done <<FIELDS
+$fields
+FIELDS
+  if [ "$named" -ne 3 ] || [ "$total" -ne 3 ]; then
+    printf 'actionable: Gitea accepted the pull request for %s but its landed state could not be confirmed; the merge poll remains armed\n' \
+      "$URL" >&2
+    return 2
+  fi
+  if [ "$merged" != yes ]; then
+    printf 'actionable: Gitea accepted the pull request for %s but it does not yet read back as merged; the merge poll remains armed\n' \
+      "$URL" >&2
+    return 2
+  fi
+  if ! fm_pr_head_valid "$live_head"; then
+    printf 'actionable: Gitea accepted the pull request for %s but its landed head could not be confirmed; the merge poll remains armed\n' \
+      "$URL" >&2
+    return 2
+  fi
+  if [ "$live_head" != "$FM_PR_MERGE_HEAD" ]; then
+    printf 'actionable: Gitea merged %s but the landed head %s differs from the verified head %s; the merge poll remains armed\n' \
+      "$URL" "$live_head" "$FM_PR_MERGE_HEAD" >&2
+    return 2
+  fi
+  [ "$state" = closed ] || [ "$state" = merged ] || [ "$state" = open ]
+}
+
 gitlab_confirm_merged() {
   local json state
   if ! json=$(GITLAB_HOST="$FM_PR_HOST" glab mr view "$PR_NUMBER" \
@@ -1197,6 +1359,38 @@ case "$PROVIDER" in
       github_report_unmerged_outcome
       exit 1
     fi
+    ;;
+  gitea)
+    merge_args=()
+    if ! caller_has_merge_method "$@"; then
+      merge_args=(--method squash)
+    fi
+    gitea_verify_mergeable || exit 1
+    # Gitea is merged through gitea-axi's first-class PR command. The live head
+    # is re-read after the merge and must still match what was verified above
+    # before this script reports a proved landed merge; otherwise the poll stays
+    # armed and the mismatch is surfaced as actionable.
+    hold_away_record_for_merge || exit 1
+    away_status=0
+    require_current_away_authority || away_status=$?
+    [ "$away_status" -eq 0 ] || exit "$away_status"
+    merge_status=0
+    gitea-axi pr merge "$PR_NUMBER" --repo "$(gitea_repo_arg)" --host "$(gitea_host_url)" \
+      "${merge_args[@]+"${merge_args[@]}"}" "$@" || merge_status=$?
+    if [ "$merge_status" -ne 0 ]; then
+      fm_afk_contract_lock_release || true
+      fm_lock_release "$MERGE_CONTROL_LOCK" || true
+      MERGE_CONTROL_LOCK=
+      exit "$merge_status"
+    fi
+    persist_accepted_merge_authority || exit 1
+    fm_afk_contract_lock_release || true
+    fm_lock_release "$MERGE_CONTROL_LOCK" || true
+    MERGE_CONTROL_LOCK=
+    gitea_confirm_rc=0
+    gitea_confirm_merged || gitea_confirm_rc=$?
+    [ "$gitea_confirm_rc" -eq 0 ] || exit 0
+    printf 'verified: %s is merged at head %s\n' "$URL" "$FM_PR_MERGE_HEAD"
     ;;
   gitlab)
     gitlab_verify_mergeable || exit 1

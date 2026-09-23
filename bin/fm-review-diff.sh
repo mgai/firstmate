@@ -19,6 +19,8 @@ FM_ROOT="${FM_ROOT_OVERRIDE:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 FM_HOME="${FM_HOME:-${FM_ROOT_OVERRIDE:-$FM_ROOT}}"
 STATE="${FM_STATE_OVERRIDE:-$FM_HOME/state}"
 "$FM_ROOT/bin/fm-guard.sh" || true
+# shellcheck source=bin/fm-pr-lib.sh
+. "$SCRIPT_DIR/fm-pr-lib.sh"
 
 usage() {
   echo "usage: fm-review-diff.sh <task-id> [--stat]" >&2
@@ -76,12 +78,12 @@ fi
 
 pr_number_from_target() {
   local target=$1 n
+  if fm_pr_url_parse "$target"; then
+    printf '%s' "$FM_PR_NUMBER"
+    return 0
+  fi
   case "$target" in
     '' ) return 1 ;;
-    *"/pull/"*)
-      n=${target##*/pull/}
-      n=${n%%[!0-9]*}
-      ;;
     [0-9]*)
       n=${target%%[!0-9]*}
       ;;

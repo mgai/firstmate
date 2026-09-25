@@ -111,6 +111,8 @@ import {
 import {
   activateEligibleRowsOwner,
   afkPostureRecordPresent,
+  awayPostureTailFor,
+  branchWakePrompt,
   deactivateEligibleRowsOwner,
   FM_BRANCH_DISPATCH_EVENT,
   releaseEligibleRowsSnapshot,
@@ -1528,9 +1530,7 @@ ${context.command}
         // durable queue keeps every row (bin/fm-lease-lib.sh role-partition).
         const postureTail = afk ? await awayPostureTail() : "";
         try {
-          await session.prompt(
-            `FIRSTMATE SUPERVISION WAKE: ${message}\n\nHandle this per your operating procedure and finish with fm_branch_report.${postureTail}`,
-          );
+          await session.prompt(branchWakePrompt(message, "fm_branch_report", postureTail));
         } finally {
           wakeTaskScope = null;
         }

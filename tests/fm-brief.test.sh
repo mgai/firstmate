@@ -404,6 +404,34 @@ test_no_mistakes_dod_wording() {
   pass "fm-brief.sh: no-mistakes DOD keeps its apostrophe prose and bans --yes outright"
 }
 
+# The green-PR report must not depend on a status poll: `axi status` never
+# reports `checks-passed` while the ci step monitors the PR for merge, so a
+# worker told to wait on it for the next gate or outcome never learned its PR
+# went green (2026-09-22, PR #5317). The rendered DOD must make the drive
+# call's own return the green signal and reattach after a bounded return.
+test_no_mistakes_dod_green_detection() {
+  local home id brief
+  home="$TMP_ROOT/green-detection-home"
+  mkdir -p "$home/data"
+  id="brief-green-b1"
+  FM_HOME="$home" "$ROOT/bin/fm-brief.sh" "$id" some-proj --mode no-mistakes >/dev/null 2>&1
+  brief="$home/data/$id/brief.md"
+  assert_present "$brief" "brief was not scaffolded"
+  assert_grep "Only a drive call's return reports the green PR" "$brief" \
+    "no-mistakes DOD must make the drive call's return the green signal"
+  assert_grep "never reports \`checks-passed\` while the ci step is still monitoring the PR for merge" "$brief" \
+    "no-mistakes DOD must say axi status cannot show a green PR in merge monitoring"
+  assert_grep "never wait on a status poll for the next gate or outcome" "$brief" \
+    "no-mistakes DOD must forbid waiting on a status poll"
+  assert_grep "reattach at once by re-running \`no-mistakes axi run\` without flags" "$brief" \
+    "no-mistakes DOD must reattach the drive call after a bounded return"
+  assert_grep "once checks are green it returns \`checks-passed\` immediately" "$brief" \
+    "no-mistakes DOD must say a reattach reports an already-green PR"
+  assert_no_grep "poll \`no-mistakes axi status\` from a separate call" "$brief" \
+    "no-mistakes DOD still makes a status poll the wait for the next gate or outcome"
+  pass "fm-brief.sh: no-mistakes DOD detects a green PR from the drive call, not a status poll"
+}
+
 test_ask_user_escalation_format() {
   local home id brief mode other_id other_brief
   home="$TMP_ROOT/ask-user-home"
@@ -456,6 +484,10 @@ test_ask_user_escalation_format() {
   pass "fm-brief.sh: no-mistakes ask-user findings use one event plus a verbatim snapshot"
 }
 
+# The project-memory section bounds crewmate edits of a project's AGENTS.md or
+# CLAUDE.md to corrections of factually wrong information - including wrong
+# information the task itself introduced - and never invites additions of
+# missing knowledge, because those files tax every agent session of the project.
 test_ship_project_memory_wording() {
   local home id brief
   home="$TMP_ROOT/project-memory-home"
@@ -464,13 +496,19 @@ test_ship_project_memory_wording() {
   MY_FM_HOME="$home" "$ROOT/bin/fm-brief.sh" "$id" some-proj --mode no-mistakes >/dev/null 2>&1
   brief="$home/data/$id/brief.md"
   assert_present "$brief" "brief was not scaffolded"
-  assert_grep "Record only project knowledge useful to almost every future session." "$brief" \
-    "project-memory contract lost the durable-knowledge bar"
-  assert_grep "prefer a pointer to the authoritative file, command, or doc over copying the detail" "$brief" \
-    "project-memory contract lost pointer-over-copy guidance"
-  assert_grep "follow \`$ROOT/bin/fm-ensure-agents-md.sh\`'s self-governance contract" "$brief" \
-    "project-memory contract no longer defers to the ensure helper"
-  pass "fm-brief.sh: ship project-memory wording carries the AGENTS.md authoring bar"
+  assert_grep "loaded into every agent session" "$brief" \
+    "project-memory contract lost the per-session cost rationale"
+  assert_grep "only to correct information that is factually wrong" "$brief" \
+    "project-memory contract lost the corrections-only bound"
+  assert_grep "including information your own change made wrong" "$brief" \
+    "project-memory contract lost the self-inflicted correction case"
+  assert_grep "never to add knowledge because it is missing" "$brief" \
+    "project-memory contract still permits additions of missing knowledge"
+  assert_no_grep "if this task produced durable project-intrinsic knowledge" "$brief" \
+    "project-memory contract still invites additions for durable knowledge"
+  assert_grep "A correction edits only the wrong text: do not run \`$ROOT/bin/fm-ensure-agents-md.sh\`" "$brief" \
+    "project-memory contract no longer forbids the ensure helper on a correction"
+  pass "fm-brief.sh: ship project-memory wording bounds edits to corrections of wrong information"
 }
 
 test_herdr_lab_contract_is_explicit_and_complete() {
@@ -491,8 +529,8 @@ test_herdr_lab_contract_is_explicit_and_complete() {
     "Herdr lab brief missing helper-owned provisioning"
   assert_grep "\"\$HERDR_LAB_HELPER\" teardown \"\$HERDR_LAB_SESSION\"" "$brief" \
     "Herdr lab brief missing helper-owned teardown"
-  assert_grep "required trailing \`--session \"\$HERDR_LAB_SESSION\"\`" "$brief" \
-    "Herdr lab brief missing the per-call trailing session contract"
+  assert_grep "required \`--session \"\$HERDR_LAB_SESSION\"\` as a Herdr option, before any \`--\` delimiter" "$brief" \
+    "Herdr lab brief missing the per-call session option contract"
   assert_grep "direct \`herdr server stop\`" "$brief" \
     "Herdr lab brief missing the forbidden server-global command list"
   assert_grep "records the live default session before provisioning" "$brief" \
@@ -944,9 +982,9 @@ test_scout_lavish_line_follows_presentation_floor() {
       assert_no_grep "$hosting" "$brief" "$label: scout brief offered a below-floor Lavish"
     fi
   done <<'ROWS'
-lavish-axi at the floor^0.1.46^hosting
+lavish-axi at the floor^0.1.77^hosting
 lavish-axi above the floor^0.2.0^hosting
-lavish-axi just below the floor^0.1.45^text
+lavish-axi just below the floor^0.1.76^text
 absent lavish-axi^absent^text
 ROWS
   pass "fm-brief.sh: scout Lavish hosting follows the bootstrap lavish-axi floor"
@@ -1061,6 +1099,72 @@ test_home_brief_include_is_appended_last() {
 }
 
 test_worker_role_scope
+
+# Rule 2 governs file edits rather than pool administration, so every crewmate
+# scaffold must prohibit the administrative act itself. The rule is emitted from
+# one shared string so the ship and scout copies cannot drift apart.
+test_crewmate_scaffolds_forbid_pool_administration() {
+  local home id brief mode ship_rule scout_rule
+  home="$TMP_ROOT/pool-admin-home"
+  mkdir -p "$home/data"
+
+  for mode in no-mistakes direct-PR local-only; do
+    id="brief-pool-$mode"
+    FM_HOME="$home" "$ROOT/bin/fm-brief.sh" "$id" alpha --mode "$mode" >/dev/null 2>&1 \
+      || fail "fm-brief.sh --mode $mode exited non-zero"
+    brief="$home/data/$id/brief.md"
+    assert_grep "worktree pool" "$brief" \
+      "$mode ship brief did not name the shared worktree pool"
+    assert_grep "create, remove, return, prune, move, or reassign" "$brief" \
+      "$mode ship brief did not state the prohibition around the act"
+    # shellcheck disable=SC2016 # Literal command text must remain unexpanded.
+    assert_grep 'git worktree add|remove|move|prune' "$brief" \
+      "$mode ship brief did not name the concrete git worktree commands"
+    assert_grep "treehouse" "$brief" \
+      "$mode ship brief did not name the treehouse mutation commands"
+    assert_grep "any other worktree provider" "$brief" \
+      "$mode ship brief pinned one provider instead of covering every provider"
+    assert_grep "sibling slot" "$brief" \
+      "$mode ship brief did not forbid writing into a sibling slot"
+    # shellcheck disable=SC2016 # Literal backticks and braces must remain unexpanded.
+    assert_grep 'blocked [at=<epoch>]: {what you need}' "$brief" \
+      "$mode ship brief gave the prohibition no exit for a genuine second-checkout need"
+  done
+
+  FM_HOME="$home" "$ROOT/bin/fm-brief.sh" brief-pool-scout alpha --scout >/dev/null 2>&1 \
+    || fail "fm-brief.sh --scout exited non-zero"
+  brief="$home/data/brief-pool-scout/brief.md"
+  assert_grep "worktree pool" "$brief" "scout brief did not name the shared worktree pool"
+  # shellcheck disable=SC2016 # Literal backticks and braces must remain unexpanded.
+  assert_grep 'blocked [at=<epoch>]: {what you need}' "$brief" "scout brief gave the prohibition no exit"
+
+  # One shared string, not two copies: the emitted rule must be byte-identical
+  # across the ship and scout scaffolds so a later edit cannot fix one and miss
+  # the other.
+  ship_rule=$(awk '/^7\. Never administer/,/^$/' "$home/data/brief-pool-no-mistakes/brief.md")
+  scout_rule=$(awk '/^7\. Never administer/,/^$/' "$brief")
+  [ -n "$ship_rule" ] || fail "ship brief emitted no shared-infrastructure rule to compare"
+  [ "$ship_rule" = "$scout_rule" ] \
+    || fail "ship and scout shared-infrastructure rules have drifted apart"
+
+  # The daemon half of the rule survived the fold.
+  assert_grep "no-mistakes" "$brief" "scout brief lost the shared no-mistakes daemon rule"
+  # shellcheck disable=SC2016 # Literal backticks and braces must remain unexpanded.
+  assert_grep 'blocked [at=<epoch>]: {the daemon error}' "$brief" \
+    "scout brief lost the daemon-error reporting instruction"
+
+  # A secondmate runs its own home and legitimately allocates and returns slots
+  # for its own crewmates, so the crewmate prohibition must NOT reach its charter.
+  FM_SECONDMATE_CHARTER='Supervise the alpha domain.' \
+    FM_HOME="$home" "$ROOT/bin/fm-brief.sh" brief-pool-mate --secondmate alpha >/dev/null 2>&1 \
+    || fail "fm-brief.sh --secondmate exited non-zero"
+  assert_no_grep "create, remove, return, prune, move, or reassign" \
+    "$home/data/brief-pool-mate/brief.md" \
+    "secondmate charter must not inherit the crewmate pool-administration prohibition"
+
+  pass "fm-brief.sh: every crewmate scaffold forbids administering the shared worktree pool"
+}
+
 test_script_parses
 test_no_heredoc_in_command_substitution
 test_help_includes_entire_header

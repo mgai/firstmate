@@ -95,13 +95,13 @@ test_words_preserve_final_newline_shape() {
   printf 'merge when green' > "$without"
   printf 'merge when green\n' > "$with"
   printf 'first line\n\n' > "$trailing"
-  contract "$home" propose --words-file "$without" >/dev/null || fail "proposal without a final newline failed"
-  [ "$(contract "$home" words --proposal; printf x)" = "$(cat "$without"; printf x)" ] \
+  contract "$home" enter --words-file "$without" >/dev/null 2>&1 || fail "entry without a final newline failed"
+  [ "$(contract "$home" words; printf x)" = "$(cat "$without"; printf x)" ] \
     || fail "words without a final newline did not round-trip byte-exact"
-  contract "$home" propose --words-file "$with" >/dev/null || fail "proposal with a final newline failed"
-  [ "$(contract "$home" words --proposal; printf x)" = "$(cat "$with"; printf x)" ] \
+  contract "$home" enter --words-file "$with" >/dev/null 2>&1 || fail "entry with a final newline failed"
+  [ "$(contract "$home" words; printf x)" = "$(cat "$with"; printf x)" ] \
     || fail "words with a final newline did not round-trip byte-exact"
-  out=$(contract "$home" propose --words-file "$trailing"; printf x) || fail "proposal with trailing blank lines failed"
+  out=$(contract "$home" enter --words-file "$trailing" 2>/dev/null; printf x) || fail "entry with trailing blank lines failed"
   out=${out%x}
   assert_contains "$out" $'    first line\n    \nSay go to confirm' \
     "read-back dropped a trailing blank line from the captain's words"
@@ -133,7 +133,10 @@ test_propose_confirm_writes_a_v2_record_and_announces_hold_for_return() {
   [ "$(contract "$home" field reach_channels)" = none ] || fail "reach channels are not none"
   case "$(contract "$home" field confirmed_epoch)" in ''|*[!0-9]*) fail "confirmed_epoch is not numeric" ;; esac
   case "$(contract "$home" field entered_epoch)" in ''|*[!0-9]*) fail "entered_epoch is not numeric" ;; esac
-  [ "$(contract "$home" field entered_epoch)" -gt "$proposed_epoch" ] || fail "entry time was not stamped at confirmation"
+  [ "$(contract "$home" field entered_epoch)" -ge "$before" ] && [ "$(contract "$home" field entered_epoch)" -le "$after" ] \
+    || fail "entry time was not stamped by the enter call itself"
+  [ "$(contract "$home" field confirmed_epoch)" = "$(contract "$home" field entered_epoch)" ] \
+    || fail "a fresh entry stamped two different times"
   [ "$(contract "$home" words)" = 'merge it when green' ] || fail "words did not round-trip"
   [ -z "$(contract "$home" field merge_grants)" ] || fail "a version 2 record carries a merge_grants field"
   [ -z "$(contract "$home" field clauses)" ] || fail "a version 2 record carries a clauses section"
@@ -144,8 +147,67 @@ test_propose_confirm_writes_a_v2_record_and_announces_hold_for_return() {
   pass "propose then confirm writes a version 2 record, announces hold-for-return only, and every read subcommand reflects it"
 }
 
-test_confirm_requires_readback_and_refresh_is_a_no_op() {
-  local home out first rc
+# The wait-for-go gate is gone: the retired two-step subcommands and the
+# proposal read flag are refused by name and write nothing, so no caller can
+# stage a mandate that waits on a further human response before it binds.
+test_retired_two_step_entry_is_refused_by_name() {
+  local home cmd out rc
+  home=$(make_home retired-two-step)
+  for cmd in propose confirm; do
+    set +e
+    out=$(contract "$home" "$cmd" --words 'merge it when green' 2>&1)
+    rc=$?
+    set -e
+    [ "$rc" -eq 2 ] || fail "$cmd should be a usage error (rc=$rc): $out"
+    assert_contains "$out" "'$cmd' was retired with the wait-for-go gate" "$cmd refusal did not name the retirement"
+    assert_contains "$out" "run 'enter'" "$cmd refusal did not point at enter"
+    [ ! -e "$home/state/.afk-contract" ] || fail "$cmd wrote a record despite the refusal"
+    [ ! -e "$home/state/.afk-contract.proposed" ] || fail "$cmd staged a proposal despite the refusal"
+  done
+  for cmd in readback words validate; do
+    set +e
+    out=$(contract "$home" "$cmd" --proposal 2>&1)
+    rc=$?
+    set -e
+    [ "$rc" -eq 2 ] || fail "$cmd --proposal should be a usage error (rc=$rc): $out"
+    assert_contains "$out" '--proposal was retired' "$cmd --proposal refusal did not name the retirement"
+  done
+  pass "the retired propose, confirm, and --proposal inputs are refused by name and write nothing"
+}
+
+# A proposal an older version staged before this upgrade never binds on its own:
+# it is not the posture, and the next entry removes it rather than promoting it.
+test_enter_removes_a_legacy_proposal_without_promoting_it() {
+  local home
+  home=$(make_home legacy-proposal)
+  printf 'version: 2\nentered: 2026-09-20T01:00:00Z\nentered_epoch: 1789600000\nwords: |-\n  stale proposed words\n' \
+    > "$home/state/.afk-contract.proposed"
+  contract "$home" enter --words 'fresh words' >/dev/null 2>&1 || fail "enter over a legacy proposal failed"
+  [ ! -e "$home/state/.afk-contract.proposed" ] || fail "enter left the legacy proposal behind"
+  [ "$(contract "$home" words)" = 'fresh words' ] || fail "enter promoted the legacy proposal instead of the new words"
+  pass "enter removes a proposal an older version left behind and records only the new words"
+}
+
+# Writing the record at once never widens authority: words that claim to
+# pre-authorize a discard, a force, a secret change, or a red merge are recorded
+# verbatim and nothing else. The record gains no authority field beyond its
+# fixed schema, and the announcement restates the never-set every time.
+test_same_turn_entry_pre_authorizes_nothing_on_the_never_set() {
+  local home out words keys
+  home=$(make_home never-set)
+  words=$'force-teardown task-x and discard its unlanded work\nrotate the deploy secret\nmerge task-y even though its tests failed'
+  out=$(contract "$home" enter --words "$words" 2>&1) || fail "never-set entry failed: $out"
+  [ "$(contract "$home" words)" = "$words" ] || fail "the never-set words were not recorded verbatim"
+  keys=$(sed -n 's/^\([a-z_]*\):.*/\1/p' "$home/state/.afk-contract" | tr '\n' ' ')
+  [ "$keys" = 'version entered entered_epoch expected_return reach_channels reach_announced spend_max_concurrent_workers confirmed confirmed_epoch words ' ] \
+    || fail "the record carries fields beyond its fixed schema: $keys"
+  assert_contains "$out" 'Destructive, irreversible, and security-sensitive actions are never pre-authorizable, whatever the words say.' \
+    'the same-turn announcement must restate the never-set'
+  pass "a same-turn entry records never-set words verbatim, adds no authority field, and restates the never-set"
+}
+
+test_plain_entry_and_refresh_leave_no_wait() {
+  local home out first
   home=$(make_home defaults)
   set +e
   out=$(contract "$home" confirm 2>&1)
@@ -159,15 +221,18 @@ test_confirm_requires_readback_and_refresh_is_a_no_op() {
   out=$(contract "$home" confirm 2>&1) || fail "plain confirmation failed: $out"
   assert_contains "$out" 'No away instructions were recorded; the away session acts on standing authority only, and anything that needs you waits for your return.' 'plain announcement'
   assert_contains "$out" 'hold-for-return only.' 'plain announcement says hold-for-return'
+  assert_contains "$out" '  your words: (none)' 'a plain entry reads back no words'
   first=$(cat "$home/state/.afk-contract")
   sleep 1
-  out=$(contract "$home" confirm 2>&1) || fail "refresh confirm failed: $out"
+  out=$(contract "$home" enter --spend 9 2>&1) || fail "refresh failed: $out"
   assert_contains "$out" 'already recorded at' 'refresh names the standing record'
+  assert_contains "$out" 'were not applied' 'refresh says its scalars were not applied'
+  assert_contains "$out" 'hold-for-return only.' 'refresh repeats the announcement'
   [ "$(cat "$home/state/.afk-contract")" = "$first" ] || fail "a refresh rewrote the standing record"
-  pass "confirmation requires a read-back, and refresh leaves the standing record untouched"
+  pass "a plain entry records no mandate in one step, and a refresh leaves the standing record untouched"
 }
 
-test_confirming_a_new_proposal_archives_the_standing_record() {
+test_new_words_archive_the_standing_record() {
   local home first_epoch archived
   home=$(make_home replace)
   contract "$home" propose --words 'first words' >/dev/null 2>&1 || fail "first propose failed"
@@ -187,44 +252,38 @@ test_confirming_a_new_proposal_archives_the_standing_record() {
 test_failed_replacement_keeps_the_standing_record() {
   local home before out rc
   home=$(make_home replace-failure)
-  contract "$home" propose --words 'original posture' >/dev/null || fail "first propose failed"
-  contract "$home" confirm >/dev/null || fail "first confirm failed"
+  contract "$home" enter --words 'original posture' >/dev/null 2>&1 || fail "first entry failed"
   before=$(cat "$home/state/.afk-contract")
-  contract "$home" propose --words 'replacement posture' >/dev/null || fail "replacement propose failed"
   printf 'not a directory\n' > "$home/state/afk-contracts"
   set +e
-  out=$(contract "$home" confirm 2>&1)
+  out=$(contract "$home" enter --words 'replacement posture' 2>&1)
   rc=$?
   set -e
   [ "$rc" -ne 0 ] || fail "replacement succeeded without an archive destination"
   [ "$(cat "$home/state/.afk-contract")" = "$before" ] || fail "failed replacement removed or changed the standing posture"
-  [ -f "$home/state/.afk-contract.proposed" ] || fail "failed replacement discarded the pending proposal"
   pass "a failed replacement keeps the standing posture live"
 }
 
 test_failed_final_replacement_rolls_back_the_superseded_archive() {
   local home before out rc
   home=$(make_home replace-final-move-failure)
-  contract "$home" propose --words 'original posture' >/dev/null || fail "first propose failed"
-  contract "$home" confirm >/dev/null || fail "first confirm failed"
+  contract "$home" enter --words 'original posture' >/dev/null 2>&1 || fail "first entry failed"
   before=$(cat "$home/state/.afk-contract")
-  contract "$home" propose --words 'replacement posture' >/dev/null || fail "replacement propose failed"
   mkdir -p "$home/fakebin"
   cat > "$home/fakebin/mv" <<'SH'
 #!/usr/bin/env bash
 case "${1:-}:${2:-}" in
-  *.afk-contract.confirming.*:*/.afk-contract) exit 1 ;;
+  *.afk-contract.entering.*:*/.afk-contract) exit 1 ;;
 esac
 exec /bin/mv "$@"
 SH
   chmod +x "$home/fakebin/mv"
   set +e
-  out=$(PATH="$home/fakebin:$PATH" contract "$home" confirm 2>&1)
+  out=$(PATH="$home/fakebin:$PATH" contract "$home" enter --words 'replacement posture' 2>&1)
   rc=$?
   set -e
   [ "$rc" -ne 0 ] || fail "replacement succeeded after its final publication failed"
   [ "$(cat "$home/state/.afk-contract")" = "$before" ] || fail "failed final publication changed the standing posture"
-  [ -f "$home/state/.afk-contract.proposed" ] || fail "failed final publication discarded the pending proposal"
   [ -z "$(find "$home/state/afk-contracts" -name '*-superseded-*.afk-contract' -print -quit)" ] \
     || fail "failed final publication left a duplicate superseded mandate"
   pass "a failed final replacement publication rolls back its superseded archive"
@@ -234,8 +293,7 @@ test_validation_rejects_damaged_words_blocks() {
   local mode home record out rc
   for mode in unindented empty; do
     home=$(make_home "damaged-words-$mode")
-    contract "$home" propose --words 'captain words' >/dev/null || fail "$mode words proposal failed"
-    contract "$home" confirm >/dev/null || fail "$mode words confirmation failed"
+    contract "$home" enter --words 'captain words' >/dev/null 2>&1 || fail "$mode words entry failed"
     record="$home/state/.afk-contract"
     if [ "$mode" = unindented ]; then
       sed 's/^  captain words$/captain words/' "$record" > "$home/damaged"
@@ -342,13 +400,13 @@ test_inputs_are_validated() {
   local home out rc
   home=$(make_home inputs)
   set +e
-  out=$(contract "$home" propose --expected-return 'tomorrow morning' 2>&1)
+  out=$(contract "$home" enter --expected-return 'tomorrow morning' 2>&1)
   rc=$?
   set -e
   [ "$rc" -eq 2 ] || fail "a non-ISO expected return should be a usage error (rc=$rc): $out"
   assert_contains "$out" '--expected-return must be UTC ISO 8601' 'expected-return refusal wording'
   set +e
-  out=$(contract "$home" propose --spend 0 2>&1)
+  out=$(contract "$home" enter --spend 0 2>&1)
   rc=$?
   set -e
   [ "$rc" -eq 2 ] || fail "a zero spend cap should be a usage error (rc=$rc): $out"
@@ -493,11 +551,11 @@ test_record_changes_refuse_while_a_reader_holds_the_lock() {
 
   contract "$home" propose --words 'replacement words' >/dev/null || fail "lock-contended: replacement proposal failed"
   set +e
-  out=$(FM_TEST_AFK_CONTRACT_LOCK_TIMEOUT=1 contract "$home" confirm 2>&1)
+  out=$(FM_TEST_AFK_CONTRACT_LOCK_TIMEOUT=1 contract "$home" enter --words 'replacement words' 2>&1)
   rc=$?
   set -e
-  [ "$rc" -ne 0 ] || { kill "$holder_pid" 2>/dev/null || true; fail "lock-contended: confirm replaced the record while it was locked"; }
-  assert_contains "$out" 'locked by live process' "lock-contended: the confirm refusal did not name the live holder"
+  [ "$rc" -ne 0 ] || { kill "$holder_pid" 2>/dev/null || true; fail "lock-contended: enter replaced the record while it was locked"; }
+  assert_contains "$out" 'locked by live process' "lock-contended: the enter refusal did not name the live holder"
   [ "$(cat "$home/state/.afk-contract")" = "$before" ] \
     || { kill "$holder_pid" 2>/dev/null || true; fail "lock-contended: the refused confirm changed the standing record"; }
   [ "$(contract "$home" words)" = 'standing words' ] \
@@ -509,7 +567,7 @@ test_record_changes_refuse_while_a_reader_holds_the_lock() {
   [ "$(contract "$home" words)" = 'replacement words' ] \
     || fail "lock-contended: the released replacement did not take effect"
   contract "$home" archive >/dev/null || fail "lock-contended: archive failed once the lock cleared"
-  pass "confirm and archive refuse while the record is locked, and proceed once it clears"
+  pass "enter and archive refuse while the record is locked, and proceed once it clears"
 }
 
 test_readback_renders_words_verbatim_with_the_record_scalars

@@ -96,7 +96,7 @@
 #
 # Sourceable: with the BASH_SOURCE guard, other scripts get the path, presence,
 # and lock helpers (fm_afk_contract_path, fm_afk_contract_present,
-# fm_afk_contract_proposal_path, fm_afk_contract_archive_dir,
+# fm_afk_contract_archive_dir,
 # fm_afk_contract_lock_hold, fm_afk_contract_lock_release) without running main.
 set -u
 
@@ -122,7 +122,9 @@ fm_afk_contract_path() {  # [state-dir]
   printf '%s/.afk-contract' "${1:-$FM_AFK_CONTRACT_STATE}"
 }
 
-fm_afk_contract_proposal_path() {  # [state-dir]
+# Where the retired two-step entry staged its proposal; kept only so `enter` can
+# remove one an older version left behind.
+fm_afk_contract_legacy_proposal_path() {  # [state-dir]
   printf '%s/.afk-contract.proposed' "${1:-$FM_AFK_CONTRACT_STATE}"
 }
 
@@ -383,11 +385,13 @@ fm_afk_contract_parse_inputs() {  # <args...>; sets WORDS, EXPECTED_RETURN, SPEN
           return 2
         fi
         EXPECTED_RETURN=$2
+        FM_AFK_CONTRACT_SCALARS_GIVEN=1
         shift 2 ;;
       --spend)
         [ "$#" -gt 1 ] || { fm_afk_contract_log '--spend requires a positive integer'; return 2; }
         case "$2" in ''|*[!0-9]*|0) fm_afk_contract_log "--spend must be a positive integer, got '$2'"; return 2 ;; esac
         SPEND=$2
+        FM_AFK_CONTRACT_SCALARS_GIVEN=1
         shift 2 ;;
       --action|--object|--when|--stop|--grant|--grant=*)
         fm_afk_contract_log "$1 was retired: the captain's away words are the whole mandate, so pass them with --words or --words-file and nothing else"
@@ -436,8 +440,11 @@ fm_afk_contract_archive_target() {  # <record> [superseded-stamp]
   printf '%s\n' "$target"
 }
 
-fm_afk_contract_cmd_confirm() {
-  local record proposal body confirmed confirmed_epoch archived archived_tmp staged session_entered session_entered_epoch
+# /afk is the go: write the record in this same call, with no proposal and no
+# later confirmation step. Inputs were parsed before the lock (WORDS,
+# EXPECTED_RETURN, SPEND, FM_AFK_CONTRACT_SCALARS_GIVEN).
+fm_afk_contract_cmd_enter() {
+  local record legacy now now_epoch session_entered session_entered_epoch staged archived archived_tmp
   record=$(fm_afk_contract_path)
   proposal=$(fm_afk_contract_proposal_path)
   confirmed=$(fm_afk_contract_now_iso)
@@ -454,26 +461,22 @@ fm_afk_contract_cmd_confirm() {
     fm_afk_contract_log "no away-posture proposal exists; run propose before confirm"
     return 1
   fi
-  session_entered=$confirmed
-  session_entered_epoch=$confirmed_epoch
+  now=$(fm_afk_contract_now_iso)
+  now_epoch=$(date +%s)
+  session_entered=$now
+  session_entered_epoch=$now_epoch
   if [ -f "$record" ]; then
+    fm_afk_contract_validate "$record" || return 1
     session_entered=$(fm_afk_contract_read_field "$record" entered)
     session_entered_epoch=$(fm_afk_contract_read_field "$record" entered_epoch)
   fi
-  staged=$(mktemp "$(dirname "$record")/.afk-contract.confirming.XXXXXX") || return 1
-  {
-    printf '%s\n' "$body" | awk -v entered="$session_entered" -v epoch="$session_entered_epoch" '
-      /^entered: / { print "entered: " entered; next }
-      /^entered_epoch: / { print "entered_epoch: " epoch; next }
-      /^words: / { exit }
-      { print }
-    '
-    printf 'confirmed: %s\nconfirmed_epoch: %s\n' "$confirmed" "$confirmed_epoch"
-    printf '%s\n' "$body" | awk 'p{print} /^words: /{p=1; print}'
-  } > "$staged" || { rm -f "$staged"; return 1; }
-  fm_afk_contract_validate "$staged" 1 || { rm -f "$staged"; return 1; }
+  mkdir -p "$(dirname "$record")" || return 1
+  staged=$(mktemp "$(dirname "$record")/.afk-contract.entering.XXXXXX") || return 1
+  fm_afk_contract_render_record "$session_entered" "$session_entered_epoch" "$now" "$now_epoch" > "$staged" \
+    || { rm -f "$staged"; return 1; }
+  fm_afk_contract_validate "$staged" || { rm -f "$staged"; return 1; }
   if [ -f "$record" ]; then
-    archived=$(fm_afk_contract_archive_target "$record" "$confirmed_epoch") || { rm -f "$staged"; return 1; }
+    archived=$(fm_afk_contract_archive_target "$record" "$now_epoch") || { rm -f "$staged"; return 1; }
     # Copy into a temporary name first and rename atomically, so a failed copy
     # never leaves a partial archive at a glob-visible name.
     archived_tmp=$(mktemp "$(dirname "$archived")/.afk-contract.archiving.XXXXXX") || { rm -f "$staged"; return 1; }
@@ -498,8 +501,8 @@ fm_afk_contract_cmd_archive() {
   local record target
   record=$(fm_afk_contract_path)
   [ -f "$record" ] || return 0
-  if ! fm_afk_contract_validate "$record" 1; then
-    fm_afk_contract_log "confirmed away-posture record at $record is invalid; refusing to archive"
+  if ! fm_afk_contract_validate "$record"; then
+    fm_afk_contract_log "away-posture record at $record is invalid; refusing to archive"
     return 1
   fi
   target=$(fm_afk_contract_archive_target "$record") || return 1
@@ -507,12 +510,14 @@ fm_afk_contract_cmd_archive() {
   printf '%s\n' "$target"
 }
 
-fm_afk_contract_select_path() {  # <args...> -> prints the record path chosen by --proposal/--path
+fm_afk_contract_select_path() {  # <args...> -> prints the record path chosen by --path
   local path
   path=$(fm_afk_contract_path)
   while [ "$#" -gt 0 ]; do
     case "$1" in
-      --proposal) path=$(fm_afk_contract_proposal_path); shift ;;
+      --proposal)
+        fm_afk_contract_log "--proposal was retired with the wait-for-go gate: /afk writes the record directly, so read the record itself"
+        return 2 ;;
       --path) [ "$#" -gt 1 ] || return 2; path=$2; shift 2 ;;
       *) return 2 ;;
     esac
@@ -538,12 +543,15 @@ fm_afk_contract_main() {
   [ -n "$cmd" ] || { fm_afk_contract_usage >&2; return 2; }
   shift
   case "$cmd" in
-    propose) fm_afk_contract_cmd_propose "$@" ;;
-    confirm)
-      [ "$#" -eq 0 ] || { fm_afk_contract_usage >&2; return 2; }
-      fm_afk_contract_locked_cmd fm_afk_contract_cmd_confirm ;;
+    enter)
+      fm_afk_contract_parse_inputs "$@" || return 2
+      fm_afk_contract_locked_cmd fm_afk_contract_cmd_enter ;;
+    propose|confirm)
+      fm_afk_contract_log "'$cmd' was retired with the wait-for-go gate: /afk is itself the go, so run 'enter' to write the record in the same turn"
+      return 2 ;;
     readback)
-      path=$(fm_afk_contract_select_path "$@") || { fm_afk_contract_usage >&2; return 2; }
+      [ "$#" -eq 0 ] || { fm_afk_contract_select_path "$@" >/dev/null; fm_afk_contract_usage >&2; return 2; }
+      path=$(fm_afk_contract_path)
       [ -f "$path" ] || { fm_afk_contract_log "no record at $path"; return 1; }
       if [ "$path" = "$(fm_afk_contract_proposal_path)" ]; then
         fm_afk_contract_render_readback "$path" 'Away posture read-back (proposed, not yet confirmed):' || return 1

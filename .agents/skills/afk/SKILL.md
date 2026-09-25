@@ -13,7 +13,8 @@ metadata:
 Away mode is a POSTURE of the one supervision session, not a second architecture.
 Being away changes exactly two things: how the captain is informed, and what happens at a captain-owned decision point (hold for return, or the answer the captain's away words already gave).
 It never changes the authority set.
-The posture is a file, `state/.afk-contract`, written only by `bin/fm-afk-contract.sh` after the captain confirms a read-back; nothing infers the posture from chat.
+The posture is a file, `state/.afk-contract`, written only by `bin/fm-afk-contract.sh` in the same turn as `/afk`; nothing infers the posture from chat.
+Typing `/afk` is itself the go: the captain may not look at the screen again, so entry never waits for a further human response, and no read-back gates it or asks for a go.
 Hold-for-return is the default and the only reach profile this release records: there is no phone channel, and the entry announcement says so aloud every time.
 
 ## Entering: `/afk [words]`
@@ -36,15 +37,24 @@ Hold-for-return is the default and the only reach profile this release records: 
      The away daemon is no longer launched on Pi; the ordinary supervision session (`docs/pi-supervision-branch.md`) keeps running with the record present, and `bin/fm-afk-launch.sh start` refuses on these harnesses.
      With the record present main is parked: the supervision branch takes every safe actionable wake, captain outcomes accumulate for the return brief, and main's standing authority relocates to the branch through the guarded scripts (`docs/pi-supervision-branch.md` "Postures"); only a wake the branch declines (including a broken branch or unsafe scan) or a watcher failure wakes main.
      `/quiet` needs nothing extra on Pi: the attended branch already keeps routine wakes out of this conversation, so quiet-while-present is the attended posture's own shape there.
-   - **Harness WITH a native in-pane tracked-background tool** (claude's background bash, grok's background tool): run `bin/fm-afk-launch.sh start-native`, then run `FM_AFK_STATE_PREPARED=1 bin/fm-afk-start.sh` through that native tool.
+   - **Claude, Cursor, OpenCode, omp, Grok, or Codex with `config/supervision-host`**: nothing to launch for `/afk`; go on to the announcement.
+     The supervision host (`docs/supervision-host.md`) is the away session there: it runs the branch's contract on a headless engine under the record while main is parked, and `bin/fm-afk-launch.sh start` and `start-native` refuse the away daemon on that home.
+     If `enter` printed a `Supervision host: no engine ...` line, every away wake reaches this conversation instead; say so in the announcement.
+     `/quiet` is unchanged there and still launches the daemon below.
+   - **Harness WITH a native in-pane tracked-background tool** (claude's and grok's, without the supervision host): run `bin/fm-afk-launch.sh start-native`, then run `FM_AFK_STATE_PREPARED=1 bin/fm-afk-start.sh` through that native tool.
      This is a deliberate no-separate-terminal exception because the harness-hosted job creates no terminal or layout mutation, and a shell launcher cannot invoke a harness-native background tool.
      If the native launch fails, run `bin/fm-afk-launch.sh stop` to roll back the prepared lifecycle.
      Do not wrap it in `nohup ... &` (Codex/herdr can reap fire-and-forget shell children after a tool call returns).
-   - **Every other harness** (codex, opencode, omp, kimi, cursor): run `bin/fm-afk-launch.sh start`.
+   - **Every other harness** (codex, opencode, omp, and cursor without the supervision host, and kimi): run `bin/fm-afk-launch.sh start`.
      It is the single owner of the daemon terminal: it creates a NON-VISIBLE tracked terminal for the current backend and passes the captain pane in as `FM_SUPERVISOR_TARGET` so the daemon injects into the captain, not its own new pane (docs/herdr-backend.md "Away-mode supervisor support").
-   Both daemon paths require the already-confirmed record and share `bin/fm-afk-start.sh` as the daemon entry.
+   Both daemon paths require the record `enter` wrote and share `bin/fm-afk-start.sh` as the daemon entry.
    The daemon is **presence-gated**: it injects escalations only while `state/.afk` exists, and stays quiet otherwise.
-5. **Do not separately arm `fm-watch.sh` where the daemon runs.** The daemon manages the watcher as its child; the singleton lock no-ops a stray arm harmlessly.
+3. **Announce, then read back after entry.**
+   Relay the announcement in spirit: hold-for-return only, no phone channel, your instructions are recorded and the away session will carry them out where it can, anything it is unsure of, or that needs you, waits for your return, and destructive, irreversible, and security-sensitive actions are never pre-authorizable whatever the words say.
+   Then give your own plain-sentence restatement of the words in `AGENTS.md` section 9 language - what you read them as asking for, sentence by sentence, never a numbered field list - beside the expected return, the spend cap, and the one-sentence reach announcement.
+   Say plainly which sentence, if any, you could not act on while away (a red merge, a discard, anything on the never-set, local-only landing); it waits for their return.
+   This read-back is informational: the record already stands, so never ask for a go or wait for a reply; a captain who wants a different reading sends `/afk` again with new words.
+4. **Do not separately arm `fm-watch.sh` where the daemon runs.** The daemon manages the watcher as its child; the singleton lock no-ops a stray arm harmlessly.
    On Pi nothing changes about arming: the supervision session's own cycle continues.
 
 ## While away
@@ -71,7 +81,9 @@ No `/back` is needed. The first genuine message is the return signal:
   Once the record is archived, resume full per-wake responsiveness through the emitted primary-harness supervision protocol while blocker handling proceeds, so the gate never creates a blind wait.
   A Bearings request may be answered while the gate is open, and the digest surfaces the catch-up state as a Charted Next `(return-catchup)` warning row naming what still holds it.
   Acting on the fleet - dispatching, steering, merging, or any other ordinary captain work - still waits until the check exits successfully.
+  Once it does, close every task the brief lists under "Landed, cleanup due" through ordinary teardown (`bin/fm-teardown.sh <task>`, never forced; a refusal is a stop-and-investigate result) and tell the captain those workers are closed in outcome language.
 - A message **with** the current operational prefix (`FM_OPERATIONAL_PREFIX`, U+2063 INVISIBLE SEPARATOR followed by `FIRSTMATE_OP: `), or a legacy bare `FM_INJECT_MARK` daemon escalation -> stay away and process it.
+- A `Stop hook feedback` wake from the Stop hook or the supervision host, or a Grok background-task-completed notification for the arm -> stay away and process it; it is automatic supervision, not a message from the captain.
 - Re-invoking `/afk` while already away -> stay away (refresh); this does **not** trigger an exit.
 
 Bias ambiguous cases toward exit: a present captain beats token savings, and a false exit is self-correcting (the captain re-runs `/afk`).
@@ -92,7 +104,7 @@ Destructive, irreversible, and security-sensitive actions are never pre-authoriz
 
 ## The daemon, where it still runs
 
-On the harnesses that still launch the daemon (every verified harness except Pi and pi-signed), the mechanics below are unchanged.
+On the harnesses that still launch the daemon (every verified harness except Pi and pi-signed, and except away mode on a home with `config/supervision-host`), the mechanics below are unchanged.
 
 ### Operational prefix contract
 
@@ -124,7 +136,7 @@ If anything stays buffered past `FM_MAX_DEFER_SECS` (default 300), the daemon
 attempts one normal flush, which still requires an idle pane and an affirmatively empty composer.
 The alarm is defense in depth rather than a substitute for keeping every genuinely idle supported composer injectable.
 If that submit cannot be confirmed, it raises a loud, rate-limited wedge alarm:
-an ERROR in the daemon log, a durable
+an ERROR in the daemon log naming the last delivery failure, a durable
 `state/.subsuper-inject-wedged` marker (the return brief's health line carries it), a tmux status-line flash when applicable, and a configurable backend-independent active alert.
 `docs/wedge-alarm.md` owns the alert channel setup, and `docs/verification/supervision.md` "Wedge-alarm channels" owns active evidence.
 So a guard false-positive becomes a visible stall, never an unbounded silent no-op.
@@ -136,6 +148,7 @@ herdr - both literal, non-submitting sends), then submitted with Enter and
 **verified** through the selected backend's submit primitive.
 Enter is retried (Enter only, never a retype) until the backend confirms the
 submit landed.
+A failed delivery is logged with its stage (initial send or Enter delivery, where no confirmation retry ran and the text may already be typed on backends such as herdr whose Enter could not be sent, or Enter confirmation), the payload's byte count, and the transport's own error output.
 For tmux that confirmation is normally a proven cleared composer from the shared classifier; an idle baseline transitioning to busy across this submit's own Enter also confirms that the turn started when a working harness hides its composer.
 Without that baseline, busy state never converts an `unknown` composer into confirmation.
 For herdr, idle-baseline submits first seek native agent-state showing a real turn started, then use the shared classifier when native state remains idle: a cleared composer confirms delivery, while pending text retries Enter and reaches the shared busy-queue verdict only after the retry budget.
@@ -150,6 +163,7 @@ The daemon still clears its buffer only on the backend's `empty` success verdict
 The daemon wraps `fm-watch.sh`, runs the watcher as a child, presents every durable wake after each actionable watcher close, classifies each presented record in bash, and acknowledges the presented generation only after routing completes.
 It self-handles the routine majority without consuming a firstmate turn.
 Captain-relevant events, plus a bounded recheck of a declared external wait that is still declared, escalate to firstmate's context as one pre-read, single-line, batched digest.
+The digest is byte-bounded so every transport can carry it; when it cuts an event or omits events past its budget, it names a `state/.subsuper-digests/` file that holds every buffered event verbatim, so read that file before acting on a cut event.
 The captain-relevant verb set, declared-wait vocabulary, status-span classifier, and presentation-marker contract live in shared `bin/fm-classify-lib.sh`, while each supervisor owns its routing and fleet scan as a consumer of that policy.
 While `state/.afk` exists the daemon owns the watcher, so the watcher reverts to one-shot and lets the daemon do the triage - the two never run their triage at the same time.
 
@@ -164,14 +178,18 @@ Classify each wake this way:
   If a declared external wait is still declared past `FM_PAUSE_RESURFACE_SECS` (default four hours), housekeeping sends one recheck and resets the pause window; a captain-held transfer is never rechecked while the posture record exists.
   The window ages against the crew's own latest status line, so only a status append that stops declaring the wait ends this routing and restores wedge detection.
 - `check` -> always escalate. Check scripts print only when firstmate should wake.
-- `stale` with a terminal status or bare legacy captain-relevant line -> escalate.
+- `stale` with a terminal status, a bare legacy captain-relevant line, or an unrecognized status prefix such as `parked:` -> escalate.
   Nonterminal progress remains transient even when its prose contains a legacy free-text token or its seen-status marker already matches, so record a marker and self-handle.
   If the pane is still idle past `FM_STALE_ESCALATE_SECS` (default 240s), housekeeping escalates it as a possible wedge.
   This bounds wedge-detection latency to the threshold plus a tick: a delay, never a loss.
   Healthy crewmates are autonomous and do not wait on firstmate mid-task.
 - `heartbeat` -> self-handle.
   The daemon runs its own cheap bash fleet scan every `FM_HEARTBEAT_SCAN_SECS` (default 300s) as the catch-all for captain-relevant events still unread by the per-wake classifier.
-- An unknown wake reason escalates fail-safe, while status-read uncertainty follows the shared one-report-without-position-advance contract referenced under Dedupe below.
+- An unknown wake reason escalates fail-safe.
+  After that escalation is delivered, its exact distilled line is acknowledged and the same identity does not escalate again during that away session.
+  A new away session starts with no acknowledgements, so a handled identity can present once more.
+  An identity that was not delivered still escalates.
+  Status-read uncertainty follows the shared one-report-without-position-advance contract referenced under Dedupe below.
 
 Escalations are buffered up to `FM_ESCALATE_BATCH_SECS` (default 90s; 0 =
 immediate) and flushed as one single-line digest prefixed with the current
@@ -232,7 +250,7 @@ the operational prefix lets firstmate distinguish it from a real captain message
 
 ### Stale-artifact lifecycle
 
-Treat `state/.subsuper-escalations`, its `.since` sidecar, and `state/.subsuper-inject-wedged` as session-scoped delivery artifacts, not as the durable work record.
+Treat `state/.subsuper-escalations`, its `.since` sidecar, `state/.subsuper-inject-wedged`, and `state/.subsuper-unknown-acked` as session-scoped delivery artifacts, not as the durable work record.
 Always enter through `bin/fm-afk-launch.sh`, which clears prior-session artifacts only for a fresh entry and preserves the current session's buffer on refresh.
 Always exit through `bin/fm-afk-launch.sh stop`, which keeps `state/.afk` present through the daemon's shutdown flush, clears it, and archives the posture record last.
 `docs/herdr-backend.md` "Away-mode supervisor support" owns the current mechanism, and `docs/verification/runtime-backends.md` "Away-mode transport" owns active evidence.

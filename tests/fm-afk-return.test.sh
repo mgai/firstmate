@@ -34,6 +34,8 @@ install_runner() {  # <case-dir>
   cp "$ROOT/bin/fm-branch-outcome.sh" "$dir/bin/"
   cp "$ROOT/bin/fm-tasks-axi-lib.sh" "$dir/bin/"
   cp "$ROOT/bin/fm-backlog-transition-lib.sh" "$dir/bin/"
+  # The merge-notification marker reader behind the brief's landed section.
+  cp "$ROOT/bin/fm-pr-lib.sh" "$dir/bin/"
   cp "$ROOT/.tasks.toml" "$dir/home/.tasks.toml"
   printf '## In flight\n\n## Queued\n\n## Done\n' > "$dir/home/data/backlog.md"
   # The fake stop mirrors the real one's ordering: the away flag goes, then the
@@ -114,6 +116,7 @@ test_return_gate_owns_remediation_and_reports_catchup_to_bearings() {
   date +%s > "$dir/home/state/.afk"
   printf 'repair-task.status: blocked synthetic dependency\n' > "$dir/home/state/.subsuper-escalations"
   printf 'fm away-mode inject WEDGED: 4555s undelivered\n' > "$dir/home/state/.subsuper-inject-wedged"
+  printf 'unknown wake: frobnicate: handled\n' > "$dir/home/state/.subsuper-unknown-acked"
   {
     printf '1784074271\t2\tsignal\trepair-task.status\tsignal: synthetic status\n'
     printf 'wake annotation: latest wake-EVENT observed at drain, not current state: repair-task.status: blocked synthetic dependency\n'
@@ -193,6 +196,7 @@ test_return_gate_owns_remediation_and_reports_catchup_to_bearings() {
   [ ! -e "$gate" ] || fail "successful check left the return gate behind"
   [ ! -e "$dir/home/state/.subsuper-escalations" ] || fail "successful check left delivered escalation state behind"
   [ ! -e "$dir/home/state/.subsuper-inject-wedged" ] || fail "successful check left the wedge marker behind"
+  [ ! -e "$dir/home/state/.subsuper-unknown-acked" ] || fail "successful check left the away session's unknown-wake acknowledgements behind"
   [ -s "$dir/home/state/.fake-drain" ] || fail "successful return consumed its wake before handling completed"
   [ ! -e "$dir/home/state/.fake-drain-acks" ] || fail "successful return acknowledged its wake inside evidence publication"
   assert_contains "$out" 'WAKE_ACK_REQUIRED: after handling completes' "successful return did not hand acknowledgement to the handling turn"
@@ -701,8 +705,7 @@ test_return_guard_refuses_while_the_record_exists() {
   local dir out rc
   dir="$TMP_ROOT/guard-record"
   install_runner "$dir"
-  contract_in "$dir" propose >/dev/null 2>&1 || fail "could not propose the away-posture record"
-  contract_in "$dir" confirm >/dev/null 2>&1 || fail "could not write the away-posture record"
+  contract_in "$dir" enter >/dev/null 2>&1 || fail "could not write the away-posture record"
   set +e
   out=$(MY_FM_HOME="$dir/home" FM_STATE_OVERRIDE="$dir/home/state" "$dir/bin/fm-afk-return.sh" guard 2>&1)
   rc=$?
@@ -717,8 +720,7 @@ test_return_brief_health_leads_with_a_gap() {
   local dir out gap_line clean_line
   dir="$TMP_ROOT/brief-gap"
   install_runner "$dir"
-  contract_in "$dir" propose >/dev/null 2>&1 || fail "could not propose the away-posture record"
-  contract_in "$dir" confirm >/dev/null 2>&1 || fail "could not write the away-posture record"
+  contract_in "$dir" enter >/dev/null 2>&1 || fail "could not write the away-posture record"
   : > "$dir/home/state/.watcher-down"
   # A beacon older than the grace, on either date flavor.
   touch "$dir/home/state/.last-watcher-beat"
@@ -739,8 +741,7 @@ test_return_brief_does_not_report_an_acked_watcher_down_marker_as_a_gap() {
   local dir out
   dir="$TMP_ROOT/brief-acked-marker"
   install_runner "$dir"
-  contract_in "$dir" propose >/dev/null 2>&1 || fail "could not propose the away-posture record"
-  contract_in "$dir" confirm >/dev/null 2>&1 || fail "could not write the away-posture record"
+  contract_in "$dir" enter >/dev/null 2>&1 || fail "could not write the away-posture record"
   # An episode that was detected and fully handled during the away window
   # leaves the marker behind in an acked state (fm-wake-lib.sh
   # _fm_recovery_marker_ack); that is not an open gap.
@@ -849,6 +850,7 @@ test_check_retries_recorded_terminal_teardown
 test_unreadable_superseded_archive_keeps_return_gated
 test_missing_final_archive_keeps_retained_contract_gated
 test_return_brief_composes_from_record_store_and_held_set
+test_return_brief_lists_landed_work_awaiting_cleanup
 test_return_brief_keeps_refresh_history
 test_malformed_posture_record_keeps_catchup_gated
 test_missing_epoch_record_stays_required_after_disappearing

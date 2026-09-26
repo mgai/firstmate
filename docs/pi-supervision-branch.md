@@ -71,7 +71,7 @@ This in-process supervision branch is Pi-only by construction:
   A home on any harness that already has an outcome store still receives the shared drain compatibility recovery described in [Lost-wake outcome backstop](#lost-wake-outcome-backstop).
 - It does not change which harness is primary and never moves a home to Pi.
 
-On an opted-in non-Pi home, the supervision host runs the away branch beside the primary.
+On an opted-in non-Pi home, the supervision host runs the branch beside the primary, away and on Claude and Cursor also attended.
 [supervision-host.md](supervision-host.md) owns its scope and mechanism.
 
 ## Components and their owners
@@ -565,15 +565,92 @@ A leftover `state/.afk` flag declines nothing.
   The merge-authority record and the outcome row's summary are the audit trail, and the return brief renders the words verbatim beside that account.
 - The branch prompt's fixed "Postures" section states these rules once per firstmate version, so the prefix stays byte-stable; the per-wake tail is the only dynamic content.
 
-The authority invariant, pinned by `tests/fm-branch-supervision.test.sh`, `tests/fm-pr-merge.test.sh`, and `tests/fm-send-resolve-key.test.sh`: being away changes how the captain is informed and what happens at a captain-owned decision point, never firstmate's authority set.
-The never-set (credential entry, legal or financial acceptance, an attended prompt, an unnamed discard, a security-sensitive action) has no guarded entrypoint that accepts away authority for either actor, a forced teardown stays refused for the branch, a red merge is refused in this posture whatever the words say, and no relocation survives the return, because an archived record validates as absent and the words die with it.
+### Authority relocation
+
+`fm_lease_forbid_branch` passes the branch actor only for the actions whose guarded script opts in.
+It does so only while `bin/fm-afk-contract.sh validate` succeeds on a complete, readable, live record.
+An archived, incomplete, or invalid record restores the attended refusal byte for byte.
+
+The captain's away words are the whole mandate:
+
+- The branch reads them at the tail.
+- It decides by its own judgment whether the event in front of it is the moment they name.
+- It acts on them only through the guarded scripts, never by analogy.
+- It holds with verdict captain on doubt.
+
+`bin/fm-branch-prompt.sh` "Postures" owns those execution rules.
+It requires every action taken under the words to open its outcome summary with "per your away instructions:".
+
+Each relocated script keeps its own gate, enforcing exactly what a script can check without reading words:
+
+| Script | Gate while away |
+| --- | --- |
+| `bin/fm-pr-merge.sh` | Merges any pull request green at its live head, synchronously, under the record lock, and refuses `--allow-red` and `--allow-missing` while away, so the green gate is absolute in this posture; which pull request the words meant is the branch's reading. |
+| `bin/fm-spawn.sh` | Dispatches only queued work whose blockers cleared - already queued, or filed by the branch because the words explicitly call for it; refuses a fresh ordinary spawn for either actor once the home holds as many ordinary task records as the record's spend cap (relaunches and secondmates exempt). |
+| `bin/fm-send.sh --resolve-key` | Answers a decision the words pre-answer, or one `ask-user-authority`'s judgment (carried verbatim in the branch prompt) lets firstmate decide. |
+| `bin/fm-merge-local.sh` | Never relocated. |
+
+The merge-authority record and the outcome row's summary are the audit trail.
+The return brief renders the words verbatim beside that account.
+
+### The authority invariant
+
+Being away changes how the captain is informed and what happens at a captain-owned decision point, never firstmate's authority set.
+`tests/fm-branch-supervision.test.sh`, `tests/fm-pr-merge.test.sh`, and `tests/fm-send-resolve-key.test.sh` pin this invariant.
+It sets these limits:
+
+- The never-set (credential entry, legal or financial acceptance, an attended prompt, an unnamed discard, a security-sensitive action) has no guarded entrypoint that accepts away authority for either actor.
+- A forced teardown stays refused for the branch.
+- A red merge is refused in this posture whatever the words say.
+- No relocation survives the return, because an archived record validates as absent and the words die with it.
+
+### Cleanup after a landed pull request
+
+The ordinary cleanup of a task whose pull request has landed needs no relocation, because it is the branch's own job in both postures.
+`bin/fm-branch-prompt.sh` names the `check: merge landed:` wake, and any later stale or inactive-outcome row on that task, as the moment to attempt `bin/fm-teardown.sh` without `--force`.
+At that moment the branch reports any refusal instead of concluding there is "nothing to recover".
 
 ## Verification
 
-Portable regressions: `tests/fm-pi-branch-extension.test.sh` covers dispatch, signal and stale report scoping with unscoped heartbeat reports, the new branch conversation at every main session start with continuation inside one session, the mirror re-anchor that pairs with it, requested-versus-unsolicited delivery, exact visible entry content, no unkeyed model turn, the sequence-keyed processing request and its acknowledgement, re-presentation after an empty reply and after an unrelated prior answer, the triggered-then-next-turn pacing, session-start re-presentation, routine outcomes staying turn-free, the processed-marker migration, idle and busy main state, incident-shaped compaction and unrelated-assistant context, cold-start post-lock recovery, crash-before-cursor reload recovery, repeated-reload idempotency, mirroring, post-construction provider-error and no-report fallback, the consecutive-error latch, cooldown probe, exponential backoff, report-plus-settlement recovery, report-before-error re-latch, cache key, model and effort selection, and (in `test_branch_dispatch_classifies_main_only_rows_and_writes_the_eligible_snapshot`) decision-owned signal and stale rows' exclusion from `eligibleSeqs`, their presence in `needsDecisionKeys`, task alias resolution, reserved-key configuration, status-log race and symlink refusal, non-vetoing behavior for unrelated eligible rows, and decision-only queues reading as ordinary main-only absence.
-`tests/fm-branch-supervision.test.sh` covers prompt stability, store append-only behavior, the captain cursor barrier, the processed marker's sequence bounds, leases, guards, non-branch-home invariance, and the away relocation (only under a confirmed live record, never for local-only landing, queued-only branch dispatch rather than orphaned in-flight recovery, the spend cap for both actors and its lock-held recheck, and the attended guarded-action behavior restored by archive or an invalid record).
-`tests/fm-pr-merge.test.sh` covers the branch actor merging a green task under the record, being refused on a red check or `--allow-red` under it, and being refused at the partition while attended; `tests/fm-send-resolve-key.test.sh` covers the decision-answer partition (a needs-decision or captain-held key refuses the attended branch before anything is sent, a `blocked:` key stays ordinary steering, and the record relocates the answer).
-`tests/fm-pi-watch-extension.test.sh` covers the away eligibility collapse (check-kind and decision-owned triggers offered) with the broken-queue vetoes and the watcher-failure alarm still reaching main, and `tests/fm-pi-branch-extension.test.sh` covers the posture tail with the verbatim read-back, the unscoped claim of check and heartbeat rows, no processing turn under the record, cancellation of a request pending when the record appears, and the re-presentation at the first run boundary after archive.
+### Portable regressions
+
+`tests/fm-pi-branch-extension.test.sh` covers:
+
+- Dispatch, and signal and stale report scoping with unscoped heartbeat reports.
+- The new branch conversation at every main session start with continuation inside one session, and the mirror re-anchor that pairs with it.
+- Requested-versus-unsolicited delivery, exact visible entry content, and no unkeyed model turn.
+- The sequence-keyed processing request and its acknowledgement.
+- Re-presentation after an empty reply and after an unrelated prior answer, the triggered-then-next-turn pacing, and session-start re-presentation.
+- Routine outcomes staying turn-free, and the processed-marker migration.
+- Idle and busy main state, and incident-shaped compaction and unrelated-assistant context.
+- Cold-start post-lock recovery, crash-before-cursor reload recovery, and repeated-reload idempotency.
+- Mirroring.
+- Post-construction provider-error and no-report fallback, the consecutive-error latch, cooldown probe, exponential backoff, report-plus-settlement recovery, and report-before-error re-latch.
+- Cache key, and model and effort selection.
+- In `test_branch_dispatch_classifies_main_only_rows_and_writes_the_eligible_snapshot`: decision-owned signal and stale rows' exclusion from `eligibleSeqs`, their presence in `needsDecisionKeys`, task alias resolution, reserved-key configuration, status-log race and symlink refusal, non-vetoing behavior for unrelated eligible rows, and decision-only queues reading as ordinary main-only absence.
+
+`tests/fm-branch-supervision.test.sh` covers:
+
+- Prompt stability, including the landed-work cleanup instruction.
+- Store append-only behavior, the captain cursor barrier, and the processed marker's sequence bounds.
+- Leases, guards, and non-branch-home invariance.
+- The away relocation: only under a valid live record, never for local-only landing, queued-only branch dispatch rather than orphaned in-flight recovery, the spend cap for both actors and its lock-held recheck, and the attended guarded-action behavior restored by archive or an invalid record.
+
+`tests/fm-afk-return.test.sh` covers the ordered cleanup-due section, its durable merge-marker requirement, and exclusion of both a done task without durable merge evidence and a persistent secondmate carrying that evidence.
+
+`tests/fm-pr-merge.test.sh` covers the branch actor merging a green task under the record, being refused on a red check, an unreported required check, or `--allow-red`/`--allow-missing` under it, and being refused at the partition while attended.
+
+`tests/fm-send-resolve-key.test.sh` covers the decision-answer partition:
+
+- A needs-decision or captain-held key refuses the attended branch before anything is sent.
+- A `blocked:` key stays ordinary steering.
+- The record relocates the answer.
+
+For the away posture:
+
+- `tests/fm-pi-watch-extension.test.sh` covers the away eligibility collapse (check-kind and decision-owned triggers offered) with the broken-queue vetoes and the watcher-failure alarm still reaching main.
+- `tests/fm-pi-branch-extension.test.sh` covers the posture tail with the verbatim read-back, the unscoped claim of check and heartbeat rows, no processing turn under the record, cancellation of a request pending when the record appears, and the re-presentation at the first run boundary after archive.
+
 `tests/fm-wake-drain-outcome-backstop.test.sh` covers keyless resurfacing, causal suppression, same-second ordering, one-shot presentation, first-drain index self-healing under the outcome lock, store-fault fail-closed behavior, bounded history cost and output, and the oversized-line limit.
 
 `tests/fm-teardown.test.sh` covers removal of the retired task's outcome index and the append-side rule that a post-teardown report does not recreate it.

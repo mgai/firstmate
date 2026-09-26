@@ -138,6 +138,11 @@ fm_pr_instance_host_valid() {
   done
 }
 
+# GitLab and Gerrit use the same canonical self-hosted host validation.
+fm_pr_forge_host_valid() {
+  fm_pr_instance_host_valid "$@"
+}
+
 # Gitea accepts HTTP as well as HTTPS and may use a non-standard port.
 fm_pr_gitea_host_valid() {
   local raw=${1-} authority port host
@@ -191,6 +196,24 @@ fm_pr_gitea_path_valid() {
 # segments and no fixed depth. GitLab reserves "-" as its route separator and
 # forbids a leading hyphen, ".git", and ".atom", so none of those can name a
 # real namespace and each is refused here.
+fm_pr_gerrit_path_valid() {
+  local path=${1-} segment
+  local LC_ALL=C
+  local -a segments
+  [ "${#path}" -ge 3 ] && [ "${#path}" -le 1024 ] || return 1
+  case "$path" in
+    /*|*/|*//*) return 1 ;;
+  esac
+  IFS=/ read -ra segments <<< "$path"
+  [ "${#segments[@]}" -ge 1 ] && [ "${#segments[@]}" -le 20 ] || return 1
+  for segment in "${segments[@]}"; do
+    [ "${#segment}" -ge 1 ] && [ "${#segment}" -le 255 ] || return 1
+    case "$segment" in
+      .|..|-*|*.git|*.atom|*[!A-Za-z0-9._-]*) return 1 ;;
+    esac
+  done
+}
+
 fm_pr_gitlab_path_valid() {
   local path=${1-} segment
   local LC_ALL=C
@@ -292,8 +315,8 @@ fm_pr_url_parse() {
   host=${BASH_REMATCH[1]}
   path=${BASH_REMATCH[2]}
   fm_pr_instance_host_valid "$host" || return 1
-  fm_pr_gitlab_path_valid "$path" || return 1
-  FM_PR_PROVIDER=gitlab
+  fm_pr_gerrit_path_valid "$path" || return 1
+  FM_PR_PROVIDER=gerrit
   FM_PR_URL=$raw
   FM_PR_HOST=$host
   FM_PR_PATH=$path
@@ -1122,6 +1145,72 @@ FIELDS
   # shellcheck disable=SC2034
   FM_PR_RECORD_MERGED=$merged
 }
+
+fm_pr_gerrit_read_change() {  # <host> <number>
+  local host=$1 number=$2 json
+  command -v gerrit-axi >/dev/null 2>&1 || return 1
+  command -v jq >/dev/null 2>&1 || return 1
+  case "$number" in
+    ''|*[!0-9]*) return 1 ;;
+  esac
+  if ! json=$(gerrit-axi show "$number" --host "$host" --json 2>/dev/null) \
+    || [ -z "$json" ]; then
+    return 1
+  fi
+  printf '%s' "$json" | jq -c --argjson change "$number" '
+    if type == "object" and .ok == true and (.changes | type) == "array" then
+      [.changes[] | select((.change | type) == "number" and .change == $change)] as $match
+      | if ($match | length) == 1 and ($match[0] | type) == "object"
+        then $match[0]
+        else error("no exact change record")
+        end
+    else
+      error("invalid gerrit record")
+    end' 2>/dev/null
+}
+
+# The status of one Gerrit change. The status is the only field read: a merged
+# change and an approved-but-unsubmitted one report the same submit,
+# submittable, and blocked_on values, so only the status separates them.
+fm_pr_gerrit_read_record() {  # <host> <number>
+  local record state merged=false
+  FM_PR_RECORD_STATE=
+  FM_PR_RECORD_MERGED=
+  record=$(fm_pr_gerrit_read_change "$1" "$2") || return 1
+  state=$(printf '%s' "$record" | jq -r '
+    if (.status | type) == "string" and .status != "" and (.status | test("\n") | not)
+    then .status
+    else error("no status")
+    end' 2>/dev/null) || return 1
+  [ -n "$state" ] || return 1
+  [ "$state" != MERGED ] || merged=true
+
+  # Consumed by bin/fm-crew-state.sh passed_pr_detail.
+  # shellcheck disable=SC2034
+  FM_PR_RECORD_STATE=$state
+  # Consumed by bin/fm-crew-state.sh passed_pr_detail.
+  # shellcheck disable=SC2034
+  FM_PR_RECORD_MERGED=$merged
+}
+
+# The current patch set revision of one Gerrit change, read from the same exact
+# record as its status above. Consumed by bin/fm-dod-lib.sh's named-head gate,
+# which accepts a published change only when this revision carries the worker
+# copy's HEAD tree. It is a live read and never a recorded pr_head: the next
+# amend replaces it.
+fm_pr_gerrit_read_revision() {  # <host> <number>
+  local record revision
+  FM_PR_RECORD_REVISION=
+  record=$(fm_pr_gerrit_read_change "$1" "$2") || return 1
+  revision=$(printf '%s' "$record" | jq -r '
+    if (.revision | type) == "string" then .revision else error("no revision") end' 2>/dev/null) \
+    || return 1
+  fm_pr_head_valid "$revision" || return 1
+  # Consumed by bin/fm-dod-lib.sh fm_dod_gerrit_change_carries_head.
+  # shellcheck disable=SC2034
+  FM_PR_RECORD_REVISION=$revision
+}
+
 
 # gitea-axi reads GITEA_PAT (with its documented fallback variables) itself.
 # These helpers pass only the canonical repository and URL-derived host, capture

@@ -6,24 +6,17 @@
 # head is that named head and is already stored on the forge.
 # The watcher check source is byte-for-byte bin/fm-pr-poll.sh; task and PR data
 # live only in a private sidecar and are never interpolated into shell source.
-# A GitHub pull request URL, a GitLab merge request URL, and a Gerrit change URL
-# are all accepted, including a merge request or change on a self-hosted
-# instance.
-# A GitHub pull request the forge reports as a draft is refused, naming the draft
-# state and recording and arming nothing: a draft cannot be merged, so a poll armed on it
-# would wait for an event that cannot occur while nobody is asked to act.
-# Mark the pull request ready for review, then arm again; a lane that keeps a
-# draft on purpose declares a wait instead of reporting done. An unreadable
-# draft state does not refuse, matching how the head read below is optional.
-# bin/fm-pr-merge.sh records through this script with FM_PR_CHECK_MERGE=1 and
-# skips this refusal, because its own merge-time draft refusal is authoritative.
+# GitHub pull request, a Gitea pull request, and a GitLab merge request are
+# all accepted, including self-hosted Gitea and GitLab instances.
+# A GitHub draft is refused before recording or arming a poll; an unreadable
+# draft state remains armable, matching the optional head-read behavior.
 # Usage: fm-pr-check.sh <task-id> <pr-url>
 set -eu
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FM_ROOT="${FM_ROOT_OVERRIDE:-$(cd "$SCRIPT_DIR/.." && pwd)}"
-FM_HOME="${FM_HOME:-${FM_ROOT_OVERRIDE:-$FM_ROOT}}"
-STATE="${FM_STATE_OVERRIDE:-$FM_HOME/state}"
+MY_FM_HOME="${MY_FM_HOME:-${FM_ROOT_OVERRIDE:-$FM_ROOT}}"
+STATE="${FM_STATE_OVERRIDE:-$MY_FM_HOME/state}"
 
 # shellcheck source=bin/fm-pr-lib.sh
 . "$SCRIPT_DIR/fm-pr-lib.sh"
@@ -87,23 +80,32 @@ if [ "$PROVIDER" = gitlab ] && ! command -v glab >/dev/null 2>&1; then
   echo "error: watching a GitLab merge request requires glab on PATH" >&2
   exit 1
 fi
-if [ "$PROVIDER" = gerrit ]; then
-  if ! command -v gerrit-axi >/dev/null 2>&1; then
-    echo "error: watching a Gerrit change requires gerrit-axi on PATH" >&2
-    exit 1
-  fi
-  if ! command -v jq >/dev/null 2>&1; then
-    echo "error: watching a Gerrit change requires jq on PATH" >&2
-    exit 1
-  fi
-fi
+case "$PROVIDER" in
+  gitea)
+    command -v gitea-axi >/dev/null 2>&1 || {
+      echo "error: watching a Gitea pull request requires gitea-axi on PATH" >&2
+      exit 1
+    }
+    command -v jq >/dev/null 2>&1 || {
+      echo "error: watching a Gitea pull request requires jq on PATH" >&2
+      exit 1
+    }
+    ;;
+  gitlab)
+    command -v glab >/dev/null 2>&1 || {
+      echo "error: watching a GitLab merge request requires glab on PATH" >&2
+      exit 1
+    }
+    ;;
+esac
 
-# The draft state is read before anything is recorded or armed. Only a positive
-# draft reading refuses, because an unreadable one must not block arming.
-if [ "$PROVIDER" = github ] && [ "${FM_PR_CHECK_MERGE:-}" != 1 ] && command -v gh >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
+# Refuse to arm a GitHub draft unless a merge operation is recording its own
+# metadata; merge-time draft validation remains authoritative there.
+if [ "$PROVIDER" = github ] && [ "${FM_PR_CHECK_MERGE:-}" != 1 ] \
+  && command -v gh >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
   DRAFT_JSON=$(gh pr view "$URL" --json isDraft 2>/dev/null || true)
   if [ "$(fm_pr_json_draft_state "$DRAFT_JSON")" = true ]; then
-    echo "error: $URL is a draft pull request; a draft cannot be merged, so merge monitoring would wait for an event that cannot occur - mark it ready for review and arm again, or declare a wait instead of done if the draft is deliberate" >&2
+    echo "error: $URL is a draft pull request; mark it ready for review before arming merge monitoring" >&2
     exit 1
   fi
 fi
@@ -111,19 +113,14 @@ fi
 "$FM_ROOT/bin/fm-guard.sh" || true
 
 # pr_head is recorded only when the forge's CLI can supply it. gh exposes the
-# head commit as a selectable field; plain glab exposes it only inside its JSON
-# output, which would need a JSON processor firstmate does not require, so a
-# GitLab task records no pr_head, and neither does a Gerrit task: a Gerrit
-# revision names one patch set, every amend or rebase is a new patch set, and
-# bin/fm-review-diff.sh has no Gerrit path to resolve a current head with, so a
-# recorded revision would silently become the reviewed content. Both consumers
-# already treat it as optional:
-# bin/fm-teardown.sh reads the head from the forge at teardown rather than from
-# metadata and falls back to its provider-agnostic content check, and
-# bin/fm-review-diff.sh fetches a pull request head from the remote when none is
-# recorded and otherwise diffs the local branch, which is the current content.
-# bin/fm-pr-merge.sh reads a GitLab head live at merge time for the same reason,
-# and treats a recorded value that disagrees as stale rather than authoritative.
+# head commit as a selectable field, while gitea-axi exposes it in its JSON view.
+# Plain glab exposes the GitLab head only inside its JSON output, which would
+# need a JSON processor at the older registration boundary, so a GitLab task
+# records no pr_head. All consumers treat it as optional: bin/fm-teardown.sh
+# reads the head from the forge at teardown rather than from metadata and falls
+# back to its provider-agnostic content check, bin/fm-review-diff.sh resolves
+# the head from the remote when none is recorded, and bin/fm-pr-merge.sh reads
+# a GitLab head live at merge time and treats a recorded disagreement as stale.
 WT=$(grep '^worktree=' "$META" | tail -1 | cut -d= -f2- || true)
 PR_HEAD=
 if [ "$PROVIDER" = github ] && [ -n "$WT" ] && [ -d "$WT" ] && command -v gh >/dev/null 2>&1; then
@@ -131,6 +128,12 @@ if [ "$PROVIDER" = github ] && [ -n "$WT" ] && [ -d "$WT" ] && command -v gh >/d
     && fm_pr_head_valid "$REMOTE_HEAD"; then
     PR_HEAD=$REMOTE_HEAD
   fi
+fi
+if [ "$PROVIDER" = gitea ]; then
+  PR_HEAD=$(fm_pr_gitea_read_head "$HOST" "$PROJECT_PATH" "$NUMBER") || {
+    echo "error: could not read the Gitea pull request head before registration" >&2
+    exit 1
+  }
 fi
 
 MODE=$(grep '^mode=' "$META" | tail -1 | cut -d= -f2- || true)
@@ -218,8 +221,8 @@ else
 fi
 # Opt-in fleet activity ledger (docs/fleet-ledger.md); off costs one file test.
 # The merge-time re-record is not a new review-ready PR, so it writes nothing.
-[ ! -e "${FM_CONFIG_OVERRIDE:-$FM_HOME/config}/fleet-ledger" ] || [ "${FM_PR_CHECK_MERGE:-}" = 1 ] \
-  || FM_HOME=$FM_HOME FM_STATE_OVERRIDE=$STATE "$SCRIPT_DIR/fm-fleet-ledger.sh" pr_ready "$ID" "$URL" || true
+[ ! -e "${FM_CONFIG_OVERRIDE:-$MY_FM_HOME/config}/fleet-ledger" ] || [ "${FM_PR_CHECK_MERGE:-}" = 1 ] \
+  || MY_FM_HOME=$MY_FM_HOME FM_STATE_OVERRIDE=$STATE "$SCRIPT_DIR/fm-fleet-ledger.sh" pr_ready "$ID" "$URL" || true
 # The contribution observer uses the same authenticated check mechanism and
 # owns verdict freshness, required actors and external feedback separately from
 # the exact merged-state poll. Registration is local and performs no forge read.
@@ -242,7 +245,7 @@ PR_YOLO=$(grep '^yolo=' "$META" | tail -1 | cut -d= -f2- || true)
 [ -z "$PR_MODE" ] || READY_LINE="$READY_LINE mode=$(fm_parent_channel_clean_note "$PR_MODE")"
 [ -z "$PR_YOLO" ] || READY_LINE="$READY_LINE yolo=$(fm_parent_channel_clean_note "$PR_YOLO")"
 READY_RC=0
-fm_parent_channel_report "$FM_HOME" "$STATE" "$READY_LINE" || READY_RC=$?
+fm_parent_channel_report "$MY_FM_HOME" "$STATE" "$READY_LINE" || READY_RC=$?
 case "$READY_RC" in
   0|1) ;;
   *) printf 'actionable: PR %s is registered but its ready line did not reach the parent channel (rc=%s)\n' "$URL" "$READY_RC" >&2 ;;

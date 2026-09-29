@@ -222,35 +222,6 @@ printf '%s\n' "$*" >> "$FM_TEST_GLAB_LOG"
 [ "${FM_TEST_GLAB_SLEEP:-0}" = 0 ] || sleep "$FM_TEST_GLAB_SLEEP"
 printf 'title:\tfixture merge request\nstate:\t%s\nauthor:\tsomeone\n' "${FM_TEST_GLAB_STATE:-opened}"
 SH
-  # gerrit-axi, reproducing the real CLI's contract: one JSON record on stdout
-  # and exit 0 on success, and a non-zero exit with no stdout on any failure.
-  # Its defaults are the real server's readings for an OPEN change, and the
-  # submit fields are settable independently of the status so a case can build
-  # the reading a merged change and a merely submittable change share.
-  cat > "$fakebin/gerrit-axi" <<'SH'
-#!/usr/bin/env bash
-printf '%s\n' "$*" >> "$FM_TEST_GERRIT_AXI_LOG"
-[ "${FM_TEST_GERRIT_FAIL:-0}" = 0 ] || exit 1
-if [ -n "${FM_TEST_GERRIT_RAW:-}" ]; then
-  printf '%s\n' "$FM_TEST_GERRIT_RAW"
-  exit 0
-fi
-change=${FM_TEST_GERRIT_CHANGE:-${2:-0}}
-printf '{"ok":true,"op":"show","count":1,"missing":[],"changes":[{"change":%s,"subject":%s,"project":"p","status":"%s","wip":false,"submit":"%s","submittable":%s,"blocked_on":"%s","patch_set":1,"revision":"%s","url":"%s"}]}\n' \
-  "$change" \
-  "${FM_TEST_GERRIT_SUBJECT:-\"fixture change\"}" \
-  "${FM_TEST_GERRIT_STATUS:-NEW}" \
-  "${FM_TEST_GERRIT_SUBMIT:-NOT_READY}" \
-  "${FM_TEST_GERRIT_SUBMITTABLE:-false}" \
-  "${FM_TEST_GERRIT_BLOCKED_ON:-Code-Review}" \
-  "${FM_TEST_GERRIT_REVISION:-5f07a68436929a527ddc7abadc8ef1abceae40ed}" \
-  "${FM_TEST_GERRIT_URL:-https://gerrit.example/c/group/apps/console/+/4201}"
-SH
-  # no-mistakes, answering only `axi status` the way the real CLI does from a
-  # worker copy: a run object, then its branch_sync block. By default the run's
-  # result is the copy's own passed HEAD and custody is returned; a case
-  # overrides the outcome, the pipeline head, the next action, or makes the read
-  # fail.
   cat > "$fakebin/no-mistakes" <<'SH'
 #!/usr/bin/env bash
 [ -z "${FM_TEST_NM_LOG:-}" ] || printf '%s\n' "$*" >> "$FM_TEST_NM_LOG"
@@ -260,18 +231,35 @@ head=$(git rev-parse HEAD 2>/dev/null) || exit 1
 pipeline=${FM_TEST_NM_PIPELINE_HEAD:-$head}
 printf 'run:\n  id: "RUNFIXTURE"\n  branch: fm/task\n  status: completed\n  head_sha: %s\noutcome: %s\n' \
   "$pipeline" "${FM_TEST_NM_OUTCOME-passed}"
-printf 'branch_sync:\n  state: %s\n  local:\n    head: %s\n  pipeline:\n    current_head: %s\n' \
-  "${FM_TEST_NM_SYNC_STATE:-synchronized}" "$head" "$pipeline"
-if [ -n "${FM_TEST_NM_NEXT_ACTION:-}" ]; then
-  printf '  next_action:\n    code: %s\n    command: no-mistakes axi status\n' "$FM_TEST_NM_NEXT_ACTION"
-fi
+printf 'branch_sync:\n  state: synchronized\n  local:\n    head: %s\n  pipeline:\n    current_head: %s\n' "$head" "$pipeline"
 SH
-  chmod +x "$fakebin/gh" "$fakebin/gh-axi" "$fakebin/glab" "$fakebin/gerrit-axi"
-  chmod +x "$fakebin/no-mistakes"
+  cat > "$fakebin/gitea-axi" <<'SH'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$FM_TEST_GITEA_LOG"
+case "${1:-} ${2:-}" in
+  "pr view")
+    [ "${FM_TEST_GITEA_FAIL:-0}" = 0 ] || exit 1
+    if [ -n "${FM_TEST_GITEA_VIEW_JSON:-}" ] && [ -f "$FM_TEST_GITEA_VIEW_JSON" ]; then
+      cat "$FM_TEST_GITEA_VIEW_JSON"
+    else
+      printf '%s\n' '{"state":"open","merged":"no","sha":"0123456789abcdef0123456789abcdef01234567"}'
+    fi
+    ;;
+  "pr checks")
+    [ "${FM_TEST_GITEA_FAIL:-0}" = 0 ] || exit 1
+    if [ -n "${FM_TEST_GITEA_CHECKS_JSON:-}" ] && [ -f "$FM_TEST_GITEA_CHECKS_JSON" ]; then
+      cat "$FM_TEST_GITEA_CHECKS_JSON"
+    else
+      printf '%s\n' '{"sha":"0123456789abcdef0123456789abcdef01234567","summary":"none (0 pass / 0 fail / 0 pending)","checks":[]}'
+    fi
+    ;;
+esac
+SH
+  chmod +x "$fakebin/gh" "$fakebin/gh-axi" "$fakebin/glab" "$fakebin/gitea-axi" "$fakebin/no-mistakes"
   : > "$dir/gh.log"
   : > "$dir/gh-axi.log"
   : > "$dir/glab.log"
-  : > "$dir/gerrit-axi.log"
+  : > "$dir/gitea.log"
   : > "$dir/guard.log"
   printf '%s\n' "$dir"
 }
@@ -304,10 +292,10 @@ write_poll_meta() {
 run_check_entry() {
   local dir=$1
   shift
-  FM_ROOT_OVERRIDE="$dir/root" FM_HOME="$dir/home" \
+  FM_ROOT_OVERRIDE="$dir/root" MY_FM_HOME="$dir/home" \
     FM_TEST_GUARD_LOG="$dir/guard.log" FM_TEST_GH_LOG="$dir/gh.log" \
     FM_TEST_GH_AXI_LOG="$dir/gh-axi.log" FM_TEST_GLAB_LOG="$dir/glab.log" \
-    FM_TEST_GERRIT_AXI_LOG="$dir/gerrit-axi.log" \
+    FM_TEST_GITEA_LOG="$dir/gitea.log" \
     PATH="$dir/fakebin:$BASE_PATH" \
     "$PR_CHECK" "$@"
 }
@@ -315,16 +303,25 @@ run_check_entry() {
 run_merge_entry() {
   local dir=$1
   shift
-  FM_ROOT_OVERRIDE="$dir/root" FM_HOME="$dir/home" \
+  FM_ROOT_OVERRIDE="$dir/root" MY_FM_HOME="$dir/home" \
     FM_TEST_GUARD_LOG="$dir/guard.log" FM_TEST_GH_LOG="$dir/gh.log" \
     FM_TEST_GH_AXI_LOG="$dir/gh-axi.log" FM_TEST_GLAB_LOG="$dir/glab.log" \
-    FM_TEST_GERRIT_AXI_LOG="$dir/gerrit-axi.log" \
+    FM_TEST_GITEA_LOG="$dir/gitea.log" \
     PATH="$dir/fakebin:$BASE_PATH" \
     "$PR_MERGE" "$@"
 }
 
 # shellcheck disable=SC2016 # Literal rejected URL bytes are parser test data.
 INVALID_URLS=(
+  'https://gitea.example/acme/widgets/pull/1'
+  'https://gitea.example/acme/widgets/pulls/0'
+  'https://gitea.example/acme/widgets/pulls/01'
+  'https://gitea.example/acme/widgets/pulls/1/'
+  'https://gitea.example/acme/widgets/pulls/1?x=1'
+  'https://gitea.example:0/acme/widgets/pulls/1'
+  'https://gitea.example:65536/acme/widgets/pulls/1'
+  'https://Gitea.example/acme/widgets/pulls/1'
+  'https://gitea.example/acme/group/widgets/pulls/1'
   'https://gitlab.com/single/-/merge_requests/1'
   'https://gitlab.com/g/p/-/merge_requests/0'
   'https://gitlab.com/g/p/-/merge_requests/01'
@@ -489,6 +486,21 @@ https://github.com/Owner/repo-name_with.parts/pull/123456|Owner|repo-name_with.p
 EOF
   while IFS='|' read -r url host path number; do
     [ -n "$url" ] || continue
+    fm_pr_url_parse "$url" || fail "parser rejected a canonical Gitea pull request URL"
+    [ "$FM_PR_PROVIDER" = gitea ] || fail "parser did not tag a pull request URL as gitea"
+    [ "$FM_PR_URL" = "$url" ] || fail "parser changed a canonical Gitea pull request URL"
+    [ "$FM_PR_HOST" = "$host" ] || fail "parser returned wrong Gitea host"
+    [ "$FM_PR_PATH" = "$path" ] || fail "parser returned wrong Gitea project path"
+    [ "$FM_PR_OWNER" = "${path%%/*}" ] || fail "parser returned wrong Gitea owner"
+    [ "$FM_PR_REPO" = "${path#*/}" ] || fail "parser returned wrong Gitea repository"
+    [ "$FM_PR_NUMBER" = "$number" ] || fail "parser returned wrong Gitea pull request number"
+  done <<'EOF'
+https://gitea.example/acme/widgets/pulls/1|https://gitea.example|acme/widgets|1
+https://codeberg.org/foo/bar-baz/pulls/42|https://codeberg.org|foo/bar-baz|42
+http://localhost:3000/acme/widgets/pulls/77|http://localhost:3000|acme/widgets|77
+EOF
+  while IFS='|' read -r url host path number; do
+    [ -n "$url" ] || continue
     fm_pr_url_parse "$url" || fail "parser rejected a canonical merge request URL"
     [ "$FM_PR_PROVIDER" = gitlab ] || fail "parser did not tag a merge request URL as gitlab"
     [ "$FM_PR_URL" = "$url" ] || fail "parser changed a canonical merge request URL"
@@ -503,23 +515,19 @@ https://gitlab.com/group/sub/deep/project/-/merge_requests/42|gitlab.com|group/s
 https://gitlab.example.co.uk/g/p/-/merge_requests/7|gitlab.example.co.uk|g/p|7
 https://code.internal/team/tools/ci-runner/-/merge_requests/123456|code.internal|team/tools/ci-runner|123456
 EOF
-  # A Gerrit project is one nested name, so the whole path is the identity and
-  # is never flattened into an owner/repository pair that cannot address it.
-  while IFS='|' read -r url host path number; do
+  while IFS='|' read -r url host path owner repo number; do
     [ -n "$url" ] || continue
-    fm_pr_url_parse "$url" || fail "parser rejected a canonical Gerrit change URL"
-    [ "$FM_PR_PROVIDER" = gerrit ] || fail "parser did not tag a Gerrit change URL as gerrit"
-    [ "$FM_PR_URL" = "$url" ] || fail "parser changed a canonical Gerrit change URL"
-    [ "$FM_PR_HOST" = "$host" ] || fail "parser returned wrong Gerrit host"
-    [ "$FM_PR_PATH" = "$path" ] || fail "parser returned wrong Gerrit project path"
-    [ "$FM_PR_NUMBER" = "$number" ] || fail "parser returned wrong Gerrit change number"
-    [ -z "$FM_PR_OWNER" ] && [ -z "$FM_PR_REPO" ] \
-      || fail "parser set GitHub owner/repository for a Gerrit change URL"
+    fm_pr_url_parse "$url" || fail "parser rejected a canonical Gitea pull request URL"
+    [ "$FM_PR_PROVIDER" = gitea ] || fail "parser did not tag a Gitea URL as gitea"
+    [ "$FM_PR_URL" = "$url" ] || fail "parser changed a canonical Gitea URL"
+    [ "$FM_PR_HOST" = "$host" ] || fail "parser returned wrong Gitea host"
+    [ "$FM_PR_PATH" = "$path" ] || fail "parser returned wrong Gitea project path"
+    [ "$FM_PR_OWNER" = "$owner" ] && [ "$FM_PR_REPO" = "$repo" ] \
+      || fail "parser returned wrong Gitea owner/repository"
+    [ "$FM_PR_NUMBER" = "$number" ] || fail "parser returned wrong Gitea pull request number"
   done <<'EOF'
-https://review.internal/c/group/apps/console/+/4201|review.internal|group/apps/console|4201
-https://gerrit.example/c/proj/+/1|gerrit.example|proj|1
-https://gerrit.example.co.uk/c/a/b/c/d/+/42|gerrit.example.co.uk|a/b/c/d|42
-https://review.internal/c/All-Projects/+/123456|review.internal|All-Projects|123456
+https://gitea.example/acme/widgets/pulls/7|https://gitea.example|acme/widgets|acme|widgets|7
+https://gitea.example:3000/acme/widgets/pulls/42|https://gitea.example:3000|acme/widgets|acme|widgets|42
 EOF
   fm_pr_url_parse https://github.com/a/b/pull/1 || fail "parser rejected canonical URL"
   [ "$FM_PR_PROVIDER" = github ] || fail "parser did not tag a pull request URL as github"
@@ -596,7 +604,7 @@ test_invalid_entrypoints_have_zero_side_effects() {
   for value in "${UNSAFE_LIFECYCLE_IDS[@]}"; do
     before=$(state_snapshot "$dir/home/state")
     set +e
-    FM_HOME="$dir/home" FM_ROOT_OVERRIDE="$dir/root" FM_TEST_GUARD_LOG="$dir/guard.log" \
+    MY_FM_HOME="$dir/home" FM_ROOT_OVERRIDE="$dir/root" FM_TEST_GUARD_LOG="$dir/guard.log" \
       "$TEARDOWN" "$value" --force > "$dir/stdout" 2> "$dir/stderr"
     rc=$?
     set -e
@@ -817,7 +825,7 @@ exit 0
 SH
   chmod 0700 "$dir/fakebin/tmux"
   touch "$dir/home/state/.last-watcher-beat"
-  FM_HOME="$dir/home" FM_ROOT_OVERRIDE="$ROOT" PATH="$dir/fakebin:$BASE_PATH" \
+  MY_FM_HOME="$dir/home" FM_ROOT_OVERRIDE="$ROOT" PATH="$dir/fakebin:$BASE_PATH" \
     "$TEARDOWN" Task_A.1 --force > "$dir/teardown.out" 2> "$dir/teardown.err" \
     || fail "safe lifecycle-compatible task ID could not be torn down"
   [ ! -e "$dir/home/state/Task_A.1.meta" ] \
@@ -840,7 +848,7 @@ SH
     touch "$dir/home/state/.last-watcher-beat"
     mkdir "$dir/home/state/$id.check.sh"
     set +e
-    FM_HOME="$dir/home" FM_ROOT_OVERRIDE="$ROOT" PATH="$dir/fakebin:$BASE_PATH" \
+    MY_FM_HOME="$dir/home" FM_ROOT_OVERRIDE="$ROOT" PATH="$dir/fakebin:$BASE_PATH" \
       "$TEARDOWN" "$id" --force > "$dir/unsafe-teardown.out" 2> "$dir/unsafe-teardown.err"
     rc=$?
     set -e
@@ -850,7 +858,7 @@ SH
     [ -d "$dir/home/state/$id.check.sh" ] \
       || fail "legacy task teardown changed the unsafe direct artifact"
     rmdir "$dir/home/state/$id.check.sh"
-    FM_HOME="$dir/home" "$ROOT/bin/fm-x-link.sh" "$id" req-legacy \
+    MY_FM_HOME="$dir/home" "$ROOT/bin/fm-x-link.sh" "$id" req-legacy \
       --carry-count 0 --carry-ts 1700000000 --carry-platform x --carry-max 280 \
       > "$dir/x-link.out" 2> "$dir/x-link.err" \
       || fail "path-safe legacy task ID could not link an X request"
@@ -859,8 +867,7 @@ SH
       || fail "path-safe legacy task ID could not use the PR merge flow"
     fm_pr_poll_artifacts_valid "$dir/home/state" "$id" "$POLL" \
       || fail "path-safe legacy task ID did not publish an authenticated poll"
-    rm -rf "$dir/wt"
-    FM_HOME="$dir/home" FM_ROOT_OVERRIDE="$ROOT" PATH="$dir/fakebin:$BASE_PATH" \
+    MY_FM_HOME="$dir/home" FM_ROOT_OVERRIDE="$ROOT" PATH="$dir/fakebin:$BASE_PATH" \
       "$TEARDOWN" "$id" --force > "$dir/teardown.out" 2> "$dir/teardown.err" \
       || fail "legacy path-safe task ID could not be torn down"
     [ ! -e "$dir/home/state/$id.meta" ] || fail "legacy task teardown retained metadata"
@@ -882,9 +889,8 @@ run_watcher_bounded() {
   local check_timeout_env=(-u FM_CHECK_TIMEOUT)
   [ -z "${FM_TEST_CHECK_TIMEOUT:-}" ] || check_timeout_env=("FM_CHECK_TIMEOUT=$FM_TEST_CHECK_TIMEOUT")
   shift 2
-  perl -MPOSIX=WNOHANG -MTime::HiRes=time,sleep -e 'my $pause=shift; my $left=60; my $pid=fork; die unless defined $pid; if (!$pid) { exec @ARGV } my $last=time; while (waitpid($pid, WNOHANG) == 0) { my $now=time; $left -= $now - $last unless length $pause && -e $pause; $last=$now; if ($left <= 0) { kill "TERM", $pid; waitpid $pid, 0; exit 124 } sleep 0.02 } exit($? >> 8)' \
-    "${FM_TEST_WATCH_BOUND_PAUSE:-}" env "${check_timeout_env[@]}" \
-      FM_HOME="$home" FM_ROOT_OVERRIDE="$watch_root" FM_CHECK_INTERVAL="$check_interval" \
+  perl -e 'my $pid=fork; die unless defined $pid; if (!$pid) { exec @ARGV } local $SIG{ALRM}=sub { kill "TERM", $pid; waitpid $pid, 0; exit 124 }; alarm 10; waitpid $pid, 0; alarm 0; exit($? >> 8)' \
+    env MY_FM_HOME="$home" FM_ROOT_OVERRIDE="$watch_root" FM_CHECK_INTERVAL="$check_interval" FM_CHECK_TIMEOUT="$check_timeout" \
       FM_POLL=0.02 FM_HEARTBEAT=999999 FM_SIGNAL_GRACE=0 PATH="$fakebin:$BASE_PATH" "$WATCH" "$@"
 }
 
@@ -944,7 +950,7 @@ make_poll_fixture() {
 run_poll() {
   local dir=$1
   FM_TEST_GH_LOG="$dir/gh.log" FM_TEST_GLAB_LOG="$dir/glab.log" \
-    FM_TEST_GERRIT_AXI_LOG="$dir/gerrit-axi.log" \
+    FM_TEST_GITEA_LOG="$dir/gitea.log" \
     PATH="$dir/fakebin:$BASE_PATH" \
     bash "$dir/home/state/task-a.check.sh"
 }
@@ -1151,13 +1157,13 @@ test_live_artifact_single_link_and_privacy_validation() {
   alias="$dir/custom-check.alias"
   ln "$state/custom.check.sh" "$alias"
   set +e
-  FM_HOME="$dir/home" "$REGISTER" custom > "$dir/register.out" 2> "$dir/register.err"
+  MY_FM_HOME="$dir/home" "$REGISTER" custom > "$dir/register.out" 2> "$dir/register.err"
   rc=$?
   set -e
   [ "$rc" -ne 0 ] || fail "custom check registration accepted a hard-linked source"
   [ ! -e "$state/custom.check-trust" ] || fail "rejected hard-linked custom check received a trust record"
   rm -f "$alias"
-  FM_HOME="$dir/home" "$REGISTER" custom >/dev/null \
+  MY_FM_HOME="$dir/home" "$REGISTER" custom >/dev/null \
     || fail "could not register the custom check single-link fixture"
   ln "$state/custom.check.sh" "$alias"
   ! fm_custom_check_registered "$state" custom \
@@ -1180,13 +1186,13 @@ test_live_artifact_single_link_and_privacy_validation() {
   printf '#!/usr/bin/env bash\nprintf "custom-ready\\n"\n' > "$state/custom.check.sh"
   chmod 0755 "$state/custom.check.sh"
   set +e
-  FM_HOME="$dir/home" "$REGISTER" custom > "$dir/register.out" 2> "$dir/register.err"
+  MY_FM_HOME="$dir/home" "$REGISTER" custom > "$dir/register.out" 2> "$dir/register.err"
   rc=$?
   set -e
   [ "$rc" -ne 0 ] || fail "custom check registration accepted a non-private source"
   [ ! -e "$state/custom.check-trust" ] || fail "non-private custom check received a trust record"
   chmod 0700 "$state/custom.check.sh"
-  FM_HOME="$dir/home" "$REGISTER" custom >/dev/null \
+  MY_FM_HOME="$dir/home" "$REGISTER" custom >/dev/null \
     || fail "could not register private custom check fixture"
   chmod 0755 "$state/custom.check.sh"
   ! fm_custom_check_registered "$state" custom \
@@ -1299,7 +1305,7 @@ test_bootstrap_leaves_unauthenticated_checks() {
 
   mkdir -p "$dir/home/config"
   printf '%s\n' manual > "$dir/home/config/backlog-backend"
-  FM_HOME="$dir/home" FM_ROOT_OVERRIDE="$ROOT" FM_BOOTSTRAP_NETWORK=skip \
+  MY_FM_HOME="$dir/home" FM_ROOT_OVERRIDE="$ROOT" FM_BOOTSTRAP_NETWORK=skip \
     PATH="$dir/fakebin:$BASE_PATH" \
     "$ROOT/bin/fm-bootstrap.sh" > "$dir/bootstrap.out" 2> "$dir/bootstrap.err" \
     || fail "bootstrap failed after migration retirement"
@@ -1331,10 +1337,10 @@ trap 'kill -TERM "$child" 2>/dev/null; exit 124' TERM
 wait "$child"
 SH
   chmod 0700 "$dir/fakebin/timeout"
-  FM_HOME="$dir/home" "$REGISTER" custom >/dev/null \
+  MY_FM_HOME="$dir/home" "$REGISTER" custom >/dev/null \
     || fail "could not register signal cleanup custom check"
 
-  FM_HOME="$dir/home" FM_ROOT_OVERRIDE="$ROOT" FM_POLL=0 FM_CHECK_INTERVAL=0 \
+  MY_FM_HOME="$dir/home" FM_ROOT_OVERRIDE="$ROOT" FM_POLL=0 FM_CHECK_INTERVAL=0 \
     FM_SIGNAL_GRACE=0 FM_TEST_CUSTOM_CHILD_PID="$child_pid_file" \
     PATH="$dir/fakebin:$BASE_PATH" "$WATCH" \
     > "$dir/watch.out" 2> "$dir/watch.err" &
@@ -1391,21 +1397,9 @@ printf '%s\n' "$!" > "$FM_TEST_DESCENDANT_PID"
 while [ ! -s "$FM_TEST_DESCENDANT_READY" ]; do sleep 0.01; done
 : > "$FM_TEST_DIRECT_DONE"
 SH
-    # The watcher runs this check next in the same cycle, only after it has
-    # finished with the returned one, so its wake both records whether the
-    # descendant outlived that drain and stops the watcher.
-    cat > "$state/z-drain-witness.check.sh" <<'SH'
-#!/usr/bin/env bash
-case "$(ps -o stat= -p "$(cat "$FM_TEST_DESCENDANT_PID")" 2>/dev/null)" in
-  ''|Z*) printf 'descendant drained\n' ;;
-  *) printf 'descendant alive\n' ;;
-esac
-SH
-    for check in custom z-drain-witness; do
-      chmod 0700 "$state/$check.check.sh"
-      FM_HOME="$dir/home" "$REGISTER" "$check" >/dev/null \
-        || fail "could not register $backend returned-descendant $check check"
-    done
+    chmod 0700 "$state/custom.check.sh"
+    MY_FM_HOME="$dir/home" "$REGISTER" custom >/dev/null \
+      || fail "could not register $backend returned-descendant check"
     if [ "$backend" = installed-timeout ]; then
       cat > "$fakebin/timeout" <<'SH'
 #!/usr/bin/env bash
@@ -1419,6 +1413,37 @@ SH
       force_fallback=1
     fi
 
+    MY_FM_HOME="$dir/home" FM_ROOT_OVERRIDE="$ROOT" FM_POLL=0.1 FM_CHECK_INTERVAL=999999 \
+      FM_CHECK_TIMEOUT=10 FM_HEARTBEAT=999999 FM_SIGNAL_GRACE=0 \
+      FM_CHECK_FORCE_FALLBACK="$force_fallback" FM_TEST_DESCENDANT_READY="$ready" \
+      FM_TEST_DESCENDANT_SENTINEL="$sentinel" FM_TEST_DESCENDANT_PID="$child_pid_file" \
+      FM_TEST_DIRECT_DONE="$direct_done" PATH="$fakebin:$BASE_PATH" "$WATCH" \
+      > "$dir/watch.out" 2> "$dir/watch.err" &
+    watcher_pid=$!
+    i=0
+    while [ "$i" -lt 200 ]; do
+      [ -s "$ready" ] && [ -s "$child_pid_file" ] && [ -e "$direct_done" ] \
+        && [ -e "$state/.last-check" ] && break
+      kill -0 "$watcher_pid" 2>/dev/null || break
+      sleep 0.02
+      i=$((i + 1))
+    done
+    [ -s "$ready" ] && [ -s "$child_pid_file" ] && [ -e "$direct_done" ] \
+      && [ -e "$state/.last-check" ] \
+      || fail "$backend watcher did not complete the direct custom check"
+    child_pid=$(cat "$child_pid_file")
+    kill -TERM "$watcher_pid" 2>/dev/null || fail "could not stop $backend watcher"
+    i=0
+    while process_is_live_non_zombie "$watcher_pid" && [ "$i" -lt 150 ]; do
+      sleep 0.02
+      i=$((i + 1))
+    done
+    if process_is_live_non_zombie "$watcher_pid"; then
+      kill -KILL "$watcher_pid" 2>/dev/null || true
+      wait "$watcher_pid" 2>/dev/null || true
+      kill -KILL "$child_pid" 2>/dev/null || true
+      fail "$backend watcher did not stop after the direct check returned"
+    fi
     rc=0
     FM_TEST_CHECK_TIMEOUT=10 FM_CHECK_FORCE_FALLBACK="$force_fallback" \
       FM_TEST_DESCENDANT_READY="$ready" FM_TEST_DESCENDANT_HOLD="$dir" \
@@ -1466,7 +1491,7 @@ SH
   chmod +x "$fakebin/tmux"
   touch "$dir/home/state/.last-watcher-beat"
 
-  FM_HOME="$dir/home" FM_ROOT_OVERRIDE="$ROOT" PATH="$fakebin:$BASE_PATH" \
+  MY_FM_HOME="$dir/home" FM_ROOT_OVERRIDE="$ROOT" PATH="$fakebin:$BASE_PATH" \
     "$TEARDOWN" task-a --force > "$dir/teardown.out" 2> "$dir/teardown.err" \
     || fail "teardown cleanup fixture failed"
   [ ! -e "$dir/home/state/task-a.check.sh" ] || fail "teardown left the runnable check"
@@ -1496,7 +1521,7 @@ exit 0
 SH
   chmod +x "$fakebin/tmux"
   touch "$dir/home/state/.last-watcher-beat"
-  FM_HOME="$dir/home" FM_ROOT_OVERRIDE="$ROOT" PATH="$fakebin:$BASE_PATH" \
+  MY_FM_HOME="$dir/home" FM_ROOT_OVERRIDE="$ROOT" PATH="$fakebin:$BASE_PATH" \
     "$TEARDOWN" task-a --force > "$dir/teardown.out" 2> "$dir/teardown.err" \
     || fail "teardown could not finish a valid crash-left retirement receipt"
   assert_poll_absent "$dir/home/state" task-a
@@ -1528,7 +1553,7 @@ SH
     chmod +x "$fakebin/tmux"
     touch "$dir/home/state/.last-watcher-beat"
     set +e
-    FM_HOME="$dir/home" FM_ROOT_OVERRIDE="$ROOT" FM_FAKE_TMUX_LOG="$dir/tmux.log" \
+    MY_FM_HOME="$dir/home" FM_ROOT_OVERRIDE="$ROOT" FM_FAKE_TMUX_LOG="$dir/tmux.log" \
       PATH="$fakebin:$BASE_PATH" "$TEARDOWN" task-a --force \
       > "$dir/teardown.out" 2> "$dir/teardown.err"
     rc=$?
@@ -2046,7 +2071,7 @@ EOF
   # Arming is where a missing CLI can still be reported, so it refuses there.
   write_task_meta "$dir" task-b
   set +e
-  out=$(FM_ROOT_OVERRIDE="$dir/root" FM_HOME="$dir/home" \
+  out=$(FM_ROOT_OVERRIDE="$dir/root" MY_FM_HOME="$dir/home" \
     FM_TEST_GUARD_LOG="$dir/guard.log" PATH="$noglab" \
     "$PR_CHECK" task-b "$url" 2>&1)
   rc=$?
@@ -2083,6 +2108,50 @@ EOF
   pass "GitLab merge requests are followed on any instance and never wake falsely"
 }
 
+test_gitea_merge_watch() {
+  local dir state url out
+  dir=$(make_case gitea-merge-watch)
+  state="$dir/home/state"
+  url=https://gitea.example/acme/widgets/pulls/7
+  write_poll_meta "$state" task-a "$url"
+  fm_pr_poll_prepare "$state" task-a gitea "$url" https://gitea.example acme/widgets 7 "$POLL" \
+    || fail "could not prepare a Gitea poll"
+  fm_pr_poll_publish_prepared || fail "could not publish a Gitea poll"
+  [ "$(cat "$state/task-a.pr-poll")" = "gitea
+$url
+https://gitea.example
+acme/widgets
+7" ] || fail "published Gitea sidecar bytes were not exact"
+
+  cat > "$dir/gitea-view.json" <<'EOF'
+{"state":"open","merged":"no","sha":"0123456789abcdef0123456789abcdef01234567"}
+EOF
+  out=$(FM_TEST_GITEA_VIEW_JSON="$dir/gitea-view.json" run_poll "$dir")
+  [ -z "$out" ] || fail "Gitea poll emitted for a non-merged state"
+  printf '%s\n' '{"state":"closed","merged":"yes","sha":"0123456789abcdef0123456789abcdef01234567"}' > "$dir/gitea-view.json"
+  out=$(FM_TEST_GITEA_VIEW_JSON="$dir/gitea-view.json" run_poll "$dir")
+  [ "$out" = merged ] || fail "Gitea poll did not emit exactly one merged line"
+  out=$(FM_TEST_GITEA_FAIL=1 run_poll "$dir")
+  [ -z "$out" ] || fail "Gitea poll emitted after a gitea-axi failure"
+  grep -qF -- 'pr view 7 --repo acme/widgets --host https://gitea.example --json' "$dir/gitea.log" \
+    || fail "Gitea poll did not pass the URL-derived repository and host"
+
+  printf '%s\n%s\n%s\n%s\n%s\n' gitea "$url" elsewhere.example acme/widgets 7 \
+    > "$state/task-a.pr-poll"
+  out=$(FM_TEST_GITEA_VIEW_JSON="$dir/gitea-view.json" run_poll "$dir")
+  [ -z "$out" ] || fail "Gitea poll emitted for a sidecar whose host was swapped"
+
+  write_task_meta "$dir" task-b
+  GITEA_PAT=do-not-record FM_TEST_GITEA_VIEW_JSON="$dir/gitea-view.json" \
+    run_check_entry "$dir" task-b "$url" > "$dir/gitea-check.out" \
+    || fail "Gitea PR registration failed"
+  assert_grep 'pr_head=0123456789abcdef0123456789abcdef01234567' "$state/task-b.meta" \
+    "Gitea PR registration did not record the live head"
+  ! grep -R -F -- 'do-not-record' "$dir/home/state" \
+    || fail "GITEA_PAT was persisted in Gitea task state"
+  pass "Gitea pull requests are parsed, registered with a live head, and polled without token leakage"
+}
+
 seed_canonical_poll() {
   local dir=$1 id=$2 url=$3 template=${4:-$POLL} state provider host path number
   state="$dir/home/state"
@@ -2101,7 +2170,7 @@ add_stop_custom_check() {
   state="$dir/home/state"
   printf '#!/usr/bin/env bash\nprintf "stop-cycle\\n"\n' > "$state/z-stop.check.sh"
   chmod 0700 "$state/z-stop.check.sh"
-  FM_HOME="$dir/home" "$REGISTER" z-stop >/dev/null \
+  MY_FM_HOME="$dir/home" "$REGISTER" z-stop >/dev/null \
     || fail "could not register stop-cycle custom check"
 }
 
@@ -2517,7 +2586,7 @@ test_retirement_crash_recovery() {
   raw_count=$(grep -cF "$(printf '\tcheck\tmerged-task-a-https://github.com/o/r/pull/3\t')" \
     "$state/.wake-queue" || true)
   [ "$raw_count" -eq 1 ] || fail "post-queue retry did not publish exactly one new terminal row"
-  FM_HOME="$dir/home" FM_ROOT_OVERRIDE="$ROOT" "$ROOT/bin/fm-wake-drain.sh" > "$dir/drain.out" 2>/dev/null
+  MY_FM_HOME="$dir/home" FM_ROOT_OVERRIDE="$ROOT" "$ROOT/bin/fm-wake-drain.sh" > "$dir/drain.out" 2>/dev/null
   drain_count=$(grep -cF "$(printf '\tcheck\tmerged-task-a-https://github.com/o/r/pull/3\t')" \
     "$dir/drain.out" || true)
   [ "$drain_count" -eq 1 ] || fail "same-key crash retry rows did not deduplicate at drain"
@@ -2747,7 +2816,7 @@ test_retirement_refuses_replacement_and_nonterminal_results() {
   state="$dir/home/state"
   printf '#!/usr/bin/env bash\nprintf "merged\\n"\n' > "$state/custom.check.sh"
   chmod 0700 "$state/custom.check.sh"
-  FM_HOME="$dir/home" "$REGISTER" custom >/dev/null || fail "could not register merged custom check"
+  MY_FM_HOME="$dir/home" "$REGISTER" custom >/dev/null || fail "could not register merged custom check"
   set +e
   run_watcher_bounded "$dir/home" "$dir/fakebin" > "$dir/custom.out" 2> "$dir/custom.err"
   rc=$?
@@ -2835,13 +2904,16 @@ test_gitlab_merged_poll_retires() {
 write_away_record() {  # <dir> [<fm-afk-contract.sh enter args>...]
   local dir=$1
   shift
-  FM_HOME="$dir/home" FM_STATE_OVERRIDE="$dir/home/state" \
-    "$ROOT/bin/fm-afk-contract.sh" enter "$@" >/dev/null \
-    || fail "could not enter an away-posture record"
+  MY_FM_HOME="$dir/home" FM_STATE_OVERRIDE="$dir/home/state" \
+    "$ROOT/bin/fm-afk-contract.sh" propose "$@" >/dev/null \
+    || fail "could not propose an away-posture record"
+  MY_FM_HOME="$dir/home" FM_STATE_OVERRIDE="$dir/home/state" \
+    "$ROOT/bin/fm-afk-contract.sh" confirm >/dev/null \
+    || fail "could not confirm an away-posture record"
 }
 
 archive_away_record() {  # <dir>
-  FM_HOME="$1/home" FM_STATE_OVERRIDE="$1/home/state" \
+  MY_FM_HOME="$1/home" FM_STATE_OVERRIDE="$1/home/state" \
     "$ROOT/bin/fm-afk-contract.sh" archive >/dev/null \
     || fail "could not archive the away-posture record"
 }
@@ -3032,7 +3104,7 @@ test_teardown_cannot_race_authority_consumption() {
     fi
   done
   set +e
-  FM_HOME="$dir/home" FM_ROOT_OVERRIDE="$ROOT" PATH="$dir/fakebin:$BASE_PATH" \
+  MY_FM_HOME="$dir/home" FM_ROOT_OVERRIDE="$ROOT" PATH="$dir/fakebin:$BASE_PATH" \
     "$TEARDOWN" task-a --force > "$dir/teardown.out" 2> "$dir/teardown.err"
   rc=$?
   set -e
@@ -3363,7 +3435,7 @@ test_device_rerecord_serializes_direct_rearm() {
   cp "$state/task-a.pr-poll-registration" "$dir/published.registration"
   cp "$state/task-a.check.sh" "$dir/published.check.sh"
   start_poll_publish_holder "$dir" "$state" task-a
-  FM_ROOT_OVERRIDE="$dir/root" FM_HOME="$dir/home" FM_TEST_GUARD_LOG="$dir/guard.log" \
+  FM_ROOT_OVERRIDE="$dir/root" MY_FM_HOME="$dir/home" FM_TEST_GUARD_LOG="$dir/guard.log" \
     PATH="$dir/fakebin:$BASE_PATH" "$PR_CHECK" task-a "$url_b" > "$dir/rearm.out" 2> "$dir/rearm.err" &
   rearm_pid=$!
   for i in $(seq 1 100); do
@@ -3441,10 +3513,7 @@ SH
 
 test_parser_matrix
 test_gitlab_merge_watch
-test_gerrit_merge_watch
-test_gerrit_arming_records_no_patch_set_revision
-test_gerrit_ready_gate_reads_the_published_tree
-test_gerrit_nm_ready_gate_requires_recovered_custody
+test_gitea_merge_watch
 test_merged_poll_retires_once
 test_merged_poll_reregistration_after_notification_is_absorbed
 test_merged_poll_retries_a_failed_upward_report

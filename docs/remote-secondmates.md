@@ -82,6 +82,7 @@ On macOS the worker is `dev.firstmate.remote-job`, an Aqua-scoped LaunchAgent at
 After that bootstrap, every non-doctor `fm-on.sh` target runs through that worker in the remote account's GUI session.
 It never runs in the SSH process or a Herdr pane.
 Linux uses the same queue and worker protocol without the Aqua-session requirement.
+When idle, the worker checks for newly staged work about once per second; after a lane starts or finishes it checks more frequently for a short period.
 
 ### Job lanes and preemption
 
@@ -90,7 +91,7 @@ The worker serves one lane per staged home:
 - Jobs for the same home follow the staging-order contract owned by [`bin/fm-remote-job-lib.sh`](../bin/fm-remote-job-lib.sh).
 - Different homes' lanes run concurrently, so one home's long job never delays another home's commands.
 
-Within a home's lane, the worker preempts a running reply long-poll as soon as any command other than another reply long-poll is queued for that home.
+Within a home's lane, the worker preempts a running reply long-poll on its next queue check when any command other than another reply long-poll is queued for that home.
 As a result, interactive commands and startup checks are never serialized behind a poll window.
 
 `bin/fm-remote-job-lib.sh` owns that preemption contract.
@@ -455,7 +456,7 @@ The Bearings inventory-reconcile hook therefore handles these markerless routes 
 Send routed requests normally:
 
 ```sh
-MY_FM_HOME=<primary-home> bin/fm-send.sh fm-<id> '<request>'
+FM_HOME=<primary-home> bin/fm-send.sh fm-<id> '<request>'
 ```
 
 The [`fm-send.sh` header](../bin/fm-send.sh) owns the exact delivery-status contract.
@@ -496,9 +497,28 @@ An unreachable or unreadable remote read is unknown, not evidence that the endpo
 Marked requests keep the existing correlation contract.
 The remote charter appends replies to `state/parent-replies.status` in the remote home.
 The remote home's own outcome publishers append there too, through the channel contract in `bin/fm-parent-channel-lib.sh` ([secondmate-parent-channel.md](secondmate-parent-channel.md)).
-The remote charter also names its steering inbox as `state/parent-route/<id>.inbox` in the remote home, the record surface the routed transport writes to, so a steer never lands on a parent-home path the remote host cannot reach.
-A process-event source performs a non-destructive, cursor-anchored delta read, fetches the documents a line explicitly offers through the confined reader, mirrors content-bearing lines into the primary status channel, and does not carry blank separators.
-Only a structured `report=data/....md` pointer offers a document; a bare path inside prose is a mention, so writing about a document - including one the mate has not created yet - never asks this channel to fetch it.
+The remote charter also names its steering inbox as `state/parent-route/<id>.inbox` in the remote home.
+That inbox is the record surface the routed transport writes to, so a steer never lands on a parent-home path the remote host cannot reach.
+
+### How remote lines are mirrored
+
+A process-event source takes these steps:
+
+- It performs a non-destructive, cursor-anchored delta read.
+- It fetches the documents a line explicitly offers through the confined reader.
+- It mirrors content-bearing lines into the primary status channel.
+- It does not carry blank separators.
+
+The listener holds its claim across an empty wait and across a delta it re-arms, so a line appended during either is collected without waiting for the next supervision cycle.
+It stops when that registration is retired, the registered command changes, or the home's owner lease lapses.
+`bin/fm-procevent.sh` owns the generic relisten rule, and `bin/fm-procevent-remote-reply.sh` owns this adapter's answer.
+
+Only a structured `report=data/....md` pointer offers a document.
+A bare path inside prose is a mention.
+So writing about a document, including one the mate has not created yet, never asks this channel to fetch it.
+
+### Replay identity
+
 Each normalized source line, before its delivered `report=` pointers are rewritten, is the replay identity.
 Once committed, that identity prevents an ingestion retry or whole-log recapture from appending a second spelling when document availability changes.
 Its record survives reply-adapter retirement alongside the parent status stream.

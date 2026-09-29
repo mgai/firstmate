@@ -88,9 +88,9 @@
 set -u
 export LC_ALL=C
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-MY_FM_HOME="${MY_FM_HOME:-${FM_ROOT_OVERRIDE:-$(cd "$SCRIPT_DIR/.." && pwd)}}"
-STATE="${FM_STATE_OVERRIDE:-$MY_FM_HOME/state}"
+SCRIPT_DIR="$(d=${BASH_SOURCE[0]%/*}; [ "$d" != "${BASH_SOURCE[0]}" ] || d=.; cd "${d:-/}" && pwd)"
+FM_HOME="${FM_HOME:-${FM_ROOT_OVERRIDE:-$(cd "$SCRIPT_DIR/.." && pwd)}}"
+STATE="${FM_STATE_OVERRIDE:-$FM_HOME/state}"
 OUTCOME_DIR="$STATE/terminal-outcomes"
 SCAN_MARKER="$STATE/.inactive-outcome-reconcile"
 SCAN_LOCK="$STATE/.inactive-outcome-reconcile.lock"
@@ -341,14 +341,14 @@ pr_for_task() { # <meta> [preferred-line]
 }
 
 home_secondmate_id() {
-  fm_parent_channel_home_id "$MY_FM_HOME"
+  fm_parent_channel_home_id "$FM_HOME"
 }
 
 report_to_parent() { # <task> <state> <outcome-key> <fingerprint> <pr>
   local task=$1 state=$2 outcome_key=$3 fingerprint=$4 pr=$5 line
   line="$state [key=$outcome_key]: inactive terminal child=$task fingerprint=$fingerprint"
   [ -z "$pr" ] || line="$line pr=$pr"
-  fm_parent_channel_report "$MY_FM_HOME" "$STATE" "$line"
+  fm_parent_channel_report "$FM_HOME" "$STATE" "$line"
 }
 
 # Queue the once-per-record notice that a parent report could not be written.
@@ -357,7 +357,7 @@ report_to_parent() { # <task> <state> <outcome-key> <fingerprint> <pr>
 # binding is named when it is the cause.
 notice_parent_report_failed() { # <record> <fingerprint> <payload>
   local record=$1 fingerprint=$2 payload=$3
-  if ! fm_secondmate_parent_record_parse "$MY_FM_HOME/.fm-secondmate-parent"; then
+  if ! fm_secondmate_parent_record_parse "$FM_HOME/.fm-secondmate-parent"; then
     payload="$payload (missing or unreadable parent binding .fm-secondmate-parent)"
   fi
   queue_notice_once "$record" "inactive-reconcile:$fingerprint" "$payload" || true
@@ -443,7 +443,7 @@ report_child_ledger_locked() { # <id> <meta>
   note=$(clean_field "$(status_line_note "$last")")
   mode=$(clean_field "$(meta_field "$meta" mode)")
   yolo=$(clean_field "$(meta_field "$meta" yolo)")
-  data="${FM_DATA_OVERRIDE:-$MY_FM_HOME/data}"
+  data="${FM_DATA_OVERRIDE:-$FM_HOME/data}"
   line="$state [key=$outcome_key]: child $id $state: $note"
   [ -z "$pr" ] || line="$line pr=$pr"
   [ -z "$mode" ] || line="$line mode=$mode"
@@ -451,7 +451,7 @@ report_child_ledger_locked() { # <id> <meta>
   if [ -f "$data/$id/report.md" ] && [ ! -L "$data/$id/report.md" ]; then
     line="$line report=data/$id/report.md"
   fi
-  if fm_parent_channel_report "$MY_FM_HOME" "$STATE" "$line"; then
+  if fm_parent_channel_report "$FM_HOME" "$STATE" "$line"; then
     mark_reported "$RECORD_PENDING" || return 1
     return 0
   fi
@@ -511,7 +511,7 @@ reconcile_direct_child_locked() { # <id> <meta> <secondmate-id-or-empty> <timeou
   fi
   age=$(last_activity_age "$meta" "$status" "$turn")
   [ "$age" -ge "$FM_INACTIVE_RECONCILE_SECS" ] || return 0
-  state_line=$(fm_run_timed "$timeout" env MY_FM_HOME="$MY_FM_HOME" FM_STATE_OVERRIDE="$STATE" FM_CREW_STATE_NO_FORGE=1 \
+  state_line=$(fm_run_timed "$timeout" env FM_HOME="$FM_HOME" FM_STATE_OVERRIDE="$STATE" FM_CREW_STATE_NO_FORGE=1 \
     "$CREW_STATE_BIN" "$id" 2>/dev/null) || state_rc=$?
   [ "$state_rc" -ne 124 ] || return 3
   last=$(last_status_line "$status")

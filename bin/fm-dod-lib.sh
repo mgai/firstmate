@@ -39,7 +39,26 @@
 # decision; a later rebase or patch set on the server does not revoke an armed
 # task's done. Teardown's landed-work test remains the complete discard gate.
 # The block opens with the fixed machine-readable "Delivery contract: mode=<mode>"
-# line that bin/fm-spawn.sh checks a ship brief against.
+# line that bin/fm-spawn.sh checks a ship brief against; a forge=gerrit block
+# appends " forge=gerrit shape=squash" to that line. The "Ship branch: <branch>"
+# line under it is machine-readable the same way: bin/fm-spawn.sh refuses a ship
+# whose spawn-selected branch disagrees with it.
+# forge is none|gerrit and defaults to none; bin/fm-project-mode.sh's header owns
+# what the registry binding means, and this file owns what gerrit changes for a
+# WORKER (docs/gerrit-forge-integration.md is the design). A forge composes with
+# the two modes that publish and is refused on local-only, which publishes
+# nothing. On gerrit the worker publishes one squashed change with
+# `gerrit-axi publish --squash` instead of opening a pull request: direct-PR does
+# that straight away, and no-mistakes first runs the pipeline with its three
+# forge-facing steps skipped and recovers the pipeline's own fix commits into its
+# branch, because a passed run whose fixes stayed in the gate looks exactly like
+# one whose fixes arrived and publishing it ships the unfixed code. Either mode's
+# ready report is `done: PR <change url> published for review`; under
+# no-mistakes a `note:` line listing each pipeline finding and its fix comes
+# first, because the squash's description never shows the fix commits. A stack of
+# changes is refused until it can be watched by its membership pinned when its
+# watch is armed, because the merge poll watches one change. No contract here
+# lets a worker submit, vote on, or abandon a change.
 # The two PR-based blocks require a non-draft pull request before the done
 # report, read back from the forge; a lane that deliberately holds a draft
 # declares a paused wait instead. bin/fm-pr-check.sh refuses to arm merge
@@ -78,13 +97,13 @@
 # a worker off a remote is exactly the rule that changes when the forge does.
 
 # shellcheck source=bin/fm-pr-lib.sh
-. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/fm-pr-lib.sh"
+. "$(d=${BASH_SOURCE[0]%/*}; [ "$d" != "${BASH_SOURCE[0]}" ] || d=.; cd "${d:-/}" && pwd)/fm-pr-lib.sh"
 # shellcheck source=bin/fm-classify-lib.sh
-. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/fm-classify-lib.sh"
+. "$(d=${BASH_SOURCE[0]%/*}; [ "$d" != "${BASH_SOURCE[0]}" ] || d=.; cd "${d:-/}" && pwd)/fm-classify-lib.sh"
 # shellcheck source=bin/fm-nm-run-lib.sh
-. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/fm-nm-run-lib.sh"
+. "$(d=${BASH_SOURCE[0]%/*}; [ "$d" != "${BASH_SOURCE[0]}" ] || d=.; cd "${d:-/}" && pwd)/fm-nm-run-lib.sh"
 # shellcheck source=bin/fm-brief-heading-lib.sh
-. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/fm-brief-heading-lib.sh"
+. "$(d=${BASH_SOURCE[0]%/*}; [ "$d" != "${BASH_SOURCE[0]}" ] || d=.; cd "${d:-/}" && pwd)/fm-brief-heading-lib.sh"
 
 fm_brief_worker_role() {  # <state-dir> <task-id>
   local state=$1 task_id=$2
@@ -256,6 +275,47 @@ fm_ask_user_escalation_block() {  # <data-dir> <task-id>
 EOF
 }
 
+# The forge-independent middle of the no-mistakes contract: how a worker drives
+# the pipeline, what `--intent` may carry, and the two firstmate-specific rules.
+# Written once; only the two sentences about a green PR depend on the forge,
+# because on gerrit the ci step is skipped and there is no PR to report.
+fm_nm_driving_block() {  # <forge>
+  local pr_return_line='' pr_reattach_clause=';'
+  if [ "$1" != gerrit ]; then
+    pr_return_line="Only a drive call's return reports the green PR: \`no-mistakes axi status\` shows progress but never reports \`checks-passed\` while the ci step is still monitoring the PR for merge, so never wait on a status poll for the next gate or outcome.
+"
+    pr_reattach_clause="; once checks are green it returns \`checks-passed\` immediately, and"
+  fi
+  cat <<EOF
+You drive no-mistakes by responding to its gates, not by implementing fixes.
+Follow the guidance no-mistakes itself provides for the mechanics: it loads when you invoke /no-mistakes, and \`no-mistakes axi run --help\` plus the \`help\` lines in each \`axi\` response are authoritative and version-matched to the installed binary.
+When starting no-mistakes, pass \`--intent\` as only this brief's \`## Captain's intent\` subsection body, not its heading, plus any later words the captain actually said.
+Preserve the actual words without adding speaker labels or direct address; the subsection heading supplies provenance outside the pipeline input.
+For a legacy brief with no such subsection, include only words on lines marked \`[captain] \`, excluding that metadata prefix; never copy its mixed \`# Task\` wholesale.
+If it has no provenance-marked captain words, stop and ask firstmate instead of starting no-mistakes.
+Do not include \`## Firstmate spec\`, later Firstmate build constraints, or your own decisions and tradeoffs.
+The \`--intent\` string you pass must be self-sufficient: that string plus the codebase must let a reader reconstruct roughly the same specification, without depending on a separate report, a PR, or context that lives only in this conversation.
+When the captain's intent refers to a report, decision, or PR ("do items 1, 2, 3, and 7 of the report"), write the substance of the referenced items into \`--intent\` in the captain's terms, not only the pointer; that substance is the captain's ask by reference, while Firstmate's build instructions and your own decisions still stay out.
+This replaces the no-mistakes skill's advice to enrich \`--intent\` with decisions and tradeoffs; that advice does not apply to Firstmate-dispatched work.
+Do not hand-edit, commit, or fix findings yourself while a run is active - the pipeline applies every fix.
+
+One drive call blocks until the next gate or outcome, which routinely outlives what your harness lets a single command run: Claude Code kills a command at ten minutes maximum, while one fix round is capped around thirty minutes and up to three rounds chain.
+So background the drive call instead of sitting in one blocking hold your harness will kill, and read its return when it finishes.
+Declare that wait using the brief's status-reporting rule before waiting on the backgrounded drive call.
+Where a harness's own command limit is not established, assume it bounds commands and use that same backgrounded shape.
+${pr_return_line}Whenever a drive call returns without a gate or an outcome - its own wait elapsed, or it was killed or timed out - reattach at once by re-running \`no-mistakes axi run\` without flags, backgrounded the same way${pr_reattach_clause} if it refuses because no run is active, read the finished outcome from \`no-mistakes axi status\`.
+A killed or timed-out call is never evidence the daemon died: the daemon accepts your response immediately and runs the round in the background, so the call was only ever waiting for a read while the run kept working.
+Reattach and keep going rather than reporting the pipeline blocked; rule 7 owns the checks that decide when a pipeline block is real.
+
+Two firstmate-specific rules layer on top of that guidance:
+- ask-user findings are never yours to answer: escalate to firstmate using rule 6's ask-user format and stop.
+  Firstmate applies \`ask-user-authority\` and obtains any required captain decision.
+  When the decision comes back, feed it to the gate with \`no-mistakes axi respond\` and let the pipeline apply it - do not route the question to "the user" or implement the fix yourself.
+- NEVER pass \`--yes\` (or \`-y\`) to \`no-mistakes axi run\` or \`no-mistakes axi respond\`. It is banned fleet-wide.
+  It auto-resolves every gate including ask-user findings with no escalation, and answering your own ask-user finding is a hard rule violation.
+EOF
+}
+
 # How a worker on a forge=gerrit project publishes, shared by both publishing
 # modes so the one push, the Change-Id rule, and the ready report are written
 # once. gerrit-axi owns the squash mechanics; this names the one call and what
@@ -376,6 +436,7 @@ EOF
 After /no-mistakes reports CI green (the CI-ready return point - do not wait for it to keep monitoring in the background until merge), read the PR back from the forge and confirm it is not a draft (\`gh-axi pr view <number>\` must print \`draft: no\`, where <number> is the PR number from your PR URL); if it is a draft, mark it ready with \`gh-axi pr ready <number>\`.
 A draft cannot be merged, so a done report on one leaves the merge unasked.
 Then append \`done [at=<epoch>]: PR {url} checks green\` and stop. You are finished.
+That CI-ready \`done:\` is accepted only when this copy's HEAD - your latest commit - is one the /no-mistakes run pushed, so commit nothing after the run; the check tests that commit, not merely that a branch moved.
 If you deliberately keep the PR a draft, append \`paused [at=<epoch>]: {why the draft is held}\` instead of done.
 EOF
       ;;

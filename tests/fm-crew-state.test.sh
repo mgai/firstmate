@@ -180,19 +180,6 @@ case "${1:-} ${2:-}" in
 esac
 exit 1
 SH
-  cat > "$fb/gitea-axi" <<'SH'
-#!/usr/bin/env bash
-set -u
-case "${1:-} ${2:-}" in
-  "pr view")
-    [ -z "${FM_FAKE_GITEA_READ_LOG:-}" ] || printf '%s\n' "$*" >> "$FM_FAKE_GITEA_READ_LOG"
-    [ "${FM_FAKE_GITEA_READ_FAIL:-0}" = 1 ] && exit 1
-    printf '{"state":"%s","merged":"%s","sha":"0123456789abcdef0123456789abcdef01234567"}\n' \
-      "${FM_FAKE_GITEA_STATE:-closed}" "${FM_FAKE_GITEA_MERGED:-yes}"
-    exit 0 ;;
-esac
-exit 1
-SH
   cat > "$fb/gerrit-axi" <<'SH'
 #!/usr/bin/env bash
 set -u
@@ -200,6 +187,8 @@ case "${1:-}" in
   show)
     [ -z "${FM_FAKE_GERRIT_READ_LOG:-}" ] || printf '%s\n' "$*" >> "$FM_FAKE_GERRIT_READ_LOG"
     [ "${FM_FAKE_GERRIT_READ_FAIL:-0}" = 1 ] && exit 1
+    # url defaults to null, the shape a server whose gerrit.canonicalWebUrl is
+    # unset returns, so every case here reads a record that carries no URL.
     printf '{"ok":true,"op":"show","changes":[{"change":%s,"subject":"fixture change","status":"%s","url":%s}]}\n' \
       "${FM_FAKE_GERRIT_CHANGE:-${2:-0}}" "${FM_FAKE_GERRIT_STATUS:-MERGED}" \
       "${FM_FAKE_GERRIT_URL_JSON:-null}"
@@ -287,7 +276,7 @@ case "${1:-}" in
 esac
 exit 0
 SH
-  chmod +x "$fb/no-mistakes" "$fb/gh" "$fb/gh-axi" "$fb/glab" "$fb/gitea-axi" "$fb/gerrit-axi" "$fb/tmux" "$fb/herdr"
+  chmod +x "$fb/no-mistakes" "$fb/gh" "$fb/gh-axi" "$fb/glab" "$fb/gerrit-axi" "$fb/tmux" "$fb/herdr"
   printf '%s\n' "$fb"
 }
 
@@ -305,7 +294,7 @@ make_no_timeout_toolbin() {  # <dir> -> echoes toolbin path
 # Run the helper for one case dir. FM_FAKE_* env (run output, busy flag) are read
 # from the caller's environment by the fakes above.
 run_crew_state() {  # <case-dir> <id>
-  PATH="$1/fakebin:$PATH" MY_FM_HOME="$1" FM_STATE_OVERRIDE="$1/state" "$CREW_STATE" "$2"
+  PATH="$1/fakebin:$PATH" FM_STATE_OVERRIDE="$1/state" "$CREW_STATE" "$2"
 }
 
 new_case() {  # <name> -> echoes case dir with an empty state/
@@ -357,10 +346,6 @@ reset_fakes() {
   FM_FAKE_GLAB_STATE=merged
   FM_FAKE_GLAB_READ_FAIL=0
   FM_FAKE_GLAB_READ_LOG=
-  FM_FAKE_GITEA_STATE=closed
-  FM_FAKE_GITEA_MERGED=yes
-  FM_FAKE_GITEA_READ_FAIL=0
-  FM_FAKE_GITEA_READ_LOG=
   FM_FAKE_GERRIT_STATUS=MERGED
   FM_FAKE_GERRIT_CHANGE=
   FM_FAKE_GERRIT_URL_JSON=
@@ -373,7 +358,6 @@ reset_fakes() {
   export FM_FAKE_AXI_HOME_ERROR FM_FAKE_AXI_STATUS_RUN_ERROR FM_FAKE_AXI_STATUS_ERROR
   export FM_FAKE_PR_STATE FM_FAKE_PR_MERGED FM_FAKE_PR_READ_FAIL FM_FAKE_PR_READ_LOG FM_FAKE_PR_STATE_AXI
   export FM_FAKE_GLAB_STATE FM_FAKE_GLAB_READ_FAIL FM_FAKE_GLAB_READ_LOG
-  export FM_FAKE_GITEA_STATE FM_FAKE_GITEA_MERGED FM_FAKE_GITEA_READ_FAIL FM_FAKE_GITEA_READ_LOG
   export FM_FAKE_GERRIT_STATUS FM_FAKE_GERRIT_CHANGE FM_FAKE_GERRIT_URL_JSON
   export FM_FAKE_GERRIT_READ_FAIL FM_FAKE_GERRIT_READ_LOG
   export FM_FAKE_PR_47_STATE FM_FAKE_PR_47_MERGED FM_FAKE_PR_48_STATE FM_FAKE_PR_48_MERGED
@@ -1616,61 +1600,80 @@ test_terminal_passed_with_failed_gitlab_read_reports_unknown() {
   pass "terminal passed run handles failed GitLab read"
 }
 
-test_terminal_passed_with_merged_gitea_pr_reports_merged() {
+test_terminal_passed_with_open_gerrit_change_does_not_claim_merged() {
   reset_fakes
-  local d read_log out
-  d=$(new_case passed-merged-gitea-pr)
-  make_repo_on_branch "$d/wt" fm/feat-dgiteamerged
+  local d url read_log out
+  d=$(new_case passed-open-gerrit-change)
+  url=https://review.internal/c/group/apps/console/+/4201
+  make_repo_on_branch "$d/wt" fm/feat-dgerritopen
   make_fakebin "$d" >/dev/null
-  fm_write_meta "$d/state/feat-dgiteamerged.meta" \
-    "window=fm:fm-feat-dgiteamerged" "worktree=$d/wt" "kind=ship" \
-    "pr=https://gitea.example/acme/widgets/pulls/12"
-  read_log="$d/gitea-read.log"
+  fm_write_meta "$d/state/feat-dgerritopen.meta" "window=fm:fm-feat-dgerritopen" \
+    "worktree=$d/wt" "kind=ship" "pr=$url"
+  read_log="$d/gerrit-read.log"
   : > "$read_log"
-  FM_FAKE_GITEA_READ_LOG=$read_log
-  FM_FAKE_GITEA_STATE=closed
-  FM_FAKE_GITEA_MERGED=yes
-  FM_FAKE_AXI_STATUS="$(run_passed_with_pr fm/feat-dgiteamerged https://gitea.example/acme/widgets/pulls/12)"
-  out=$(run_crew_state "$d" feat-dgiteamerged)
-  assert_contains "$out" "run passed: PR merged" "merged Gitea PR is reported merged"
-  assert_grep 'pr view 12 --repo acme/widgets --host https://gitea.example --json' "$read_log" \
-    "Gitea PR read uses the parsed host and repository"
-  pass "terminal passed run reads merged Gitea pull request state"
+  FM_FAKE_GERRIT_READ_LOG=$read_log
+  FM_FAKE_GERRIT_STATUS=NEW
+  FM_FAKE_AXI_STATUS="$(run_passed_with_pr fm/feat-dgerritopen "$url")"
+  out=$(run_crew_state "$d" feat-dgerritopen)
+  assert_contains "$out" "run passed: PR open" "open Gerrit change state is named"
+  assert_not_contains "$out" "PR merged" "open Gerrit change must not be reported merged"
+  assert_grep 'show 4201 --host review.internal --json' "$read_log" \
+    "Gerrit read addresses the change by number and explicit host"
+  pass "terminal passed run reads open Gerrit change state"
 }
 
-test_terminal_passed_with_open_gitea_pr_does_not_claim_merged() {
+test_terminal_passed_with_merged_gerrit_change_reports_merged() {
   reset_fakes
-  local d out
-  d=$(new_case passed-open-gitea-pr)
-  make_repo_on_branch "$d/wt" fm/feat-dgiteaopen
+  local d url out
+  d=$(new_case passed-merged-gerrit-change)
+  url=https://review.internal/c/group/apps/console/+/4200
+  make_repo_on_branch "$d/wt" fm/feat-dgerritmerged
   make_fakebin "$d" >/dev/null
-  fm_write_meta "$d/state/feat-dgiteaopen.meta" \
-    "window=fm:fm-feat-dgiteaopen" "worktree=$d/wt" "kind=ship" \
-    "pr=https://gitea.example/acme/widgets/pulls/13"
-  FM_FAKE_GITEA_STATE=open
-  FM_FAKE_GITEA_MERGED=no
-  FM_FAKE_AXI_STATUS="$(run_passed_with_pr fm/feat-dgiteaopen https://gitea.example/acme/widgets/pulls/13)"
-  out=$(run_crew_state "$d" feat-dgiteaopen)
-  assert_contains "$out" "run passed: PR open" "open Gitea PR state is named"
-  assert_not_contains "$out" "PR merged" "open Gitea PR must not be reported merged"
-  pass "terminal passed run does not claim an open Gitea pull request merged"
+  fm_write_meta "$d/state/feat-dgerritmerged.meta" "window=fm:fm-feat-dgerritmerged" \
+    "worktree=$d/wt" "kind=ship" "pr=$url"
+  FM_FAKE_GERRIT_STATUS=MERGED
+  FM_FAKE_AXI_STATUS="$(run_passed_with_pr fm/feat-dgerritmerged "$url")"
+  out=$(run_crew_state "$d" feat-dgerritmerged)
+  # The fixture record carries a null url, the shape a server with no
+  # gerrit.canonicalWebUrl returns, so the merge is reported off the change
+  # number the read was addressed by rather than off a URL the server may
+  # never compose.
+  assert_contains "$out" "run passed: PR merged" "merged Gerrit change is reported merged"
+
+  # An abandoned change is this report's closed, and is never merged.
+  FM_FAKE_GERRIT_STATUS=ABANDONED
+  out=$(run_crew_state "$d" feat-dgerritmerged)
+  assert_contains "$out" "run passed: PR closed" "abandoned Gerrit change is reported closed"
+  assert_not_contains "$out" "PR merged" "abandoned Gerrit change must not be reported merged"
+  pass "terminal passed run reads merged and abandoned Gerrit change state"
 }
 
-test_terminal_passed_with_failed_gitea_read_reports_unknown() {
+test_terminal_passed_with_unreadable_gerrit_change_reports_unknown() {
   reset_fakes
-  local d out
-  d=$(new_case passed-unreadable-gitea-pr)
-  make_repo_on_branch "$d/wt" fm/feat-dgiteaunknown
+  local d url out
+  d=$(new_case passed-unreadable-gerrit-change)
+  url=https://review.internal/c/group/apps/console/+/4202
+  make_repo_on_branch "$d/wt" fm/feat-dgerritunknown
   make_fakebin "$d" >/dev/null
-  fm_write_meta "$d/state/feat-dgiteaunknown.meta" \
-    "window=fm:fm-feat-dgiteaunknown" "worktree=$d/wt" "kind=ship" \
-    "pr=https://gitea.example/acme/widgets/pulls/14"
-  FM_FAKE_GITEA_READ_FAIL=1
-  FM_FAKE_AXI_STATUS="$(run_passed_with_pr fm/feat-dgiteaunknown https://gitea.example/acme/widgets/pulls/14)"
-  out=$(run_crew_state "$d" feat-dgiteaunknown)
-  assert_contains "$out" "run passed: PR state unknown (unreadable)" "failed Gitea read is honest unknown"
-  assert_not_contains "$out" "PR merged" "failed Gitea read must not be reported merged"
-  pass "terminal passed run handles failed Gitea read"
+  fm_write_meta "$d/state/feat-dgerritunknown.meta" "window=fm:fm-feat-dgerritunknown" \
+    "worktree=$d/wt" "kind=ship" "pr=$url"
+  FM_FAKE_GERRIT_READ_FAIL=1
+  FM_FAKE_AXI_STATUS="$(run_passed_with_pr fm/feat-dgerritunknown "$url")"
+  out=$(run_crew_state "$d" feat-dgerritunknown)
+  assert_contains "$out" "run passed: PR state unknown (unreadable)" "failed Gerrit read is honest unknown"
+  assert_not_contains "$out" "PR merged" "failed Gerrit read must not be reported merged"
+
+  # A record naming another change can never answer for this one, however the
+  # server came to return it. The change number is the whole identity of the
+  # match, so a wrong one is an unreadable record rather than a merge.
+  reset_fakes
+  FM_FAKE_GERRIT_STATUS=MERGED
+  FM_FAKE_GERRIT_CHANGE=4203
+  FM_FAKE_AXI_STATUS="$(run_passed_with_pr fm/feat-dgerritunknown "$url")"
+  out=$(run_crew_state "$d" feat-dgerritunknown)
+  assert_contains "$out" "run passed: PR state unknown (unreadable)" "mismatched Gerrit record is honest unknown"
+  assert_not_contains "$out" "PR merged" "another change's merged record must not report merged"
+  pass "terminal passed run handles an unreadable or mismatched Gerrit read"
 }
 
 test_terminal_failed() {
@@ -1923,7 +1926,7 @@ EOF
   assert_contains "$out" 'run cancelled: no verdict' "$scenario cancellation outweighs interrupted steps"
   assert_not_contains "$out" 'state: failed' "$scenario cancellation is not a failure"
   assert_not_contains "$out" 'held for merge' "$scenario has no positive delivery evidence"
-  summary=$(PATH="$d/fakebin:$PATH" MY_FM_HOME="$d" FM_ROOT_OVERRIDE="$d/fixture-root" \
+  summary=$(PATH="$d/fakebin:$PATH" FM_HOME="$d" FM_ROOT_OVERRIDE="$d/fixture-root" \
     "$ROOT/bin/fm-fleet-snapshot.sh" --secondmate-home-summary)
   printf '%s' "$summary" | jq -e '
     .state == "unknown" and .valid == false
@@ -3197,7 +3200,7 @@ SH
 }
 
 run_remote_crew_state() {  # <case-dir> <id>
-  PATH="$1/fakebin:$PATH" MY_FM_HOME="$1" FM_STATE_OVERRIDE="$1/state" \
+  PATH="$1/fakebin:$PATH" FM_HOME="$1" FM_STATE_OVERRIDE="$1/state" \
     FM_SSH_BIN="$1/fakebin/fake-ssh" "$CREW_STATE" "$2"
 }
 
@@ -3890,14 +3893,12 @@ test_capped_overview_without_branch_rows_reports_both_ids() {
   pass 'same-branch identity survives both runs falling outside the overview'
 }
 
-# Real `no-mistakes axi` overview truncation carries no `repo: ` identity
-# line at all (tests/captures/no-mistakes-v1.70.1/overview.toon, captured
-# 2026-09-20): only `count:`/`runs[...]:`. A branch with zero rows anywhere
-# in a capped overview must still read as truthfully absent from that real
-# shape, not as an unreadable table.
-test_capped_overview_without_repo_line_and_no_runs_reports_absent() {
+# A branch with zero rows anywhere in a capped overview must read as
+# truthfully absent, not as an unreadable table: the rebuilt zero-row
+# inventory re-parses as `runs[0]`.
+test_capped_overview_with_no_branch_runs_reports_absent() {
   reset_fakes
-  local d; d=$TMP_ROOT/capped-no-repo-line-no-runs
+  local d; d=$TMP_ROOT/capped-no-branch-runs
   mkdir -p "$d/state"
   make_repo_on_branch "$d/wt" fm/orphan-branch
   make_fakebin "$d" >/dev/null
@@ -3906,6 +3907,7 @@ test_capped_overview_without_repo_line_and_no_runs_reports_absent() {
   mkdir -p "$NM_HOME"
   local head; head=$(git -C "$d/wt" rev-parse --short=8 HEAD)
   FM_FAKE_AXI_HOME=$(python3 - "$NM_HOME/state.sqlite" "$d/wt" "$head" <<'PY'
+import json
 import sqlite3
 import sys
 
@@ -3920,7 +3922,7 @@ with sqlite3.connect(database) as db:
     db.executemany("INSERT INTO runs VALUES (?, ?, ?, ?, ?, ?)",
                     [("01OTHER%02d" % i, "repo", "fm/other-%d" % i, "running", head, i)
                      for i in range(11)])
-# Genuine captured shape: no `repo: ` line, ever.
+print("repo: " + json.dumps(worktree))
 print("count: 10 of 11 total")
 print("runs[10]{id,branch,status,head,pr}:")
 for i in range(10):
@@ -3933,14 +3935,14 @@ PY
   "$ROOT/bin/fm-busy-event.sh" apply "$d/state" orphan busy --gen "$gen" \
     --source claude-hook --event user-prompt-submit
   local out; out=$(run_crew_state "$d" orphan)
-  assert_not_contains "$out" "state: unknown" 'a zero-row branch in a repo-line-free capped overview is absent, not unreadable'
-  assert_not_contains "$out" "unreadable" 'the missing repo: line must not read as an unreadable table'
+  assert_not_contains "$out" "state: unknown" 'a zero-row branch in a capped overview is absent, not unreadable'
+  assert_not_contains "$out" "unreadable" 'a zero-row branch must not read as an unreadable table'
   assert_contains "$out" "state: working" 'absence of a run falls through to the pane/busy verdict'
   assert_contains "$out" "source: pane" 'the working verdict still comes from the pane source'
-  pass 'a capped overview with no repo: line and zero same-branch rows reports absent, not unreadable'
+  pass 'a capped overview with zero same-branch rows reports absent, not unreadable'
 }
 
-# The same real capped shape, but reached through the code path that actually
+# The same capped shape, but reached through the code path that actually
 # consumes the same-branch selection: fm-crew-state only consults the overview
 # once `axi status` answers with a run, so a branch of its own with no run at
 # all is only reported while SOME run exists elsewhere. Pre-fix this read
@@ -3957,6 +3959,7 @@ test_no_branch_run_beside_a_live_run_elsewhere_reads_absent() {
   mkdir -p "$NM_HOME"
   local head; head=$(git -C "$d/wt" rev-parse HEAD)
   FM_FAKE_AXI_HOME=$(python3 - "$NM_HOME/state.sqlite" "$d/wt" "$head" <<'PY'
+import json
 import sqlite3
 import sys
 
@@ -3971,7 +3974,7 @@ with sqlite3.connect(database) as db:
     db.executemany("INSERT INTO runs VALUES (?, ?, ?, ?, ?, ?)",
                    [("01OTHER%02d" % i, "repo", "fm/other-%d" % i, "running", head, i)
                     for i in range(11)])
-# Genuine captured shape: no `repo: ` line, ever.
+print("repo: " + json.dumps(worktree))
 print("count: 10 of 11 total")
 print("runs[10]{id,branch,status,head,pr}:")
 for i in range(10):
@@ -4016,18 +4019,96 @@ SH
   pass 'the capped inventory reader is bounded by the crew read budget'
 }
 
-# Repo identity is looked up by the exact recorded `working_path`; a worktree
-# spelled differently from the registered row is not guessed at, and reads as
-# an unreadable inventory that still names every candidate run id.
-test_capped_inventory_requires_exact_worktree_path() {
+# Repo identity is the overview's own `repo:` line matched exactly against the
+# recorded `working_path`; a spelling the inventory does not record is not
+# guessed at, and reads as an unreadable inventory that still names every
+# candidate run id.
+test_capped_inventory_requires_exact_repo_path() {
   make_capped_runs_case capped-noncanonical running pending hidden
   local d=$TMP_ROOT/capped-noncanonical out
-  fm_write_meta "$d/state/competing.meta" "window=fm:fm-competing" "worktree=$d/wt/./" "kind=ship"
+  FM_FAKE_AXI_HOME=$(printf '%s\n' "$FM_FAKE_AXI_HOME" | sed "s|^repo: .*|repo: \"$d/wt/./\"|")
   out=$(run_crew_state "$d" competing)
-  assert_contains "$out" 'state: unknown' 'an unmatched worktree spelling cannot establish a verdict'
+  assert_contains "$out" 'state: unknown' 'an unmatched repo spelling cannot establish a verdict'
   assert_contains "$out" 'unreadable' 'an unmatched repo lookup reports the inventory unreadable'
+  assert_contains "$out" '01NEW' 'an unmatched repo lookup still names the candidate run'
   assert_not_contains "$out" 'absent' 'an unmatched repo lookup never reads as a branch without runs'
-  pass 'a worktree spelling the inventory does not record reads unreadable'
+  pass 'a repo spelling the inventory does not record reads unreadable'
+}
+
+# The 2026-09-22 PR #5317 shape on no-mistakes v1.79.0. A task copy is a linked
+# git worktree of its home clone, and the CLI registers the repository once, by
+# the clone's path, which the overview reports as `repo:`. Past ten runs the
+# overview is capped, so selection goes through the inventory reader, which must
+# key on that `repo:` line: keyed on the task worktree path it matched no row and
+# every read reported the inventory unreadable. The run is in ci merge
+# monitoring with every check green, and main advanced while it waited for the
+# merge, so its ci log ends in re-arm lines. It must read as a green PR held for
+# the merge decision, naming the PR, rather than unknown or still validating.
+test_linked_worktree_green_merge_monitoring_reads_held_for_merge() {
+  reset_fakes
+  local d out overview
+  d=$(new_case linked-worktree-green)
+  mkdir -p "$d/clone"
+  git -C "$d/clone" init -q
+  git -C "$d/clone" commit -q --allow-empty -m init
+  git -C "$d/clone" worktree add -q -b fm/feat-green "$d/wt"
+  FM_FAKE_RUN_HEAD=$(git -C "$d/wt" rev-parse HEAD)
+  export FM_FAKE_RUN_HEAD
+  make_fakebin "$d" >/dev/null
+  fm_write_meta "$d/state/feat-green.meta" "window=fm:fm-feat-green" "worktree=$d/wt" "kind=ship"
+  NM_HOME="$d/nm"
+  mkdir -p "$NM_HOME"
+  overview=$(python3 - "$NM_HOME/state.sqlite" "$d/clone" "$FM_FAKE_RUN_HEAD" <<'PY'
+import json
+import sqlite3
+import sys
+
+database, clone, head = sys.argv[1:]
+pr = "https://github.com/o/r/pull/2"
+with sqlite3.connect(database) as db:
+    db.executescript("""
+        CREATE TABLE repos (id TEXT PRIMARY KEY, working_path TEXT NOT NULL UNIQUE);
+        CREATE TABLE runs (id TEXT PRIMARY KEY, repo_id TEXT NOT NULL, branch TEXT NOT NULL,
+                           status TEXT NOT NULL, head_sha TEXT NOT NULL, created_at INTEGER NOT NULL);
+    """)
+    db.execute("INSERT INTO repos VALUES ('repo', ?)", (clone,))
+    db.execute("INSERT INTO runs VALUES ('01GREEN', 'repo', 'fm/feat-green', 'running', ?, 100)", (head,))
+    db.executemany("INSERT INTO runs VALUES (?, ?, ?, ?, ?, ?)",
+                   [("01DONE%02d" % i, "repo", "fm/done-%d" % i, "completed", head, i)
+                    for i in range(11)])
+print("repo: " + json.dumps(clone))
+print("current_branch: fm/feat-green")
+print("daemon: running")
+print("count: 10 of 12 total")
+print("runs[10]{id,branch,status,head,pr}:")
+print('  "01GREEN",fm/feat-green,running,%s,"%s"' % (head[:8], pr))
+for i in reversed(range(2, 11)):
+    print('  "01DONE%02d",fm/done-%d,completed,%s,""' % (i, i, head[:8]))
+PY
+) || fail 'could not create the linked-worktree run inventory fixture'
+  # Guard the divergence this case exists for, so it cannot go vacuous.
+  [ "$(git -C "$d/wt" rev-parse --show-toplevel)" != "$(git -C "$d/clone" rev-parse --show-toplevel)" ] \
+    || fail 'the fixture task copy must not be the registered clone'
+  assert_contains "$overview" 'count: 10 of 12 total' 'the fixture overview must be capped'
+  FM_FAKE_AXI_HOME=$overview
+  FM_FAKE_AXI_STATUS="$(run_ci_monitoring fm/feat-green | sed 's/01RUN/01GREEN/')"
+  FM_FAKE_AXI_STATUS_RUN=$FM_FAKE_AXI_STATUS
+  FM_FAKE_CI_LOGS=$(cat <<'EOF'
+monitoring CI for PR #2 (timeout: 4h0m0s)...
+CI checks running, waiting for results...
+all CI checks passed - still monitoring until merged or closed
+base branch advanced (f9f74a1d91cc..6f0f139962ea), re-arming CI monitor timeout
+base branch advanced (6f0f139962ea..c5131a33a1b2), re-arming CI monitor timeout
+EOF
+)
+  out=$(run_crew_state "$d" feat-green)
+  assert_not_contains "$out" 'unreadable' 'a linked worktree reads its run through the repo line'
+  assert_not_contains "$out" 'state: unknown' 'a green PR in merge monitoring is never unknown'
+  assert_contains "$out" 'state: done' 'a green PR in merge monitoring reads done'
+  assert_contains "$out" 'source: run-step' 'the green reading comes from the selected run'
+  assert_contains "$out" 'checks green: PR ready for review' 'the reading is held for the merge decision'
+  assert_contains "$out" 'https://github.com/o/r/pull/2' 'the reading names the PR to ask about'
+  pass 'a linked worktree green PR in merge monitoring reads held for merge'
 }
 
 test_capped_replacement_keeps_gate_and_inventory_unchanged() {
@@ -5473,9 +5554,9 @@ test_terminal_passed_without_readable_pr_identity_reports_unknown
 test_terminal_passed_with_open_gitlab_mr_does_not_claim_merged
 test_terminal_passed_with_merged_gitlab_mr_reports_merged
 test_terminal_passed_with_failed_gitlab_read_reports_unknown
-test_terminal_passed_with_merged_gitea_pr_reports_merged
-test_terminal_passed_with_open_gitea_pr_does_not_claim_merged
-test_terminal_passed_with_failed_gitea_read_reports_unknown
+test_terminal_passed_with_open_gerrit_change_does_not_claim_merged
+test_terminal_passed_with_merged_gerrit_change_reports_merged
+test_terminal_passed_with_unreadable_gerrit_change_reports_unknown
 test_terminal_failed
 test_terminal_failed_ci_orphan_after_green_reads_done
 test_terminal_failed_ci_orphan_status_only_reads_done
@@ -5548,10 +5629,11 @@ test_no_run_herdr_stale_registration_over_shell_reads_agent_gone
 test_no_run_herdr_stale_working_record_is_never_busy
 test_capped_competing_live_runs_report_both_ids
 test_capped_overview_without_branch_rows_reports_both_ids
-test_capped_overview_without_repo_line_and_no_runs_reports_absent
+test_capped_overview_with_no_branch_runs_reports_absent
 test_no_branch_run_beside_a_live_run_elsewhere_reads_absent
 test_capped_inventory_reader_is_time_bounded
-test_capped_inventory_requires_exact_worktree_path
+test_capped_inventory_requires_exact_repo_path
+test_linked_worktree_green_merge_monitoring_reads_held_for_merge
 test_capped_replacement_keeps_gate_and_inventory_unchanged
 test_capped_inventory_failures_report_unknown
 test_complete_inventory_ignores_unrelated_semantics

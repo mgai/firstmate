@@ -237,14 +237,6 @@ if [ "${#ALLOW_MISSING[@]}" -gt 0 ] && [ "$PROVIDER" = gitlab ]; then
   exit 2
 fi
 
-gitea_host_url() {
-  printf '%s' "$PR_HOST"
-}
-
-gitea_repo_arg() {
-  printf '%s' "$PR_PATH"
-}
-
 caller_has_merge_method() {
   local arg
   for arg in "$@"; do

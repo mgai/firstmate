@@ -156,6 +156,7 @@ fm_pr_gitea_host_valid() {
   esac
   host=${authority%%:*}
   [ -n "$host" ] || return 1
+  [ "$host" != github.com ] || return 1
   case "$host" in
     localhost|[A-Za-z0-9.-]*) ;;
     *) return 1 ;;

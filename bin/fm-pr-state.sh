@@ -59,10 +59,12 @@ if [ "$FM_PR_PROVIDER" = gitea ]; then
   mergeable=$(printf '%s' "$view" | jq -r '.mergeable // ""') || die "Gitea returned incomplete pull-request state for $URL"
   [ -n "$state" ] && [ -n "$merged" ] && [ -n "$mergeable" ] \
     || die "Gitea returned incomplete pull-request state for $URL"
-  if [ "$merged" = yes ]; then
-    printf 'STATE: merged\n'
-    exit 0
-  fi
+  case "$merged" in
+    true|yes)
+      printf 'STATE: merged\n'
+      exit 0
+      ;;
+  esac
   if [ "$state" != open ]; then
     printf 'STATE: %s\n' "$state"
     exit 0

@@ -43,13 +43,47 @@ if [ "${1:-}" = --help ] || [ "${1:-}" = -h ]; then
   exit 0
 fi
 [ "$#" -eq 1 ] || die "usage: fm-pr-state.sh <pr-url>"
-command -v gh >/dev/null 2>&1 || die "gh is required"
 
 URL=$1
-if ! fm_pr_url_parse "$URL" || [ "$FM_PR_PROVIDER" != github ]; then
-  die "expected a GitHub pull-request URL"
+fm_pr_url_parse "$URL" || die "expected a GitHub pull-request URL"
+
+if [ "$FM_PR_PROVIDER" = gitea ]; then
+  command -v gitea-axi >/dev/null 2>&1 || die "gitea-axi is required for a Gitea pull request"
+  command -v jq >/dev/null 2>&1 || die "jq is required for a Gitea pull request"
+  owner=$FM_PR_OWNER
+  repo=$FM_PR_REPO
+  view=$(gitea-axi pr view "$FM_PR_NUMBER" --repo "$owner/$repo" \
+    --host "$FM_PR_HOST" --json) || die "could not read $URL"
+  state=$(printf '%s' "$view" | jq -r '.state // ""') || die "Gitea returned incomplete pull-request state for $URL"
+  merged=$(printf '%s' "$view" | jq -r 'if has("merged") and .merged != null then .merged else "" end') || die "Gitea returned incomplete pull-request state for $URL"
+  mergeable=$(printf '%s' "$view" | jq -r '.mergeable // ""') || die "Gitea returned incomplete pull-request state for $URL"
+  [ -n "$state" ] && [ -n "$merged" ] && [ -n "$mergeable" ] \
+    || die "Gitea returned incomplete pull-request state for $URL"
+  case "$merged" in
+    true|yes)
+      printf 'STATE: merged\n'
+      exit 0
+      ;;
+  esac
+  if [ "$state" != open ]; then
+    printf 'STATE: %s\n' "$state"
+    exit 0
+  fi
+  [ "$mergeable" = yes ] || printf 'MERGEABILITY: %s\n' "$mergeable"
+  checks=$(gitea-axi pr checks "$FM_PR_NUMBER" --repo "$owner/$repo" \
+    --host "$FM_PR_HOST" --json) || die "could not read checks for $URL"
+  summary=$(printf '%s' "$checks" | jq -r '.summary // ""') || die "Gitea returned incomplete check state for $URL"
+  case "$summary" in
+    failing*) printf 'CHECKS: failing\n' ;;
+    pending*) printf 'CHECKS: pending\n' ;;
+    passing*|none*) ;;
+    *) die "Gitea returned invalid check state for $URL" ;;
+  esac
+  exit 0
 fi
 
+[ "$FM_PR_PROVIDER" = github ] || die "expected a GitHub or Gitea pull-request URL"
+command -v gh >/dev/null 2>&1 || die "gh is required"
 PATH_PART=$FM_PR_PATH
 NUMBER=$FM_PR_NUMBER
 ENDPOINT="/repos/$PATH_PART/pulls/$NUMBER"

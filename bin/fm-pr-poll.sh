@@ -5,10 +5,10 @@
 # otherwise, including on every error, so a failed lookup can never be read as
 # a merge. The provider-tagged identity is data in the sidecar and is never
 # interpolated into this source: these bytes are identical for every task.
-# Each provider is read through its own standard CLI, gh for GitHub, glab for
-# GitLab, and gerrit-axi for Gerrit, so an upstream checkout needs no extra
-# tooling to follow the first two. The Gerrit branch additionally needs jq,
-# which bin/fm-pr-check.sh refuses to arm a Gerrit watch without.
+# Each provider is read through its own CLI: gh for GitHub, glab for GitLab,
+# and gitea-axi for Gitea. Provider errors stay silent so a failed lookup can
+# never be read as a merge, while the registration entrypoint reports missing
+# provider tooling before arming a poll.
 set -u
 LC_ALL=C
 export LC_ALL
@@ -67,6 +67,37 @@ case "$provider" in
     [ "$url" = "https://github.com/$owner/$repo/pull/$number" ] || exit 0
     state=$(gh pr view "$url" --json state -q .state 2>/dev/null) || exit 0
     [ "$state" = MERGED ] && printf '%s\n' merged
+    ;;
+  gitea)
+    case "$host" in
+      http://*|https://*) ;;
+      *) exit 0 ;;
+    esac
+    authority=${host#*://}
+    case "$authority" in
+      ''|*/|*/*|*@*|*[!A-Za-z0-9.:-]*) exit 0 ;;
+    esac
+    [ "$authority" != github.com ] || exit 0
+    owner=${path%%/*}
+    repo=${path#*/}
+    [ -n "$owner" ] && [ -n "$repo" ] && [ "$owner" != "$path" ] || exit 0
+    case "$owner" in
+      .|..|*[!A-Za-z0-9._-]*) exit 0 ;;
+    esac
+    case "$repo" in
+      .|..|*[!A-Za-z0-9._-]*) exit 0 ;;
+    esac
+    [ "$url" = "$host/$owner/$repo/pulls/$number" ] || exit 0
+    command -v gitea-axi >/dev/null 2>&1 || exit 0
+    command -v jq >/dev/null 2>&1 || exit 0
+    json=$(gitea-axi pr view "$number" --repo "$owner/$repo" --host "$host" --json 2>/dev/null) || exit 0
+    if printf '%s' "$json" | jq -e '
+        type == "object"
+        and (.sha | type == "string" and test("^[0-9a-f]{40}$|^[0-9a-f]{64}$"))
+        and (.merged == true or .merged == "yes" or .merged == "true")' \
+        >/dev/null 2>&1; then
+      printf '%s\n' merged
+    fi
     ;;
   gitlab)
     [ "${#host}" -ge 1 ] && [ "${#host}" -le 253 ] || exit 0

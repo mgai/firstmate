@@ -462,7 +462,7 @@ EOF
 # seed instead of arriving as an empty mode that passes every posture guard.
 registered_posture_line() {  # <project>
   local project=$1 line
-  line=$(FM_HOME="$FM_HOME" FM_DATA_OVERRIDE="$DATA" "$FM_ROOT/bin/fm-project-mode.sh" "$project") || {
+  line=$(MY_FM_HOME="$MY_FM_HOME" FM_DATA_OVERRIDE="$DATA" "$FM_ROOT/bin/fm-project-mode.sh" "$project") || {
     echo "error: project $project does not resolve to a delivery posture (see the refusal above); correct $DATA/projects.md" >&2
     return 1
   }

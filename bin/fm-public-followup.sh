@@ -228,7 +228,7 @@ tx() { MY_FM_HOME="$MY_FM_HOME" FM_DATA_OVERRIDE='' "$SCRIPT_DIR/fm-tasks-axi.sh
 # obligation_json <id>: this home's typed obligation payload, through the shared
 # reader every consumer of the promised contract uses. tasks-axi stays the
 # single source of truth; the registration record is never consulted for state.
-obligation_json() { fm_pf_obligation_json "$FM_HOME" "$1"; }
+obligation_json() { fm_pf_obligation_json "$MY_FM_HOME" "$1"; }
 
 pf_field() { printf '%s' "$1" | jq -r "$2 // empty" 2>/dev/null; }
 

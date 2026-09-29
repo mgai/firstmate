@@ -175,7 +175,7 @@ mkdir -p "$STATE"
 # A home that never existed (a state-only test fixture) is not a home that
 # disappeared, so the per-poll home-gone exit below applies only when it did.
 WATCH_HOME_EXISTED=0
-[ ! -d "$FM_HOME" ] || WATCH_HOME_EXISTED=1
+[ ! -d "$MY_FM_HOME" ] || WATCH_HOME_EXISTED=1
 
 # The native event fast-path and only its true dependencies have one narrow
 # production owner. The Herdr event-wait smoke test consumes this same owner
@@ -2366,7 +2366,7 @@ fi
 # Succeeds only once the holder has exited within the bounded wait.
 evict_stalled_holder() {
   local pid=$1 i=0
-  fm_watcher_lock_matches_pid "$STATE" "$WATCH_PATH" "$pid" "$FM_HOME" || return 1
+  fm_watcher_lock_matches_pid "$STATE" "$WATCH_PATH" "$pid" "$MY_FM_HOME" || return 1
   kill -TERM "$pid" 2>/dev/null || return 1
   while [ "$i" -lt 50 ] && fm_pid_alive "$pid"; do
     sleep 0.1
@@ -2606,8 +2606,8 @@ while :; do
   # with no holder at all is read as the same teardown: only a fresh watcher
   # ever recreates the lock, and that case is the self-eviction below.
   # Scoped to this process alone: no other watcher is signalled.
-  if [ "$WATCH_HOME_EXISTED" -eq 1 ] && [ ! -d "$FM_HOME" ]; then
-    echo "watcher: exiting - home no longer exists: $FM_HOME" >&2
+  if [ "$WATCH_HOME_EXISTED" -eq 1 ] && [ ! -d "$MY_FM_HOME" ]; then
+    echo "watcher: exiting - home no longer exists: $MY_FM_HOME" >&2
     exit 1
   elif [ ! -d "$STATE" ]; then
     echo "watcher: exiting - state directory no longer exists: $STATE" >&2
@@ -2636,7 +2636,7 @@ while :; do
 
   # Opt-in fleet activity ledger (docs/fleet-ledger.md): pick up newly appended
   # status lines before this cycle can exit on a wake. Off costs one file test.
-  [ ! -e "$CONFIG/fleet-ledger" ] || FM_HOME=$FM_HOME FM_STATE_OVERRIDE=$STATE FM_CONFIG_OVERRIDE=$CONFIG "$SCRIPT_DIR/fm-fleet-ledger.sh" capture || true
+  [ ! -e "$CONFIG/fleet-ledger" ] || MY_FM_HOME=$MY_FM_HOME FM_STATE_OVERRIDE=$STATE FM_CONFIG_OVERRIDE=$CONFIG "$SCRIPT_DIR/fm-fleet-ledger.sh" capture || true
 
   if [ "$(age_of "$STATE/home-summary.json")" -ge "$HOME_SUMMARY_INTERVAL" ]; then
     home_summary_refresh_detached

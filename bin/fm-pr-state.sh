@@ -45,7 +45,7 @@ fi
 [ "$#" -eq 1 ] || die "usage: fm-pr-state.sh <pr-url>"
 
 URL=$1
-fm_pr_url_parse "$URL" || die "expected a supported pull-request URL"
+fm_pr_url_parse "$URL" || die "expected a GitHub pull-request URL"
 
 if [ "$FM_PR_PROVIDER" = gitea ]; then
   command -v gitea-axi >/dev/null 2>&1 || die "gitea-axi is required for a Gitea pull request"
@@ -55,7 +55,7 @@ if [ "$FM_PR_PROVIDER" = gitea ]; then
   view=$(gitea-axi pr view "$FM_PR_NUMBER" --repo "$owner/$repo" \
     --host "$FM_PR_HOST" --json) || die "could not read $URL"
   state=$(printf '%s' "$view" | jq -r '.state // ""') || die "Gitea returned incomplete pull-request state for $URL"
-  merged=$(printf '%s' "$view" | jq -r '.merged // ""') || die "Gitea returned incomplete pull-request state for $URL"
+  merged=$(printf '%s' "$view" | jq -r 'if has("merged") and .merged != null then .merged else "" end') || die "Gitea returned incomplete pull-request state for $URL"
   mergeable=$(printf '%s' "$view" | jq -r '.mergeable // ""') || die "Gitea returned incomplete pull-request state for $URL"
   [ -n "$state" ] && [ -n "$merged" ] && [ -n "$mergeable" ] \
     || die "Gitea returned incomplete pull-request state for $URL"
@@ -76,7 +76,7 @@ if [ "$FM_PR_PROVIDER" = gitea ]; then
   case "$summary" in
     failing*) printf 'CHECKS: failing\n' ;;
     pending*) printf 'CHECKS: pending\n' ;;
-    passing*) ;;
+    passing*|none*) ;;
     *) die "Gitea returned invalid check state for $URL" ;;
   esac
   exit 0

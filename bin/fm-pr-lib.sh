@@ -201,7 +201,7 @@ fm_pr_gerrit_path_valid() {
   local path=${1-} segment
   local LC_ALL=C
   local -a segments
-  [ "${#path}" -ge 3 ] && [ "${#path}" -le 1024 ] || return 1
+  [ "${#path}" -ge 1 ] && [ "${#path}" -le 1024 ] || return 1
   case "$path" in
     /*|*/|*//*) return 1 ;;
   esac
@@ -210,7 +210,7 @@ fm_pr_gerrit_path_valid() {
   for segment in "${segments[@]}"; do
     [ "${#segment}" -ge 1 ] && [ "${#segment}" -le 255 ] || return 1
     case "$segment" in
-      .|..|-*|*.git|*.atom|*[!A-Za-z0-9._-]*) return 1 ;;
+      .|..|-*|*.git|*[!A-Za-z0-9._-]*) return 1 ;;
     esac
   done
 }

@@ -193,6 +193,20 @@ case "${1:-} ${2:-}" in
 esac
 exit 1
 SH
+  cat > "$fb/gerrit-axi" <<'SH'
+#!/usr/bin/env bash
+set -u
+case "${1:-}" in
+  show)
+    [ -z "${FM_FAKE_GERRIT_READ_LOG:-}" ] || printf '%s\n' "$*" >> "$FM_FAKE_GERRIT_READ_LOG"
+    [ "${FM_FAKE_GERRIT_READ_FAIL:-0}" = 1 ] && exit 1
+    printf '{"ok":true,"op":"show","changes":[{"change":%s,"subject":"fixture change","status":"%s","url":%s}]}\n' \
+      "${FM_FAKE_GERRIT_CHANGE:-${2:-0}}" "${FM_FAKE_GERRIT_STATUS:-MERGED}" \
+      "${FM_FAKE_GERRIT_URL_JSON:-null}"
+    exit 0 ;;
+esac
+exit 1
+SH
   cat > "$fb/tmux" <<'SH'
 #!/usr/bin/env bash
 set -u
@@ -273,7 +287,7 @@ case "${1:-}" in
 esac
 exit 0
 SH
-  chmod +x "$fb/no-mistakes" "$fb/gh" "$fb/gh-axi" "$fb/glab" "$fb/gitea-axi" "$fb/tmux" "$fb/herdr"
+  chmod +x "$fb/no-mistakes" "$fb/gh" "$fb/gh-axi" "$fb/glab" "$fb/gitea-axi" "$fb/gerrit-axi" "$fb/tmux" "$fb/herdr"
   printf '%s\n' "$fb"
 }
 
@@ -291,7 +305,7 @@ make_no_timeout_toolbin() {  # <dir> -> echoes toolbin path
 # Run the helper for one case dir. FM_FAKE_* env (run output, busy flag) are read
 # from the caller's environment by the fakes above.
 run_crew_state() {  # <case-dir> <id>
-  PATH="$1/fakebin:$PATH" FM_STATE_OVERRIDE="$1/state" "$CREW_STATE" "$2"
+  PATH="$1/fakebin:$PATH" MY_FM_HOME="$1" FM_STATE_OVERRIDE="$1/state" "$CREW_STATE" "$2"
 }
 
 new_case() {  # <name> -> echoes case dir with an empty state/
@@ -347,6 +361,11 @@ reset_fakes() {
   FM_FAKE_GITEA_MERGED=yes
   FM_FAKE_GITEA_READ_FAIL=0
   FM_FAKE_GITEA_READ_LOG=
+  FM_FAKE_GERRIT_STATUS=MERGED
+  FM_FAKE_GERRIT_CHANGE=
+  FM_FAKE_GERRIT_URL_JSON=
+  FM_FAKE_GERRIT_READ_FAIL=0
+  FM_FAKE_GERRIT_READ_LOG=
   unset FM_FAKE_PR_47_STATE FM_FAKE_PR_47_MERGED FM_FAKE_PR_48_STATE FM_FAKE_PR_48_MERGED
   export FM_FAKE_AXI_STATUS FM_FAKE_AXI_STATUS_RUN FM_FAKE_RUNS_LIST FM_FAKE_BUSY FM_FAKE_BUSY_TEXT FM_FAKE_TMUX_MISSING FM_FAKE_TMUX_UNREADABLE
   export FM_FAKE_HERDR_BUSY FM_FAKE_HERDR_MISSING FM_FAKE_HERDR_READ_FAIL FM_FAKE_HERDR_HUSK FM_FAKE_HERDR_AGENT_STATUS FM_FAKE_HERDR_PROCESS FM_FAKE_HERDR_SHELL_PID FM_FAKE_CI_LOGS
@@ -355,6 +374,8 @@ reset_fakes() {
   export FM_FAKE_PR_STATE FM_FAKE_PR_MERGED FM_FAKE_PR_READ_FAIL FM_FAKE_PR_READ_LOG FM_FAKE_PR_STATE_AXI
   export FM_FAKE_GLAB_STATE FM_FAKE_GLAB_READ_FAIL FM_FAKE_GLAB_READ_LOG
   export FM_FAKE_GITEA_STATE FM_FAKE_GITEA_MERGED FM_FAKE_GITEA_READ_FAIL FM_FAKE_GITEA_READ_LOG
+  export FM_FAKE_GERRIT_STATUS FM_FAKE_GERRIT_CHANGE FM_FAKE_GERRIT_URL_JSON
+  export FM_FAKE_GERRIT_READ_FAIL FM_FAKE_GERRIT_READ_LOG
   export FM_FAKE_PR_47_STATE FM_FAKE_PR_47_MERGED FM_FAKE_PR_48_STATE FM_FAKE_PR_48_MERGED
 }
 
@@ -1902,7 +1923,7 @@ EOF
   assert_contains "$out" 'run cancelled: no verdict' "$scenario cancellation outweighs interrupted steps"
   assert_not_contains "$out" 'state: failed' "$scenario cancellation is not a failure"
   assert_not_contains "$out" 'held for merge' "$scenario has no positive delivery evidence"
-  summary=$(PATH="$d/fakebin:$PATH" FM_HOME="$d" FM_ROOT_OVERRIDE="$d/fixture-root" \
+  summary=$(PATH="$d/fakebin:$PATH" MY_FM_HOME="$d" FM_ROOT_OVERRIDE="$d/fixture-root" \
     "$ROOT/bin/fm-fleet-snapshot.sh" --secondmate-home-summary)
   printf '%s' "$summary" | jq -e '
     .state == "unknown" and .valid == false
